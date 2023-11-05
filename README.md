@@ -4,14 +4,18 @@
 
 Croner is a lightweight, efficient Rust library for parsing and handling cron patterns. Designed with simplicity and performance in mind, it provides Rust developers with a tool to schedule tasks efficiently, following the familiar cron syntax.
 
-This is the **Work in progress** Rust flavor of the popular JavaScript/TypeScript cron scheduler [https://github.com/hexagon/croner](croner).
+This is the **Work in progress** Rust flavor of the popular JavaScript/TypeScript cron scheduler [croner](https://github.com/hexagon/croner).
 
 ## Features
 
-- Parse standard cron patterns with ease.
-- Validate cron expressions against customizable time ranges.
-- Check if a `DateTime` matches a given cron pattern.
-- Supports last day of month (`L`) field.
+*   Schedule and trigger functions using [Cron](https://en.wikipedia.org/wiki/Cron#CRON_expression) syntax.
+*   Parse and evaluate cron expressions to calculate upcoming execution times.
+*   Supports extended Vixie-cron patterns with additional specifiers such as `L` for the last day and weekday of the month, and `#` for the nth weekday of the month.
+*   Manage scheduling across different time zones.
+*   Includes overrun protection to prevent jobs from overlapping in a concurrent environment.
+*   Robust error handling.
+*   Control execution flow with the ability to pause, resume, or stop scheduled tasks.
+*   Operates in-memory without the need for persistent storage or configuration files.
 
 ## Getting Started
 
