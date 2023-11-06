@@ -37,7 +37,7 @@ croner = "7.0.5" # Adjust the version as necessary
 Here's a quick example to get you started:
 
 ```rust
-use croner::CronPattern;
+use croner::pattern::CronPattern;
 use chrono::Local;
 
 fn main() {
@@ -59,6 +59,7 @@ To start developing in the Croner project:
 2. Navigate into the project directory.
 3. Build the project using `cargo build`.
 4. Run tests with `cargo test`.
+5. Run demo with `cargo run --example pattern_demo`
 
 ## Contributing
 
