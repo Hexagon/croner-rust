@@ -1,8 +1,11 @@
 [package]
 name = "croner"
-type = "lib"
-version = "7.0.5"
+version = "0.0.1"
 edition = "2021"
+
+[lib]
+name = "croner"
+path = "src/lib.rs"
 
 [dependencies]
 # chrono = "0.4"
