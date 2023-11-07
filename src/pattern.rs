@@ -117,3 +117,64 @@ impl CronPattern {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cron_pattern_new() {
+        let pattern = CronPattern::new("* */5 * * * *").unwrap();
+        assert_eq!(pattern.pattern, "* */5 * * * *");
+        assert!(pattern.seconds.is_bit_set(5));
+    }
+
+    #[test]
+    fn test_cron_pattern_short() {
+        let pattern = CronPattern::new("5/5 * * * *").unwrap();
+        assert_eq!(pattern.pattern, "5/5 * * * *");
+        assert!(pattern.seconds.is_bit_set(0));
+        assert!(!pattern.seconds.is_bit_set(5));
+        assert!(pattern.minutes.is_bit_set(5));
+        assert!(!pattern.minutes.is_bit_set(0));
+    }
+
+    #[test]
+    fn test_cron_pattern_parse() {
+        let mut pattern = CronPattern::new("*/15 1 1,15 1 1-5").unwrap();
+        assert!(pattern.parse().is_ok());
+        assert!(pattern.minutes.is_bit_set(0));
+        assert!(pattern.hours.is_bit_set(1));
+        assert!(pattern.days.is_bit_set(1) && pattern.days.is_bit_set(15));
+        assert!(
+            pattern.months.is_bit_set(1)
+                && !pattern.months.is_bit_set(2)
+                && !pattern.months.is_bit_set(0)
+        );
+        assert!(pattern.days_of_week.is_bit_set(1) && pattern.days_of_week.is_bit_set(5));
+    }
+
+    #[test]
+    fn test_cron_pattern_extra_whitespace() {
+        let mut pattern = CronPattern::new("  */15  1 1,15 1    1-5    ").unwrap();
+        assert!(pattern.parse().is_ok());
+        assert!(pattern.minutes.is_bit_set(0));
+        assert!(pattern.hours.is_bit_set(1));
+        assert!(pattern.days.is_bit_set(1) && pattern.days.is_bit_set(15));
+        assert!(
+            pattern.months.is_bit_set(1)
+                && !pattern.months.is_bit_set(2)
+                && !pattern.months.is_bit_set(0)
+        );
+        assert!(pattern.days_of_week.is_bit_set(1) && pattern.days_of_week.is_bit_set(5));
+    }
+
+    #[test]
+    fn test_cron_pattern_handle_nicknames() {
+        assert_eq!(CronPattern::handle_nicknames("@yearly"), "0 0 1 1 *");
+        assert_eq!(CronPattern::handle_nicknames("@monthly"), "0 0 1 * *");
+        assert_eq!(CronPattern::handle_nicknames("@weekly"), "0 0 * * 0");
+        assert_eq!(CronPattern::handle_nicknames("@daily"), "0 0 * * *");
+        assert_eq!(CronPattern::handle_nicknames("@hourly"), "0 * * * *");
+    }
+}
