@@ -1,6 +1,5 @@
-// use chrono::{DateTime, Datelike, Local, Timelike, TimeZone};
-
-use crate::component::{CronComponent, LAST_BIT, NONE_BIT, CronComponentError};
+use crate::component::{CronComponent, LAST_BIT, NONE_BIT};
+use crate::errors::CronError;
 
 // This struct is used for representing and validating cron pattern strings.
 // It supports parsing cron patterns with optional seconds field and provides functionality to check pattern matching against specific datetime.
@@ -8,17 +7,17 @@ use crate::component::{CronComponent, LAST_BIT, NONE_BIT, CronComponentError};
 pub struct CronPattern {
     pattern: String, // The original pattern
     //
-    seconds: CronComponent,      // -
-    minutes: CronComponent,      // --
-    hours: CronComponent,        // --- Each individual part of the cron expression
-    days: CronComponent,         // --- represented by a bitmask, min and max value
-    months: CronComponent,       // --
-    days_of_week: CronComponent, // -
+    pub seconds: CronComponent,      // -
+    pub minutes: CronComponent,      // --
+    pub hours: CronComponent,        // --- Each individual part of the cron expression
+    pub days: CronComponent,         // --- represented by a bitmask, min and max value
+    pub months: CronComponent,       // --
+    pub days_of_week: CronComponent, // -
 }
 
 // Implementation block for CronPattern struct, providing methods for creating and parsing cron pattern strings.
 impl CronPattern {
-    pub fn new(pattern: &str) -> Result<Self, &'static str> {
+    pub fn new(pattern: &str) -> Result<Self, CronError> {
         let mut cron_pattern = CronPattern {
             pattern: pattern.to_string(),
             seconds: CronComponent::new(0, 59, NONE_BIT),
@@ -34,9 +33,9 @@ impl CronPattern {
 
     // Parses the cron pattern string into its respective fields.
     // Handles optional seconds field, named shortcuts, and determines if 'L' flag is used for last day of the month.
-    pub fn parse(&mut self) -> Result<(), CronComponentError> {
+    pub fn parse(&mut self) -> Result<(), CronError> {
         if self.pattern.trim().is_empty() {
-            return Err("CronPattern: Pattern cannot be an empty string.");
+            return Err(CronError::EmptyPattern);
         }
 
         if self.pattern.contains('@') {
@@ -45,7 +44,7 @@ impl CronPattern {
 
         let mut parts: Vec<&str> = self.pattern.split_whitespace().collect();
         if parts.len() < 5 || parts.len() > 6 {
-            return Err("Pattern must consist of five or six fields (minute, hour, day, month, day of week, and optional second).");
+            return Err(CronError::InvalidPattern(String::from("Pattern must consist of five or six fields (minute, hour, day, month, day of week, and optional second).")));
         }
 
         if parts.len() == 5 {
@@ -61,15 +60,15 @@ impl CronPattern {
 
         // Handle conversion of 7 to 0 for day_of_week if necessary
         if self.days_of_week.is_bit_set(7) {
-            self.days_of_week.unset_bit(7);
-            self.days_of_week.set_bit(0);
+            self.days_of_week.unset_bit(7)?;
+            self.days_of_week.set_bit(0)?;
         }
 
         Ok(())
     }
 
     // Validates that the cron pattern only contains legal characters for each field.
-    pub fn throw_at_illegal_characters(&self, parts: &[&str]) -> Result<(), &'static str> {
+    pub fn throw_at_illegal_characters(&self, parts: &[&str]) -> Result<(), CronError> {
         // Base allowed characters for most fields
         let base_allowed_characters = [
             '*', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '-',
@@ -95,7 +94,9 @@ impl CronPattern {
 
             for ch in part.chars() {
                 if !allowed.contains(&ch) {
-                    return Err("CronPattern contains illegal characters.");
+                    return Err(CronError::IllegalCharacters(String::from(
+                        "CronPattern contains illegal characters.",
+                    )));
                 }
             }
         }
@@ -115,24 +116,4 @@ impl CronPattern {
             _ => pattern.to_string(),
         }
     }
-
-    /*
-    // Checks if the provided datetime matches the cron pattern fields.
-    // This function takes into account seconds, minutes, hours, days, months, and day of the week, as well as the 'L' flag for last day of the month.
-    pub fn is_time_matching(&self, time: &DateTime<Local>) -> bool {
-        self.second.contains(&(time.second() as u32)) &&
-        self.minute.contains(&(time.minute() as u32)) &&
-        self.hour.contains(&(time.hour() as u32)) &&
-        (self.day.contains(&(time.day() as u32)) || self.last_day_of_month && time.day() == last_day_of_month(time.year(), time.month())) &&
-        self.month.contains(&(time.month() as u32)) &&
-        self.day_of_week.contains(&(time.weekday().number_from_sunday() as u32 - 1))
-    }
-    */
 }
-
-// Helper function to find the last day of a given month
-/*fn last_day_of_month(year: i32, month: u32) -> u32 {
-    chrono::Utc.ymd(year, month + 1, 1)
-        .pred()
-        .day()
-}*/
