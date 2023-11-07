@@ -2,6 +2,14 @@
 name = "croner"
 version = "0.0.1"
 edition = "2021"
+license = "MIT"
+description = "A cron parser and job scheduler library for Rust"
+repository = "https://github.com/hexagon/croner-rust"
+documentation = "https://docs.rs/croner"
+readme = "README.md"
+keywords = ["cron", "scheduler", "job", "task", "time"]
+categories = ["date-and-time", "scheduling"]
+homepage = "https://github.com/hexagon/croner-rust"
 
 [lib]
 name = "croner"

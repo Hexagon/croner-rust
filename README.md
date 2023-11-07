@@ -27,27 +27,49 @@ Ensure you have Rust installed on your machine. If not, you can get it from [the
 
 Add `croner` to your `Cargo.toml` dependencies:
 
+**Please note that croner for Rust is work in progress, and not production ready**
+
 ```toml
 [dependencies]
-croner = "7.0.5" # Adjust the version as necessary
+croner = "0.0.1" # Adjust the version as necessary
 ```
 
 ### Usage
 
 Here's a quick example to get you started:
 
+**Note that this example will require you to add the `chrono` crate**
+
 ```rust
 use croner::pattern::CronPattern;
+use croner::scheduler::CronScheduler;
+
 use chrono::Local;
 
 fn main() {
-    let pattern_str = "0 30 8 * * *"; // Every day at 8:30:00
-    let cron_pattern = CronPattern::new(pattern_str).expect("Pattern should be valid");
+    let pattern_all = "* * * * * *";
+    let pattern_29th_feb_mon = "0 18 0 29 2 1";
 
-    let now = Local::now();
-    if cron_pattern.is_time_matching(&now) {
-        println!("The cron pattern matches the current time!");
-    }
+    let cron_pattern_all = CronPattern::new(pattern_all).unwrap();
+    let cron_pattern_29th_feb_mon = CronPattern::new(pattern_29th_feb_mon).unwrap();
+
+    let time = Local::now();
+
+    let matches_all = CronScheduler::is_time_matching(&cron_pattern_all, &time).unwrap();
+
+    let next_match_29th_feb_mon = CronScheduler::find_next_occurrence(&cron_pattern_29th_feb_mon, &time).unwrap();
+
+    println!("Time is: {}", time);
+    println!(
+        "Pattern \"{}\" does {}",
+        pattern_all,
+        if matches_all { "match" } else { "not match" }
+    );
+    println!(
+        "Pattern \"{}\" does occur the next time at {}",
+        pattern_29th_feb_mon,
+        next_match_29th_feb_mon
+    );
 }
 ```
 
@@ -67,7 +89,7 @@ We welcome contributions! Please feel free to submit a pull request or open an i
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
 
 ## Acknowledgments
 
