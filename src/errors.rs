@@ -4,6 +4,7 @@ pub enum CronError {
     EmptyPattern,
     UnsupportedSpecialBit,
     InvalidDate,
+    TimeSearchLimitExceeded,
     InvalidPattern(String),
     IllegalCharacters(String),
     ComponentError(String), // Used for various errors specifically from `CronComponent`
@@ -15,6 +16,7 @@ impl std::fmt::Display for CronError {
             CronError::UnsupportedSpecialBit => {
                 write!(f, "CronComponent encountered an unknown special bit.")
             }
+            CronError::TimeSearchLimitExceeded => write!(f, "CronScheduler time search limit exceeded."),
             CronError::EmptyPattern => write!(f, "CronPattern cannot be an empty string."),
             CronError::InvalidDate => write!(f, "CronScheduler encountered an invalid date."),
             CronError::InvalidPattern(msg) => write!(f, "Invalid pattern: {}", msg),

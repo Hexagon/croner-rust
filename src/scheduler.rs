@@ -1,7 +1,7 @@
 use crate::component::LAST_BIT;
 use crate::errors::CronError;
 use crate::pattern::CronPattern;
-use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, Timelike};
+use chrono::{DateTime, Datelike, Duration, Local, NaiveDate, Timelike, TimeZone };
 
 // Scheduler module responsible for matching times against cron patterns
 pub struct CronScheduler;
@@ -32,7 +32,63 @@ impl CronScheduler {
                 .is_bit_set(time.weekday().number_from_sunday() as u8 - 1))
     }
 
-    // Helper function to find the last day of a given month
+    pub fn find_next_occurrence(
+        cron_pattern: &CronPattern,
+        start_time: &DateTime<Local>,
+    ) -> Result<DateTime<Local>, CronError> {
+        let mut current_time = *start_time + Duration::seconds(1); // Start at the next second
+
+        'outer: loop {
+
+            // If the current month is not set in the pattern, find the next month which is set
+            if !cron_pattern.months.is_bit_set(current_time.month() as u8) {
+                let mut month = current_time.month();
+                let mut year = current_time.year();
+                
+                loop {
+                    month += 1;
+                    if month > 12 {
+                        month = 1;
+                        year += 1;
+                    }
+                    if cron_pattern.months.is_bit_set(month as u8) {
+                        break;
+                    }
+                    if year > current_time.year() + 5 {
+                        // Arbitrary limit to prevent infinite loops
+                        return Err(CronError::TimeSearchLimitExceeded);
+                    }
+                }
+
+                current_time = Local.with_ymd_and_hms(year, month, 1, 0, 0, 0).unwrap();
+
+                continue 'outer; // Start the check again since we changed the month
+            }
+            
+            // Check days (with consideration for "L" for last day)
+            while !(cron_pattern.days.is_bit_set(current_time.day() as u8)
+                    || (cron_pattern.days.is_special_bit_set(LAST_BIT) && current_time.day() == Self::last_day_of_month(current_time.year(), current_time.month())?)) {
+                current_time = current_time + Duration::days(1);
+                current_time = Local.with_ymd_and_hms(current_time.year(), current_time.month(), current_time.day(), 0, 0, 0).unwrap();
+                continue 'outer; // We've changed the day, so need to recheck the month
+            }
+
+            // Given a valid day, iterate through each second of the day
+            let end_of_day = Local.with_ymd_and_hms(current_time.year(), current_time.month(), current_time.day(), 23, 59, 59).unwrap();
+            while current_time <= end_of_day {      
+                if Self::is_time_matching(cron_pattern, &current_time)? {
+                    return Ok(current_time); // Found the matching time
+                }
+                current_time += Duration::seconds(1);
+            }
+
+            // Go to the next day after finishing the day
+            current_time = current_time + Duration::days(1);
+            current_time = Local.with_ymd_and_hms(current_time.year(), current_time.month(), current_time.day(), 0, 0, 0).unwrap(); // Reset time to the start of the day
+        }
+    }
+    
+    
 
     // Helper function to find the last day of a given month
     fn last_day_of_month(year: i32, month: u32) -> Result<u32, CronError> {
