@@ -17,11 +17,11 @@ pub const LAST_BIT: u8 = 1 << 6;
 
 #[derive(Debug, Default)]
 pub struct CronComponent {
-    bitfields: Vec<u8>, // Vector of u8 to act as multiple bitfields
-    pub min: u8,        // Minimum value this component can take
-    pub max: u8,        // Maximum value this component can take
-    features: u8,       // Single u8 bitfield to indicate supported special bits, like LAST_BIT
-    enabled_features: u8,        // Bitfield to hold component-wide special bits like LAST_BIT
+    bitfields: Vec<u8>,   // Vector of u8 to act as multiple bitfields
+    pub min: u8,          // Minimum value this component can take
+    pub max: u8,          // Maximum value this component can take
+    features: u8,         // Single u8 bitfield to indicate supported special bits, like LAST_BIT
+    enabled_features: u8, // Bitfield to hold component-wide special bits like LAST_BIT
 }
 
 impl CronComponent {
@@ -61,7 +61,6 @@ impl CronComponent {
         self.bitfields[index] |= bit; // Set the specific bit at the position
         Ok(())
     }
-
 
     // Unset a specific bit at a given position
     pub fn unset_bit(&mut self, pos: u8, bit: u8) -> Result<(), CronError> {
@@ -131,7 +130,7 @@ impl CronComponent {
     pub fn is_feature_enabled(&self, feature: u8) -> bool {
         (self.enabled_features & feature) == feature
     }
-    
+
     pub fn parse(&mut self, field: &str) -> Result<(), CronError> {
         if field == "*" {
             for value in self.min..=self.max {
@@ -165,11 +164,14 @@ impl CronComponent {
             if value.ends_with('L') || value.ends_with('l') {
                 return Ok(LAST_BIT);
             }
-            let nth = value[nth_pos+1..].parse::<u8>()
+            let nth = value[nth_pos + 1..]
+                .parse::<u8>()
                 .map_err(|_| CronError::ComponentError("Invalid nth specifier.".to_string()))?;
 
             if nth == 0 || nth > 5 {
-                Err(CronError::ComponentError("Nth specifier out of bounds.".to_string()))
+                Err(CronError::ComponentError(
+                    "Nth specifier out of bounds.".to_string(),
+                ))
             } else {
                 match nth {
                     1 => Ok(NTH_1ST_BIT),
@@ -177,7 +179,9 @@ impl CronComponent {
                     3 => Ok(NTH_3RD_BIT),
                     4 => Ok(NTH_4TH_BIT),
                     5 => Ok(NTH_5TH_BIT),
-                    _ => Err(CronError::ComponentError("Invalid nth specifier.".to_string())),
+                    _ => Err(CronError::ComponentError(
+                        "Invalid nth specifier.".to_string(),
+                    )),
                 }
             }
         } else {
@@ -190,7 +194,6 @@ impl CronComponent {
     }
 
     fn handle_range(&mut self, range: &str) -> Result<(), CronError> {
-
         let bit_to_set = CronComponent::get_nth_bit(range)?;
         let str_clean = CronComponent::strip_nth_part(range);
 
@@ -221,7 +224,6 @@ impl CronComponent {
     }
 
     fn handle_number(&mut self, value: &str) -> Result<(), CronError> {
-        
         let bit_to_set = CronComponent::get_nth_bit(value)?;
         let value_clean = CronComponent::strip_nth_part(value);
 
@@ -234,12 +236,11 @@ impl CronComponent {
             ));
         }
 
-        self.set_bit(num, bit_to_set)?; 
+        self.set_bit(num, bit_to_set)?;
         Ok(())
     }
 
     pub fn handle_stepping(&mut self, stepped_range: &str) -> Result<(), CronError> {
-        
         let bit_to_set = CronComponent::get_nth_bit(stepped_range)?;
         let stepped_range_clean = CronComponent::strip_nth_part(stepped_range);
 
@@ -405,5 +406,4 @@ mod tests {
         assert!(component.parse("*/").is_err());
         assert!(component.parse("60").is_err()); // out of bounds for the minute field
     }
-
 }

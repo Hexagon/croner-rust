@@ -1,6 +1,9 @@
-use crate::component::{CronComponent, LAST_BIT, NONE_BIT, ALL_BIT, NTH_ALL, NTH_1ST_BIT, NTH_2ND_BIT, NTH_3RD_BIT, NTH_4TH_BIT, NTH_5TH_BIT};
+use crate::component::{
+    CronComponent, ALL_BIT, LAST_BIT, NONE_BIT, NTH_1ST_BIT, NTH_2ND_BIT, NTH_3RD_BIT, NTH_4TH_BIT,
+    NTH_5TH_BIT, NTH_ALL,
+};
 use crate::errors::CronError;
-use chrono::{Duration, NaiveDate, Datelike, Weekday};
+use chrono::{Datelike, Duration, NaiveDate, Weekday};
 
 // This struct is used for representing and validating cron pattern strings.
 // It supports parsing cron patterns with optional seconds field and provides functionality to check pattern matching against specific datetime.
@@ -18,7 +21,7 @@ pub struct CronPattern {
     star_dom: bool,
     star_dow: bool,
 
-    dom_and_dow: bool,              // Setting to alter how dom_and_dow is combined
+    dom_and_dow: bool, // Setting to alter how dom_and_dow is combined
 }
 
 // Implementation block for CronPattern struct, providing methods for creating and parsing cron pattern strings.
@@ -200,7 +203,9 @@ impl CronPattern {
     // Additional method needed to determine the nth weekday of the month
     fn is_nth_weekday_of_month(date: chrono::NaiveDate, nth: u8, weekday: Weekday) -> bool {
         let mut count = 0;
-        let mut current = date.with_day(1).expect("Invalid date encountered while setting to first of the month");
+        let mut current = date
+            .with_day(1)
+            .expect("Invalid date encountered while setting to first of the month");
         while current.month() == date.month() {
             if current.weekday() == weekday {
                 count += 1;
@@ -215,16 +220,15 @@ impl CronPattern {
 
     // This method checks if a given year, month, and day match the day part of the cron pattern.
     pub fn day_match(&self, year: i32, month: u32, day: u32) -> Result<bool, CronError> {
-
         // First, check if the day is within the valid range
         if day == 0 || day > 31 || month == 0 || month > 12 {
             return Err(CronError::InvalidDate);
         }
-    
+
         // Convert year, month, and day into a date object to work with
-        let date = chrono::NaiveDate::from_ymd_opt(year, month, day)
-            .ok_or(CronError::InvalidDate)?;
-    
+        let date =
+            chrono::NaiveDate::from_ymd_opt(year, month, day).ok_or(CronError::InvalidDate)?;
+
         let mut day_matches = self.days.is_bit_set(day as u8, ALL_BIT)?;
         let mut dow_matches = false;
 
@@ -235,7 +239,7 @@ impl CronPattern {
                 day_matches = true;
             }
         }
-    
+
         // Check for nth weekday of the month flags
         for nth in 1..=5 {
             let nth_bit = match nth {
@@ -246,7 +250,10 @@ impl CronPattern {
                 5 => NTH_5TH_BIT,
                 _ => continue, // We have already validated that nth is between 1 and 5
             };
-            if self.days_of_week.is_bit_set(date.weekday().num_days_from_sunday() as u8, nth_bit)? {
+            if self
+                .days_of_week
+                .is_bit_set(date.weekday().num_days_from_sunday() as u8, nth_bit)?
+            {
                 if CronPattern::is_nth_weekday_of_month(date, nth, date.weekday()) {
                     dow_matches = true;
                 }
@@ -254,19 +261,22 @@ impl CronPattern {
         }
 
         // If the 'L' flag is used for the day of the week, check if it's the last one of the month
-        if self.days_of_week.is_bit_set(date.weekday().num_days_from_sunday() as u8, LAST_BIT)? {
+        if self
+            .days_of_week
+            .is_bit_set(date.weekday().num_days_from_sunday() as u8, LAST_BIT)?
+        {
             let next_weekday = date + chrono::Duration::days(7);
             if next_weekday.month() != date.month() {
                 // If adding 7 days changes the month, then it is the last occurrence of the day of the week
                 dow_matches = true;
             }
         }
-        
+
         // Check if the specific day of the week is set in the bitset
         // Note: In chrono, Sunday is 0, Monday is 1, and so on...
         let day_of_week = date.weekday().num_days_from_sunday() as u8; // Adjust as necessary for your bitset
         dow_matches = dow_matches || self.days_of_week.is_bit_set(day_of_week, ALL_BIT)?;
-    
+
         // The day matches if it's set in the days bitset or the days of the week bitset
         if day_matches && self.star_dow {
             Ok(true)
@@ -392,12 +402,18 @@ mod tests {
         assert!(pattern.parse().is_ok());
         assert!(pattern.minutes.is_bit_set(0, ALL_BIT).unwrap());
         assert!(pattern.hours.is_bit_set(1, ALL_BIT).unwrap());
-        assert!(pattern.days.is_bit_set(1, ALL_BIT).unwrap() && pattern.days.is_bit_set(15, ALL_BIT).unwrap());
+        assert!(
+            pattern.days.is_bit_set(1, ALL_BIT).unwrap()
+                && pattern.days.is_bit_set(15, ALL_BIT).unwrap()
+        );
         assert!(
             pattern.months.is_bit_set(1, ALL_BIT).unwrap()
                 && !pattern.months.is_bit_set(2, ALL_BIT).unwrap()
         );
-        assert!(pattern.days_of_week.is_bit_set(1, ALL_BIT).unwrap() && pattern.days_of_week.is_bit_set(5, ALL_BIT).unwrap());
+        assert!(
+            pattern.days_of_week.is_bit_set(1, ALL_BIT).unwrap()
+                && pattern.days_of_week.is_bit_set(5, ALL_BIT).unwrap()
+        );
     }
 
     #[test]
@@ -406,12 +422,18 @@ mod tests {
         assert!(pattern.parse().is_ok());
         assert!(pattern.minutes.is_bit_set(0, ALL_BIT).unwrap());
         assert!(pattern.hours.is_bit_set(1, ALL_BIT).unwrap());
-        assert!(pattern.days.is_bit_set(1, ALL_BIT).unwrap() && pattern.days.is_bit_set(15, ALL_BIT).unwrap());
+        assert!(
+            pattern.days.is_bit_set(1, ALL_BIT).unwrap()
+                && pattern.days.is_bit_set(15, ALL_BIT).unwrap()
+        );
         assert!(
             pattern.months.is_bit_set(1, ALL_BIT).unwrap()
                 && !pattern.months.is_bit_set(2, ALL_BIT).unwrap()
         );
-        assert!(pattern.days_of_week.is_bit_set(1, ALL_BIT).unwrap() && pattern.days_of_week.is_bit_set(5, ALL_BIT).unwrap());
+        assert!(
+            pattern.days_of_week.is_bit_set(1, ALL_BIT).unwrap()
+                && pattern.days_of_week.is_bit_set(5, ALL_BIT).unwrap()
+        );
     }
 
     #[test]

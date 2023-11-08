@@ -1,8 +1,9 @@
 pub mod pattern;
-mod errors;
-mod component;
 
-use component::{ALL_BIT};
+mod component;
+mod errors;
+
+use component::ALL_BIT;
 use errors::CronError;
 use pattern::CronPattern;
 use std::str::FromStr;
@@ -23,12 +24,27 @@ impl Cron {
 
     // Checks if the provided datetime matches the cron pattern fields.
     pub fn is_time_matching<Tz: TimeZone>(&self, time: &DateTime<Tz>) -> Result<bool, CronError> {
-        let second_matches = self.pattern.seconds.is_bit_set(time.second() as u8, ALL_BIT)?;
-        let minute_matches = self.pattern.minutes.is_bit_set(time.minute() as u8, ALL_BIT)?;
+        let second_matches = self
+            .pattern
+            .seconds
+            .is_bit_set(time.second() as u8, ALL_BIT)?;
+        let minute_matches = self
+            .pattern
+            .minutes
+            .is_bit_set(time.minute() as u8, ALL_BIT)?;
         let hour_matches = self.pattern.hours.is_bit_set(time.hour() as u8, ALL_BIT)?;
-        let month_matches = self.pattern.months.is_bit_set(time.month() as u8, ALL_BIT)?;
-        let day_of_month_matches = self.pattern.day_match(time.year(), time.month(), time.day())?;
-        Ok(second_matches && minute_matches && hour_matches && day_of_month_matches && month_matches)
+        let month_matches = self
+            .pattern
+            .months
+            .is_bit_set(time.month() as u8, ALL_BIT)?;
+        let day_of_month_matches = self
+            .pattern
+            .day_match(time.year(), time.month(), time.day())?;
+        Ok(second_matches
+            && minute_matches
+            && hour_matches
+            && day_of_month_matches
+            && month_matches)
     }
 
     pub fn find_next_occurrence<Tz: TimeZone>(
@@ -80,35 +96,36 @@ impl Cron {
                         .ok_or(CronError::InvalidDate)?;
 
                     // Reset hours, minutes, and seconds to start of the day
-                    current_time = tz.with_ymd_and_hms(
-                        current_time.year(),
-                        current_time.month(),
-                        current_time.day(),
-                        0,
-                        0,
-                        0
-                    ).unwrap();
+                    current_time = tz
+                        .with_ymd_and_hms(
+                            current_time.year(),
+                            current_time.month(),
+                            current_time.day(),
+                            0,
+                            0,
+                            0,
+                        )
+                        .unwrap();
 
                     // If the day changes to the first of the next month, start 'outer loop again
-                    if current_time.day() == 1 || self.pattern.day_match(
-                        current_time.year(),
-                        current_time.month(),
-                        current_time.day(),
-                    )? {
+                    if current_time.day() == 1
+                        || self.pattern.day_match(
+                            current_time.year(),
+                            current_time.month(),
+                            current_time.day(),
+                        )?
+                    {
                         continue 'outer;
                     }
                 }
             }
 
-
             // Check if the current hour matches the pattern
             if !self.pattern.hour_match(current_time.hour())? {
                 current_time = current_time
                     .checked_add_signed(Duration::hours(1))
-                    .ok_or(CronError::InvalidDate)?
-                    .with_minute(0)
-                    .ok_or(CronError::InvalidDate)?
-                    .with_second(0)
+                    .and_then(|time| time.with_minute(0))
+                    .and_then(|time| time.with_second(0))
                     .ok_or(CronError::InvalidDate)?;
                 continue;
             }
@@ -117,8 +134,7 @@ impl Cron {
             if !self.pattern.minute_match(current_time.minute())? {
                 current_time = current_time
                     .checked_add_signed(Duration::minutes(1))
-                    .ok_or(CronError::InvalidDate)?
-                    .with_second(0)
+                    .and_then(|time| time.with_second(0))
                     .ok_or(CronError::InvalidDate)?; // Start at the next second
                 continue;
             }
@@ -163,7 +179,6 @@ mod tests {
 
     #[test]
     fn test_last_day_of_february_non_leap_year() -> Result<(), CronError> {
- 
         // This pattern is meant to match every second of 9 am on the last day of February in a non-leap year.
         let cron = Cron::parse("0 0 9 L 2 *")?;
 
@@ -197,7 +212,6 @@ mod tests {
 
     #[test]
     fn test_last_friday_of_year() -> Result<(), CronError> {
-
         // This pattern is meant to match 0:00:00 last friday of current year
         let cron = Cron::parse("0 0 0 * * FRI#L")?;
 
@@ -205,6 +219,60 @@ mod tests {
         let time_matching = Local.with_ymd_and_hms(2023, 12, 29, 0, 0, 0).unwrap();
 
         assert!(cron.is_time_matching(&time_matching)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_find_next_occurrence() -> Result<(), CronError> {
+        // This pattern is meant to match every minute at 30 seconds past the minute.
+        let cron = Cron::parse("* * * * * *")?;
+
+        // Set the start time to a known value.
+        let start_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 29).unwrap();
+        // Calculate the next occurrence from the start time.
+        let next_occurrence = cron.find_next_occurrence(&start_time)?;
+
+        // Verify that the next occurrence is at the expected time.
+        let expected_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 30).unwrap();
+        println!("{} {} {}", start_time, next_occurrence, expected_time);
+        assert_eq!(next_occurrence, expected_time);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_find_next_minute() -> Result<(), CronError> {
+        // This pattern is meant to match every minute at 30 seconds past the minute.
+        let cron = Cron::parse("0 * * * * *")?;
+
+        // Set the start time to a known value.
+        let start_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 29).unwrap();
+        // Calculate the next occurrence from the start time.
+        let next_occurrence = cron.find_next_occurrence(&start_time)?;
+
+        // Verify that the next occurrence is at the expected time.
+        let expected_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 1, 0).unwrap();
+        println!("{} {} {}", start_time, next_occurrence, expected_time);
+        assert_eq!(next_occurrence, expected_time);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_wrap_month_and_year() -> Result<(), CronError> {
+        // This pattern is meant to match every minute at 30 seconds past the minute.
+        let cron = Cron::parse("0 0 15 * * *")?;
+
+        // Set the start time to a known value.
+        let start_time = Local.with_ymd_and_hms(2023, 12, 31, 16, 0, 0).unwrap();
+        // Calculate the next occurrence from the start time.
+        let next_occurrence = cron.find_next_occurrence(&start_time)?;
+
+        // Verify that the next occurrence is at the expected time.
+        let expected_time = Local.with_ymd_and_hms(2024, 1, 1, 15, 0, 0).unwrap();
+        println!("{} {} {}", start_time, next_occurrence, expected_time);
+        assert_eq!(next_occurrence, expected_time);
 
         Ok(())
     }
