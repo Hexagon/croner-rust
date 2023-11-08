@@ -4,6 +4,7 @@ pub enum CronError {
     EmptyPattern,
     UnsupportedSpecialBit,
     InvalidDate,
+    InvalidTime,
     TimeSearchLimitExceeded,
     InvalidPattern(String),
     IllegalCharacters(String),
@@ -16,9 +17,12 @@ impl std::fmt::Display for CronError {
             CronError::UnsupportedSpecialBit => {
                 write!(f, "CronComponent encountered an unknown special bit.")
             }
-            CronError::TimeSearchLimitExceeded => write!(f, "CronScheduler time search limit exceeded."),
+            CronError::TimeSearchLimitExceeded => {
+                write!(f, "CronScheduler time search limit exceeded.")
+            }
             CronError::EmptyPattern => write!(f, "CronPattern cannot be an empty string."),
             CronError::InvalidDate => write!(f, "CronScheduler encountered an invalid date."),
+            CronError::InvalidTime => write!(f, "CronScheduler encountered an invalid time."),
             CronError::InvalidPattern(msg) => write!(f, "Invalid pattern: {}", msg),
             CronError::IllegalCharacters(msg) => {
                 write!(f, "Pattern contains illegal characters: {}", msg)

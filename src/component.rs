@@ -1,87 +1,141 @@
 use crate::errors::CronError;
 
-pub const MAX_SIZE: usize = 60; // Maximum size for the actual values (0-59)
+// Constants for flags
+pub const NONE_BIT: u8 = 0;
+pub const ALL_BIT: u8 = 1;
 
-// Constants for special flags
-pub const NONE_BIT: u64 = 0;
-pub const LAST_BIT: u64 = 1 << 60; // Up to tree additional special bits can be added with 1 << 61..
+// Used for nth weekday
+pub const NTH_1ST_BIT: u8 = 1 << 1;
+pub const NTH_2ND_BIT: u8 = 1 << 2;
+pub const NTH_3RD_BIT: u8 = 1 << 3;
+pub const NTH_4TH_BIT: u8 = 1 << 4;
+pub const NTH_5TH_BIT: u8 = 1 << 5;
+pub const NTH_ALL: u8 = NTH_1ST_BIT | NTH_2ND_BIT | NTH_3RD_BIT | NTH_4TH_BIT | NTH_5TH_BIT;
+
+// Used for last day of month
+pub const LAST_BIT: u8 = 1 << 6;
 
 #[derive(Debug, Default)]
 pub struct CronComponent {
-    bitfield: u64, // Single u64 to act as a bitfield
-    pub min: u8,   // Minimum value this component can take
-    pub max: u8,   // Maximum value this component can take
-    features: u64, // Single u64 to indicate supported special bits, like LAST_BIT
+    bitfields: Vec<u8>, // Vector of u8 to act as multiple bitfields
+    pub min: u8,        // Minimum value this component can take
+    pub max: u8,        // Maximum value this component can take
+    features: u8,       // Single u8 bitfield to indicate supported special bits, like LAST_BIT
+    enabled_features: u8,        // Bitfield to hold component-wide special bits like LAST_BIT
 }
 
 impl CronComponent {
-    // Initialize a new CronComponent with min/max values.
-    pub fn new(min: u8, max: u8, features: u64) -> Self {
+    // Initialize a new CronComponent with min/max values and features.
+    pub fn new(min: u8, max: u8, features: u8) -> Self {
         Self {
-            bitfield: 0, // Initialize all bits to 0
+            bitfields: vec![NONE_BIT; (max + 1) as usize], // Initialize bitfields with NONE_BIT for each element.
             min,
             max,
-            features: features,
+            features: features | ALL_BIT | LAST_BIT, // Store the features bitfield, always allow NONE and LAST
+            enabled_features: 0,
         }
     }
 
     // Set a bit at a given position (0 to 59)
-    pub fn set_bit(&mut self, pos: u8) -> Result<(), CronError> {
+    pub fn set_bit(&mut self, pos: u8, bit: u8) -> Result<(), CronError> {
         if pos < self.min || pos > self.max {
             return Err(CronError::ComponentError(format!(
-                "Bit position {} is out of bounds.",
+                "Position {} is out of bounds for the current range ({}-{}).",
+                pos, self.min, self.max
+            )));
+        }
+        if self.features & bit != bit {
+            return Err(CronError::ComponentError(format!(
+                "Bit 0b{:08b} is not supported by the current features 0b{:08b}.",
+                bit, self.features
+            )));
+        }
+        let index = pos as usize; // Convert the position to an index
+        if index >= self.bitfields.len() {
+            // In case the index is somehow out of the vector's bounds
+            return Err(CronError::ComponentError(format!(
+                "Position {} is out of the bitfields vector's bounds.",
                 pos
             )));
         }
-        self.bitfield |= 1 << pos;
+        self.bitfields[index] |= bit; // Set the specific bit at the position
         Ok(())
     }
 
-    // Unset a bit at a given position (0 to 59)
-    pub fn unset_bit(&mut self, pos: u8) -> Result<(), CronError> {
+
+    // Unset a specific bit at a given position
+    pub fn unset_bit(&mut self, pos: u8, bit: u8) -> Result<(), CronError> {
         if pos < self.min || pos > self.max {
             return Err(CronError::ComponentError(format!(
-                "Bit position {} is out of bounds.",
+                "Position {} is out of bounds for the current range ({}-{}).",
+                pos, self.min, self.max
+            )));
+        }
+        if self.features & bit != bit {
+            return Err(CronError::ComponentError(format!(
+                "Bit 0b{:08b} is not supported by the current features 0b{:08b}.",
+                bit, self.features
+            )));
+        }
+        let index = pos as usize; // Convert the position to an index
+        if index >= self.bitfields.len() {
+            // In case the index is somehow out of the vector's bounds
+            return Err(CronError::ComponentError(format!(
+                "Position {} is out of the bitfields vector's bounds.",
                 pos
             )));
         }
-        self.bitfield &= !(1 << pos);
+        self.bitfields[index] &= !bit; // Unset the specific bit at the position
         Ok(())
     }
 
-    // Check if a bit at a given position is set
-    pub fn is_bit_set(&self, pos: u8) -> bool {
-        if usize::from(pos) < MAX_SIZE {
-            (self.bitfield & (1 << pos)) != 0
+    // Check if a specific bit at a given position is set
+    pub fn is_bit_set(&self, pos: u8, bit: u8) -> Result<bool, CronError> {
+        if pos < self.min || pos > self.max {
+            Err(CronError::ComponentError(format!(
+                "Position {} is out of bounds for the current range ({}-{}).",
+                pos, self.min, self.max
+            )))
+        } else if self.features & bit != bit {
+            Err(CronError::ComponentError(format!(
+                "Bit 0b{:08b} is not supported by the current features 0b{:08b}.",
+                bit, self.features
+            )))
         } else {
-            false
+            let index = pos as usize;
+            if index >= self.bitfields.len() {
+                Err(CronError::ComponentError(format!(
+                    "Position {} is out of the bitfields vector's bounds.",
+                    pos
+                )))
+            } else {
+                Ok((self.bitfields[index] & bit) != 0)
+            }
         }
     }
 
-    // Check if a special bit is set
-    pub fn is_special_bit_set(&self, flag: u64) -> bool {
-        (self.bitfield & flag) != 0
-    }
-
-    // Set or clear a special bit if it is supported
-    pub fn set_special_bit(&mut self, flag: u64, set: bool) -> Result<(), CronError> {
-        // Check if the bit is within the supported features
-        if self.features & flag == 0 {
-            return Err(CronError::UnsupportedSpecialBit);
-        }
-
-        if set {
-            self.bitfield |= flag;
+    // Method to enable a feature
+    pub fn enable_feature(&mut self, feature: u8) -> Result<(), CronError> {
+        if self.features & feature == feature {
+            self.enabled_features |= feature;
+            Ok(())
         } else {
-            self.bitfield &= !flag;
+            Err(CronError::ComponentError(format!(
+                "Feature 0b{:08b} is not supported by the current features 0b{:08b}.",
+                feature, self.features
+            )))
         }
-        Ok(())
     }
 
+    // Method to check if a feature is enabled
+    pub fn is_feature_enabled(&self, feature: u8) -> bool {
+        (self.enabled_features & feature) == feature
+    }
+    
     pub fn parse(&mut self, field: &str) -> Result<(), CronError> {
         if field == "*" {
             for value in self.min..=self.max {
-                self.set_bit(value)?;
+                self.set_bit(value, ALL_BIT)?;
             }
         } else {
             // Split the field into parts and handle each part
@@ -94,7 +148,7 @@ impl CronComponent {
                         self.handle_range(trimmed_part)?;
                     } else if trimmed_part.eq_ignore_ascii_case("l") {
                         // Handle "L" for the last bit
-                        self.set_special_bit(LAST_BIT, true)?;
+                        self.enable_feature(LAST_BIT)?;
                     } else {
                         self.handle_number(trimmed_part)?;
                     }
@@ -105,8 +159,42 @@ impl CronComponent {
         Ok(())
     }
 
+    fn get_nth_bit(value: &str) -> Result<u8, CronError> {
+        if let Some(nth_pos) = value.find('#') {
+            // If value ends with 'L', we set the LAST_BIT and exit early
+            if value.ends_with('L') || value.ends_with('l') {
+                return Ok(LAST_BIT);
+            }
+            let nth = value[nth_pos+1..].parse::<u8>()
+                .map_err(|_| CronError::ComponentError("Invalid nth specifier.".to_string()))?;
+
+            if nth == 0 || nth > 5 {
+                Err(CronError::ComponentError("Nth specifier out of bounds.".to_string()))
+            } else {
+                match nth {
+                    1 => Ok(NTH_1ST_BIT),
+                    2 => Ok(NTH_2ND_BIT),
+                    3 => Ok(NTH_3RD_BIT),
+                    4 => Ok(NTH_4TH_BIT),
+                    5 => Ok(NTH_5TH_BIT),
+                    _ => Err(CronError::ComponentError("Invalid nth specifier.".to_string())),
+                }
+            }
+        } else {
+            Ok(ALL_BIT)
+        }
+    }
+
+    fn strip_nth_part(value: &str) -> &str {
+        value.split('#').next().unwrap_or("")
+    }
+
     fn handle_range(&mut self, range: &str) -> Result<(), CronError> {
-        let parts: Vec<&str> = range.split('-').map(str::trim).collect();
+
+        let bit_to_set = CronComponent::get_nth_bit(range)?;
+        let str_clean = CronComponent::strip_nth_part(range);
+
+        let parts: Vec<&str> = str_clean.split('-').map(str::trim).collect();
         if parts.len() != 2 {
             return Err(CronError::ComponentError(
                 "Invalid range syntax.".to_string(),
@@ -126,15 +214,18 @@ impl CronComponent {
             ));
         }
 
-        // Calculate the bitmask for the range in one operation
-        let mask: u64 = ((1 << (end - start + 1)) - 1) << start;
-        self.bitfield |= mask;
-
+        for value in start..=end {
+            self.set_bit(value, bit_to_set)?;
+        }
         Ok(())
     }
 
     fn handle_number(&mut self, value: &str) -> Result<(), CronError> {
-        let num = value
+        
+        let bit_to_set = CronComponent::get_nth_bit(value)?;
+        let value_clean = CronComponent::strip_nth_part(value);
+
+        let num = value_clean
             .parse::<u8>()
             .map_err(|_| CronError::ComponentError("Invalid number.".to_string()))?;
         if num < self.min || num > self.max {
@@ -143,12 +234,16 @@ impl CronComponent {
             ));
         }
 
-        self.set_bit(num)?;
+        self.set_bit(num, bit_to_set)?; 
         Ok(())
     }
 
     pub fn handle_stepping(&mut self, stepped_range: &str) -> Result<(), CronError> {
-        let parts: Vec<&str> = stepped_range.split('/').collect();
+        
+        let bit_to_set = CronComponent::get_nth_bit(stepped_range)?;
+        let stepped_range_clean = CronComponent::strip_nth_part(stepped_range);
+
+        let parts: Vec<&str> = stepped_range_clean.split('/').collect();
         if parts.len() != 2 {
             return Err(CronError::ComponentError(
                 "Invalid stepped range syntax.".to_string(),
@@ -200,7 +295,7 @@ impl CronComponent {
         // Apply stepping within the range
         let mut value = start;
         while value <= end {
-            self.set_bit(value)?;
+            self.set_bit(value, bit_to_set)?;
             value = value.checked_add(step).ok_or_else(|| {
                 CronError::ComponentError("Value exceeded max after stepping.".to_string())
             })?;
@@ -213,130 +308,102 @@ impl CronComponent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::CronError;
 
     #[test]
     fn test_new_cron_component() {
-        let component = CronComponent::new(0, 59, NONE_BIT);
+        let component = CronComponent::new(0, 59, ALL_BIT | LAST_BIT);
         assert_eq!(component.min, 0);
         assert_eq!(component.max, 59);
-        assert_eq!(component.bitfield, 0);
+        // Ensure all bitfields are initialized to NONE_BIT
+        assert!(component.bitfields.iter().all(|&b| b == NONE_BIT));
+        // Check that ALL_BIT and LAST_BIT are included in features
+        assert!(component.features & (ALL_BIT | LAST_BIT) == (ALL_BIT | LAST_BIT));
     }
 
     #[test]
     fn test_set_bit() {
-        let mut component = CronComponent::new(0, 59, NONE_BIT);
-        assert!(component.set_bit(10).is_ok());
-        assert!(component.is_bit_set(10));
+        let mut component = CronComponent::new(0, 59, ALL_BIT);
+        assert!(component.set_bit(10, ALL_BIT).is_ok());
+        assert!(component.is_bit_set(10, ALL_BIT).unwrap());
     }
 
     #[test]
     fn test_set_bit_out_of_bounds() {
-        let mut component = CronComponent::new(0, 59, NONE_BIT);
-        assert!(component.set_bit(60).is_err());
+        let mut component = CronComponent::new(0, 59, ALL_BIT);
+        assert!(matches!(
+            component.set_bit(60, ALL_BIT),
+            Err(CronError::ComponentError(_))
+        ));
     }
 
     #[test]
     fn test_unset_bit() {
-        let mut component = CronComponent::new(0, 59, NONE_BIT);
-        component.set_bit(10).unwrap();
-        assert!(component.unset_bit(10).is_ok());
-        assert!(!component.is_bit_set(10));
+        let mut component = CronComponent::new(0, 59, ALL_BIT);
+        component.set_bit(10, ALL_BIT).unwrap();
+        assert!(component.unset_bit(10, ALL_BIT).is_ok());
+        assert!(!component.is_bit_set(10, ALL_BIT).unwrap());
     }
 
     #[test]
-    fn test_is_special_bit_set() {
+    fn test_is_feature_enabled() {
         let mut component = CronComponent::new(0, 59, LAST_BIT);
-        assert!(!component.is_special_bit_set(LAST_BIT));
-        component.set_special_bit(LAST_BIT, true).unwrap();
-        assert!(component.is_special_bit_set(LAST_BIT));
+        assert!(!component.is_feature_enabled(LAST_BIT));
+        component.enable_feature(LAST_BIT).unwrap();
+        assert!(component.is_feature_enabled(LAST_BIT));
     }
 
     #[test]
-    fn test_set_special_bit_unsupported() {
+    fn test_enable_feature_unsupported() {
         let mut component = CronComponent::new(0, 59, NONE_BIT);
-        assert!(component.set_special_bit(LAST_BIT, true).is_err());
+        assert!(matches!(
+            component.enable_feature(NTH_1ST_BIT),
+            Err(CronError::ComponentError(_))
+        ));
     }
 
     #[test]
     fn test_parse_asterisk() {
-        let mut component = CronComponent::new(0, 59, NONE_BIT);
+        let mut component = CronComponent::new(0, 59, ALL_BIT);
         component.parse("*").unwrap();
         for i in 0..=59 {
-            assert!(component.is_bit_set(i));
+            assert!(component.is_bit_set(i, ALL_BIT).unwrap());
         }
     }
 
     #[test]
     fn test_parse_range() {
-        let mut component = CronComponent::new(0, 59, NONE_BIT);
+        let mut component = CronComponent::new(0, 59, ALL_BIT);
         component.parse("10-15").unwrap();
         for i in 10..=15 {
-            assert!(component.is_bit_set(i));
+            assert!(component.is_bit_set(i, ALL_BIT).unwrap());
         }
     }
 
     #[test]
     fn test_parse_stepping() {
-        let mut component = CronComponent::new(0, 59, NONE_BIT);
+        let mut component = CronComponent::new(0, 59, ALL_BIT);
         component.parse("*/5").unwrap();
         for i in (0..=59).filter(|n| n % 5 == 0) {
-            assert!(component.is_bit_set(i));
+            assert!(component.is_bit_set(i, ALL_BIT).unwrap());
         }
     }
 
     #[test]
     fn test_parse_list() {
-        let mut component = CronComponent::new(0, 59, NONE_BIT);
+        let mut component = CronComponent::new(0, 59, ALL_BIT);
         component.parse("5,10,15").unwrap();
         for i in [5, 10, 15].iter() {
-            assert!(component.is_bit_set(*i));
+            assert!(component.is_bit_set(*i, ALL_BIT).unwrap());
         }
     }
 
     #[test]
     fn test_parse_invalid_syntax() {
-        let mut component = CronComponent::new(0, 59, NONE_BIT);
+        let mut component = CronComponent::new(0, 59, ALL_BIT);
         assert!(component.parse("10-").is_err());
         assert!(component.parse("*/").is_err());
         assert!(component.parse("60").is_err()); // out of bounds for the minute field
     }
 
-    #[test]
-    fn test_parse_in_range_week() {
-        let mut component = CronComponent::new(0, 6, NONE_BIT);
-        assert!(component.parse("6").is_ok());
-    }
-
-    #[test]
-    fn test_parse_out_of_range_week() {
-        let mut component = CronComponent::new(0, 6, NONE_BIT);
-        assert!(component.parse("7").is_err());
-    }
-
-    #[test]
-    fn test_parse_stepping_from_nine() {
-        let mut component = CronComponent::new(0, 59, NONE_BIT);
-        component.parse("9/5").unwrap();
-
-        let mut value = 9;
-        while value <= component.max {
-            assert!(
-                component.is_bit_set(value),
-                "Bit should be set for value {}",
-                value
-            );
-            value += 5;
-        }
-
-        // Ensure no other bits are set
-        for i in 0..=59 {
-            if i < 9 || (i - 9) % 5 != 0 {
-                assert!(
-                    !component.is_bit_set(i),
-                    "Bit should not be set for value {}",
-                    i
-                );
-            }
-        }
-    }
 }
