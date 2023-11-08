@@ -26,6 +26,6 @@ jobs:
         run: cargo test
 
       - name: Publish
-        run: cargo publish --token ${CRATES_TOKEN}
+        run: cargo publish --token ${CRATES_TOKEN} --allow-dirty
         env:
           CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
