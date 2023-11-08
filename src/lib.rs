@@ -10,11 +10,52 @@ use std::str::FromStr;
 
 use chrono::{DateTime, Datelike, Duration, TimeZone, Timelike};
 
+pub struct CronIterator<Tz>
+where
+    Tz: TimeZone,
+    Tz::Offset: std::fmt::Display,
+{
+    cron: Cron,
+    current_time: DateTime<Tz>,
+}
+
+impl<Tz> CronIterator<Tz>
+where
+    Tz: TimeZone,
+    Tz::Offset: std::fmt::Display,
+{
+    fn new(cron: Cron, start_time: DateTime<Tz>) -> Self {
+        CronIterator {
+            cron,
+            current_time: start_time,
+        }
+    }
+}
+
+impl<Tz> Iterator for CronIterator<Tz>
+where
+    Tz: TimeZone,
+    Tz::Offset: std::fmt::Display,
+{
+    type Item = DateTime<Tz>;
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.cron.find_next_occurrence(&self.current_time, true) {
+            Ok(next_time) => {
+                self.current_time = next_time
+                    .clone()
+                    .checked_add_signed(Duration::seconds(1)).unwrap();
+                Some(next_time)
+            }
+            Err(_) => None, // Stop the iteration if we cannot find the next occurrence
+        }
+    }
+}
+
 // Scheduler module responsible for matching times against cron patterns
+#[derive(Clone)]
 pub struct Cron {
     pub pattern: CronPattern, // Parsed cron pattern
 }
-
 impl Cron {
     // Constructor-like function to create a new Cron with a pattern
     pub fn parse(cron_string: &str) -> Result<Cron, CronError> {
@@ -22,7 +63,51 @@ impl Cron {
         Ok(Cron { pattern })
     }
 
-    // Checks if the provided datetime matches the cron pattern fields.
+    /// Evaluates if a given `DateTime` matches the cron pattern associated with this instance.
+    ///
+    /// The function checks each cron field (seconds, minutes, hours, day of month, month) against
+    /// the provided `DateTime` to determine if it aligns with the cron pattern. Each field is
+    /// checked for a match, and all fields must match for the entire pattern to be considered
+    /// a match.
+    ///
+    /// # Parameters
+    ///
+    /// - `time`: A reference to the `DateTime<Tz>` to be checked against the cron pattern.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(bool)`: `true` if `time` matches the cron pattern, `false` otherwise.
+    /// - `Err(CronError)`: An error if there is a problem checking any of the pattern fields
+    ///   against the provided `DateTime`.
+    ///
+    /// # Errors
+    ///
+    /// This method may return `CronError` if an error occurs during the evaluation of the
+    /// cron pattern fields. Errors can occur due to invalid bit operations or invalid dates.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use croner::Cron;
+    /// use chrono::Local;
+    /// fn main() {
+    ///     // Parse cron expression
+    ///     let cron: Cron = "0 * * * * *".parse().expect("Couldn't parse cron string");
+    /// 
+    ///     // Compare to time now
+    ///     let time = Local::now();
+    ///     let matches_all = cron.is_time_matching(&time).unwrap();
+    /// 
+    ///     // Output results
+    ///     println!("Time is: {}", time);
+    ///     println!(
+    ///         "Pattern \"{}\" does {} time {}",
+    ///         cron.pattern.to_string(),
+    ///         if matches_all { "match" } else { "not match" },
+    ///         time
+    ///     );
+    /// }
+    /// ``` 
     pub fn is_time_matching<Tz: TimeZone>(&self, time: &DateTime<Tz>) -> Result<bool, CronError> {
         let second_matches = self
             .pattern
@@ -47,14 +132,74 @@ impl Cron {
             && month_matches)
     }
 
+    /// Finds the next occurrence of a scheduled date and time that matches the cron pattern,
+    /// starting from a given `start_time`. If `inclusive` is `true`, the search includes the
+    /// `start_time`; otherwise, it starts from the next second.
+    ///
+    /// This method performs a search through time, beginning at `start_time`, to find the
+    /// next date and time that aligns with the cron pattern defined within the `Cron` instance.
+    /// The search respects cron fields (seconds, minutes, hours, day of month, month, day of week)
+    /// and iterates through time until a match is found or an error occurs.
+    ///
+    /// # Parameters
+    ///
+    /// - `start_time`: A reference to a `DateTime<Tz>` indicating the start time for the search.
+    /// - `inclusive`: A `bool` that specifies whether the search should include `start_time` itself.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(DateTime<Tz>)`: The next occurrence that matches the cron pattern.
+    /// - `Err(CronError)`: An error if the next occurrence cannot be found within a reasonable
+    ///   limit, if any of the date/time manipulations result in an invalid date, or if the
+    ///   cron pattern match fails.
+    ///
+    /// # Errors
+    ///
+    /// - `CronError::InvalidTime`: If the start time provided is invalid or adjustments to the
+    ///   time result in an invalid date/time.
+    /// - `CronError::TimeSearchLimitExceeded`: If the search exceeds a reasonable time limit.
+    ///   This prevents infinite loops in case of patterns that cannot be matched.
+    /// - Other errors as defined by the `CronError` enum may occur if the pattern match fails
+    ///   at any stage of the search.
+    ///
+    /// # Examples
+    /// 
+    /// ```
+    /// use chrono::Local;
+    /// use croner::Cron;
+    /// 
+    /// fn main() {
+    ///     // Parse cron expression
+    ///     let cron: Cron = "0 18 * * * 5".parse().expect("Couldn't parse cron string");
+    /// 
+    ///     // Get next match
+    ///     let time = Local::now();
+    ///     let next = cron.find_next_occurrence(&time, false).unwrap();
+    /// 
+    ///     println!(
+    ///         "Pattern \"{}\" will match next time at {}",
+    ///         cron.pattern.to_string(),
+    ///         next
+    ///     );
+    /// }
+    /// ```
     pub fn find_next_occurrence<Tz: TimeZone>(
         &self,
         start_time: &DateTime<Tz>,
+        inclusive: bool
     ) -> Result<DateTime<Tz>, CronError> {
         let mut current_time = start_time
             .clone()
-            .checked_add_signed(Duration::seconds(1))
-            .ok_or(CronError::InvalidDate)?; // Start at the next second
+            .with_nanosecond(0)
+            .ok_or(CronError::InvalidTime)?;
+        
+        // Start at next second if inclusive flag is false
+        if !inclusive {
+            current_time = current_time
+                .checked_add_signed(Duration::seconds(1))
+                .ok_or(CronError::InvalidTime)?;
+        }
+
         let tz = start_time.timezone(); // Capture the timezone
 
         'outer: loop {
@@ -151,6 +296,97 @@ impl Cron {
                 .ok_or(CronError::InvalidDate)?;
         }
     }
+
+    /// Creates a `CronIterator` starting from the specified time.
+    ///
+    /// This function will create an iterator that yields dates and times that
+    /// match a cron schedule, beginning at `start_from`. The iterator will
+    /// begin at the specified start time if it matches.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use chrono::Local;
+    /// use croner::Cron;
+    /// 
+    /// fn main() {
+    ///     // Parse cron expression
+    ///     let cron: Cron = "* * * * * *".parse().expect("Couldn't parse cron string");
+    /// 
+    ///     // Compare to time now
+    ///     let time = Local::now();
+    /// 
+    ///     // Get next 5 matches using iter_from
+    ///     println!("Finding matches of pattern '{}' starting from {}:", cron.pattern.to_string(), time);
+    /// 
+    ///     for time in cron.clone().iter_from(time).take(5) {
+    ///         println!("{}", time);
+    ///     }
+    /// }    
+    /// ```
+    ///
+    /// # Parameters
+    ///
+    /// - `start_from`: A `DateTime<Tz>` that represents the starting point for the iterator.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `CronIterator<Tz>` that can be used to iterate over scheduled times.
+    pub fn iter_from<Tz>(&self, start_from: DateTime<Tz>) -> CronIterator<Tz>
+    where
+        Tz: TimeZone,
+        Tz::Offset: std::fmt::Display,
+    {
+        CronIterator::new(self.clone(), start_from)
+    }
+
+    
+    /// Creates a `CronIterator` starting after the specified time.
+    ///
+    /// This function will create an iterator that yields dates and times that
+    /// match a cron schedule, beginning after `start_after`. The iterator will
+    /// not yield the specified start time; it will yield times that come
+    /// after it according to the cron schedule.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use chrono::Local;
+    /// use croner::Cron;
+    /// 
+    /// fn main() {
+    ///     // Parse cron expression
+    ///     let cron: Cron = "* * * * * *".parse().expect("Couldn't parse cron string");
+    /// 
+    ///     // Compare to time now
+    ///     let time = Local::now();
+    /// 
+    ///     // Get next 5 matches using iter_from
+    ///     println!("Finding matches of pattern '{}' starting from {}:", cron.pattern.to_string(), time);
+    /// 
+    ///     for time in cron.clone().iter_after(time).take(5) {
+    ///         println!("{}", time);
+    ///     }
+    /// }    
+    /// ```
+    ///
+    /// # Parameters
+    ///
+    /// - `start_after`: A `DateTime<Tz>` that represents the starting point for the iterator.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `CronIterator<Tz>` that can be used to iterate over scheduled times.
+    pub fn iter_after<Tz>(&self, start_after: DateTime<Tz>) -> CronIterator<Tz>
+    where
+        Tz: TimeZone,
+        Tz::Offset: std::fmt::Display,
+    {
+        let start_from = start_after
+            .checked_add_signed(Duration::seconds(1))
+            .expect("Invalid date encountered when adding one second");
+        CronIterator::new(self.clone(), start_from)
+    }
 }
 
 impl FromStr for Cron {
@@ -231,7 +467,7 @@ mod tests {
         // Set the start time to a known value.
         let start_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 29).unwrap();
         // Calculate the next occurrence from the start time.
-        let next_occurrence = cron.find_next_occurrence(&start_time)?;
+        let next_occurrence = cron.find_next_occurrence(&start_time, false)?;
 
         // Verify that the next occurrence is at the expected time.
         let expected_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 30).unwrap();
@@ -249,7 +485,7 @@ mod tests {
         // Set the start time to a known value.
         let start_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 29).unwrap();
         // Calculate the next occurrence from the start time.
-        let next_occurrence = cron.find_next_occurrence(&start_time)?;
+        let next_occurrence = cron.find_next_occurrence(&start_time, false)?;
 
         // Verify that the next occurrence is at the expected time.
         let expected_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 1, 0).unwrap();
@@ -267,7 +503,7 @@ mod tests {
         // Set the start time to a known value.
         let start_time = Local.with_ymd_and_hms(2023, 12, 31, 16, 0, 0).unwrap();
         // Calculate the next occurrence from the start time.
-        let next_occurrence = cron.find_next_occurrence(&start_time)?;
+        let next_occurrence = cron.find_next_occurrence(&start_time, false)?;
 
         // Verify that the next occurrence is at the expected time.
         let expected_time = Local.with_ymd_and_hms(2024, 1, 1, 15, 0, 0).unwrap();

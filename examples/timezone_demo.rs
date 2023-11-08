@@ -11,7 +11,7 @@ fn main() {
 
     // Find the next occurrence in EST
     let time_est = Local::now().with_timezone(&est_timezone);
-    let next_est = cron.find_next_occurrence(&time_est).unwrap();
+    let next_est = cron.find_next_occurrence(&time_est, false).unwrap();
 
     // Output results for EST
     println!("EST time is: {}", time_est);

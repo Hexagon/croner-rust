@@ -15,7 +15,7 @@ pub const NTH_ALL: u8 = NTH_1ST_BIT | NTH_2ND_BIT | NTH_3RD_BIT | NTH_4TH_BIT | 
 // Used for last day of month
 pub const LAST_BIT: u8 = 1 << 6;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct CronComponent {
     bitfields: Vec<u8>,   // Vector of u8 to act as multiple bitfields
     pub min: u8,          // Minimum value this component can take

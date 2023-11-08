@@ -10,7 +10,7 @@ fn main() {
     let matches_all = cron_all.is_time_matching(&time).unwrap();
 
     // Get next match
-    let next = cron_all.find_next_occurrence(&time).unwrap();
+    let next = cron_all.find_next_occurrence(&time, false).unwrap();
 
     // Output results
     println!("Time is: {}", time);
