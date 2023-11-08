@@ -30,7 +30,7 @@ Add `croner` to your `Cargo.toml` dependencies:
 
 ```toml
 [dependencies]
-croner = "0.0.1" # Adjust the version as necessary
+croner = "0.0.4" # Adjust the version as necessary
 ```
 
 ### Usage
@@ -51,7 +51,7 @@ fn main() {
     let matches_all = cron_all.is_time_matching(&time).unwrap();
 
     // Get next match
-    let next = cron_all.find_next_occurrence(&time).unwrap();
+    let next = cron_all.find_next_occurrence(&time, false).unwrap();
 
     // Output results
     println!("Time is: {}", time);
@@ -77,7 +77,7 @@ fn main() {
 
     // Find the next occurrence in EST
     let time_est = Local::now().with_timezone(&est_timezone);
-    let next_est = cron.find_next_occurrence(&time_est).unwrap();
+    let next_est = cron.find_next_occurrence(&time_est, false).unwrap();
 
     // Output results for EST
     println!("EST time is: {}", time_est);
