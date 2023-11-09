@@ -10,7 +10,11 @@ fn main() {
 
     // Get next 5 matches using iter_from
     // There is also iter_after, which does not match starting time
-    println!("Finding matches of pattern '{}' starting from {}:", cron.pattern.to_string(), time);
+    println!(
+        "Finding matches of pattern '{}' starting from {}:",
+        cron.pattern.to_string(),
+        time
+    );
 
     for time in cron.clone().iter_from(time).take(5) {
         println!("{}", time);

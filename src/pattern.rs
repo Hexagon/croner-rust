@@ -136,15 +136,19 @@ impl CronPattern {
     }
 
     // Converts named cron pattern shortcuts like '@daily' into their equivalent standard cron pattern.
-    fn handle_nicknames(pattern: &str) -> String {
-        let clean_pattern = pattern.trim().to_lowercase();
-        match clean_pattern.as_str() {
-            "@yearly" | "@annually" => "0 0 1 1 *".to_string(),
-            "@monthly" => "0 0 1 * *".to_string(),
-            "@weekly" => "0 0 * * 0".to_string(),
-            "@daily" => "0 0 * * *".to_string(),
-            "@hourly" => "0 * * * *".to_string(),
-            _ => pattern.to_string(),
+    fn handle_nicknames(pattern: &str) -> &str {
+        let pattern = pattern.trim();
+
+        // Closure that performs a case-insensitive comparison of two strings.
+        let eq_ignore_case = |a: &str, b: &str| a.eq_ignore_ascii_case(b);
+
+        match pattern {
+            p if eq_ignore_case(p, "@yearly") || eq_ignore_case(p, "@annually") => "0 0 1 1 *",
+            p if eq_ignore_case(p, "@monthly") => "0 0 1 * *",
+            p if eq_ignore_case(p, "@weekly") => "0 0 * * 0",
+            p if eq_ignore_case(p, "@daily") => "0 0 * * *",
+            p if eq_ignore_case(p, "@hourly") => "0 * * * *",
+            _ => pattern,
         }
     }
 
