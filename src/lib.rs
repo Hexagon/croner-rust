@@ -96,23 +96,22 @@ impl Cron {
     /// ```
     /// use croner::Cron;
     /// use chrono::Local;
-    /// fn main() {
-    ///     // Parse cron expression
-    ///     let cron: Cron = "0 * * * * *".parse().expect("Couldn't parse cron string");
     ///
-    ///     // Compare to time now
-    ///     let time = Local::now();
-    ///     let matches_all = cron.is_time_matching(&time).unwrap();
+    /// // Parse cron expression
+    /// let cron: Cron = "0 * * * * *".parse().expect("Couldn't parse cron string");
     ///
-    ///     // Output results
-    ///     println!("Time is: {}", time);
-    ///     println!(
-    ///         "Pattern \"{}\" does {} time {}",
-    ///         cron.pattern.to_string(),
-    ///         if matches_all { "match" } else { "not match" },
-    ///         time
-    ///     );
-    /// }
+    /// // Compare to time now
+    /// let time = Local::now();
+    /// let matches_all = cron.is_time_matching(&time).unwrap();
+    ///
+    /// // Output results
+    /// println!("Time is: {}", time);
+    /// println!(
+    ///     "Pattern \"{}\" does {} time {}",
+    ///     cron.pattern.to_string(),
+    ///     if matches_all { "match" } else { "not match" },
+    ///     time
+    /// );
     /// ```
     pub fn is_time_matching<Tz: TimeZone>(&self, time: &DateTime<Tz>) -> Result<bool, CronError> {
         Ok(self.pattern.second_match(time.second())?
@@ -160,20 +159,18 @@ impl Cron {
     /// use chrono::Local;
     /// use croner::Cron;
     ///
-    /// fn main() {
-    ///     // Parse cron expression
-    ///     let cron: Cron = "0 18 * * * 5".parse().expect("Couldn't parse cron string");
+    /// // Parse cron expression
+    /// let cron: Cron = "0 18 * * * 5".parse().expect("Couldn't parse cron string");
     ///
-    ///     // Get next match
-    ///     let time = Local::now();
-    ///     let next = cron.find_next_occurrence(&time, false).unwrap();
+    /// // Get next match
+    /// let time = Local::now();
+    /// let next = cron.find_next_occurrence(&time, false).unwrap();
     ///
-    ///     println!(
-    ///         "Pattern \"{}\" will match next time at {}",
-    ///         cron.pattern.to_string(),
-    ///         next
-    ///     );
-    /// }
+    /// println!(
+    ///     "Pattern \"{}\" will match next time at {}",
+    ///     cron.pattern.to_string(),
+    ///     next
+    /// );
     /// ```
     pub fn find_next_occurrence<Tz: TimeZone>(
         &self,
@@ -209,20 +206,18 @@ impl Cron {
     /// use chrono::Local;
     /// use croner::Cron;
     ///
-    /// fn main() {
-    ///     // Parse cron expression
-    ///     let cron: Cron = "* * * * * *".parse().expect("Couldn't parse cron string");
+    /// // Parse cron expression
+    /// let cron: Cron = "* * * * * *".parse().expect("Couldn't parse cron string");
     ///
-    ///     // Compare to time now
-    ///     let time = Local::now();
+    /// // Compare to time now
+    /// let time = Local::now();
     ///
-    ///     // Get next 5 matches using iter_from
-    ///     println!("Finding matches of pattern '{}' starting from {}:", cron.pattern.to_string(), time);
+    /// // Get next 5 matches using iter_from
+    /// println!("Finding matches of pattern '{}' starting from {}:", cron.pattern.to_string(), time);
     ///
-    ///     for time in cron.clone().iter_from(time).take(5) {
-    ///         println!("{}", time);
-    ///     }
-    /// }    
+    /// for time in cron.clone().iter_from(time).take(5) {
+    ///     println!("{}", time);
+    /// }
     /// ```
     ///
     /// # Parameters
@@ -253,20 +248,19 @@ impl Cron {
     /// use chrono::Local;
     /// use croner::Cron;
     ///
-    /// fn main() {
-    ///     // Parse cron expression
-    ///     let cron: Cron = "* * * * * *".parse().expect("Couldn't parse cron string");
+    /// // Parse cron expression
+    /// let cron: Cron = "* * * * * *".parse().expect("Couldn't parse cron string");
     ///
-    ///     // Compare to time now
-    ///     let time = Local::now();
+    /// // Compare to time now
+    /// let time = Local::now();
     ///
-    ///     // Get next 5 matches using iter_from
-    ///     println!("Finding matches of pattern '{}' starting from {}:", cron.pattern.to_string(), time);
+    /// // Get next 5 matches using iter_from
+    /// println!("Finding matches of pattern '{}' starting from {}:", cron.pattern.to_string(), time);
     ///
-    ///     for time in cron.clone().iter_after(time).take(5) {
-    ///         println!("{}", time);
-    ///     }
-    /// }    
+    /// for time in cron.clone().iter_after(time).take(5) {
+    ///     println!("{}", time);
+    /// }
+    ///  
     /// ```
     ///
     /// # Parameters

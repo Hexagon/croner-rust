@@ -51,7 +51,7 @@ impl CronPattern {
         }
 
         // Replace any '?' with '*' in the cron pattern
-        self.pattern = self.pattern.replace("?", "*");
+        self.pattern = self.pattern.replace('?', "*");
 
         // Handle @nicknames
         if self.pattern.contains('@') {
@@ -257,10 +257,9 @@ impl CronPattern {
             if self
                 .days_of_week
                 .is_bit_set(date.weekday().num_days_from_sunday() as u8, nth_bit)?
+                && CronPattern::is_nth_weekday_of_month(date, nth, date.weekday())
             {
-                if CronPattern::is_nth_weekday_of_month(date, nth, date.weekday()) {
-                    dow_matches = true;
-                }
+                dow_matches = true;
             }
         }
 
@@ -282,12 +281,10 @@ impl CronPattern {
         dow_matches = dow_matches || self.days_of_week.is_bit_set(day_of_week, ALL_BIT)?;
 
         // The day matches if it's set in the days bitset or the days of the week bitset
-        if day_matches && self.star_dow {
-            Ok(true)
-        } else if dow_matches && self.star_dom {
+        if (day_matches && self.star_dow) || (dow_matches && self.star_dom) {
             Ok(true)
         } else if !self.star_dom && !self.star_dow {
-            if self.dom_and_dow == false {
+            if !self.dom_and_dow {
                 Ok(day_matches || dow_matches)
             } else {
                 Ok(day_matches && dow_matches)
