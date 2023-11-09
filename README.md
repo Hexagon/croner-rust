@@ -1,32 +1,45 @@
 # Croner
 
-Croner is a lightweight, efficient Rust library for parsing and handling cron patterns. Designed with simplicity and performance in mind, it provides Rust developers with a tool to schedule tasks efficiently, following the familiar cron syntax.
+Croner is a lightweight, efficient Rust library for parsing and handling cron
+patterns. Designed with simplicity and performance in mind, it provides Rust
+developers with a tool to schedule tasks efficiently, following the familiar
+cron syntax.
 
-This is the **Work in progress** Rust flavor of the popular JavaScript/TypeScript cron scheduler [croner](https://github.com/hexagon/croner).
+This is the **Work in progress** Rust flavor of the popular
+JavaScript/TypeScript cron scheduler
+[croner](https://github.com/hexagon/croner).
 
 ## Features
 
-*   Parse and evaluate [cron](https://en.wikipedia.org/wiki/Cron#CRON_expression) expressions to calculate upcoming execution times.
-*   Supports extended Vixie-cron patterns with additional specifiers such as `L` for the last day and weekday of the month, and `#` for the nth weekday of the month.
-*   Evaulate cron extpressions across different time zones.
-*   Compatible with `chrono` and (optionally) `chrono-tz`.
-*   Includes overrun protection to prevent jobs from overlapping in a concurrent environment.
-*   Robust error handling.
-*   Control execution flow with the ability to pause, resume, or stop scheduled tasks.
-*   Operates in-memory without the need for persistent storage or configuration files.
-*   Highly optimized method of finding future/past matches.
+- Parse and evaluate [cron](https://en.wikipedia.org/wiki/Cron#CRON_expression)
+  expressions to calculate upcoming execution times.
+- Supports extended Vixie-cron patterns with additional specifiers such as `L`
+  for the last day and weekday of the month, and `#` for the nth weekday of the
+  month.
+- Evaulate cron extpressions across different time zones.
+- Compatible with `chrono` and (optionally) `chrono-tz`.
+- Includes overrun protection to prevent jobs from overlapping in a concurrent
+  environment.
+- Robust error handling.
+- Control execution flow with the ability to pause, resume, or stop scheduled
+  tasks.
+- Operates in-memory without the need for persistent storage or configuration
+  files.
+- Highly optimized method of finding future/past matches.
 
 ## Getting Started
 
 ### Prerequisites
 
-Ensure you have Rust installed on your machine. If not, you can get it from [the official Rust website](https://www.rust-lang.org/).
+Ensure you have Rust installed on your machine. If not, you can get it from
+[the official Rust website](https://www.rust-lang.org/).
 
 ### Installation
 
 Add `croner` to your `Cargo.toml` dependencies:
 
-**Please note that croner for Rust is work in progress, and not production ready**
+**Please note that croner for Rust is work in progress, and not production
+ready**
 
 ```toml
 [dependencies]
@@ -35,7 +48,8 @@ croner = "0.0.4" # Adjust the version as necessary
 
 ### Usage
 
-Here's a quick example to get you started with matching current time, and finding the next occurrence. `is_time_matching` takes a `chrono` `DateTime`:
+Here's a quick example to get you started with matching current time, and
+finding the next occurrence. `is_time_matching` takes a `chrono` `DateTime`:
 
 ```rust
 use croner::Cron;
@@ -61,7 +75,8 @@ fn main() {
 }
 ```
 
-To match against a non local timezone, croner supports zoned chrono DateTime's `DateTime<Tz>`. To use a named time zone, you can utilize the `chrono-tz` crate.
+To match against a non local timezone, croner supports zoned chrono DateTime's
+`DateTime<Tz>`. To use a named time zone, you can utilize the `chrono-tz` crate.
 
 ```rust
 use croner::Cron;
@@ -91,7 +106,8 @@ fn main() {
 
 ### Pattern
 
-The expressions used by Croner are very similar to those of Vixie Cron, but with a few additions and changes as outlined below:
+The expressions used by Croner are very similar to those of Vixie Cron, but with
+a few additions and changes as outlined below:
 
 ```javascript
 // ┌──────────────── (optional) second (0 - 59)
@@ -99,48 +115,61 @@ The expressions used by Croner are very similar to those of Vixie Cron, but with
 // │ │ ┌──────────── hour (0 - 23)
 // │ │ │ ┌────────── day of month (1 - 31)
 // │ │ │ │ ┌──────── month (1 - 12, JAN-DEC)
-// │ │ │ │ │ ┌────── day of week (0 - 6, SUN-Mon) 
+// │ │ │ │ │ ┌────── day of week (0 - 6, SUN-Mon)
 // │ │ │ │ │ │       (0 to 6 are Sunday to Saturday; 7 is Sunday, the same as 0)
 // │ │ │ │ │ │
 // * * * * * *
 ```
 
-*   Croner expressions have the following additional modifiers:
-	-   *?*: In the Rust version of croner, a questionmark behaves just as *, to allow for legacy cron patterns to be used.
-	-   *L*: The letter 'L' can be used in the day of the month field to indicate the last day of the month. When used in the day of the week field in conjunction with the # character, it denotes the last specific weekday of the month. For example, `5#L` represents the last Friday of the month.
-	-	*#*: The # character specifies the "nth" occurrence of a particular day within a month. For example, supplying 
-	`5#2` in the day of week field signifies the second Friday of the month. This can be combined with ranges and supports day names. For instance, MON-FRI#2 would match the Monday through Friday of the second week of the month.
+- Croner expressions have the following additional modifiers:
+  - _?_: In the Rust version of croner, a questionmark behaves just as *, to
+    allow for legacy cron patterns to be used.
+  - _L_: The letter 'L' can be used in the day of the month field to indicate
+    the last day of the month. When used in the day of the week field in
+    conjunction with the # character, it denotes the last specific weekday of
+    the month. For example, `5#L` represents the last Friday of the month.
+  - _#_: The # character specifies the "nth" occurrence of a particular day
+    within a month. For example, supplying `5#2` in the day of week field
+    signifies the second Friday of the month. This can be combined with ranges
+    and supports day names. For instance, MON-FRI#2 would match the Monday
+    through Friday of the second week of the month.
 
-*   Croner allows you to pass a JavaScript Date object or an ISO 8601 formatted string as a pattern. The scheduled function will trigger at the specified date/time and only once. If you use a timezone different from the local timezone, you should pass the ISO 8601 local time in the target location and specify the timezone using the options (2nd parameter).
+- Croner allows you to pass a JavaScript Date object or an ISO 8601 formatted
+  string as a pattern. The scheduled function will trigger at the specified
+  date/time and only once. If you use a timezone different from the local
+  timezone, you should pass the ISO 8601 local time in the target location and
+  specify the timezone using the options (2nd parameter).
 
-| Field        | Required | Allowed values | Allowed special characters | Remarks                               |
-|--------------|----------|----------------|----------------------------|---------------------------------------|
-| Seconds      | Optional | 0-59           | * , - / ?                  |                                       |
-| Minutes      | Yes      | 0-59           | * , - / ?                  |                                       |
-| Hours        | Yes      | 0-23           | * , - / ?                  |                                       |
-| Day of Month | Yes      | 1-31           | * , - / ? L                |                                       |
-| Month        | Yes      | 1-12 or JAN-DEC| * , - / ?                  |                                       |
-| Day of Week  | Yes      | 0-7 or SUN-MON | * , - / ? #                | 0 to 6 are Sunday to Saturday<br>7 is Sunday, the same as 0<br># is used to specify nth occurrence of a weekday            |
+| Field        | Required | Allowed values  | Allowed special characters | Remarks                                                                                                         |
+| ------------ | -------- | --------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Seconds      | Optional | 0-59            | * , - / ?                  |                                                                                                                 |
+| Minutes      | Yes      | 0-59            | * , - / ?                  |                                                                                                                 |
+| Hours        | Yes      | 0-23            | * , - / ?                  |                                                                                                                 |
+| Day of Month | Yes      | 1-31            | * , - / ? L                |                                                                                                                 |
+| Month        | Yes      | 1-12 or JAN-DEC | * , - / ?                  |                                                                                                                 |
+| Day of Week  | Yes      | 0-7 or SUN-MON  | * , - / ? #                | 0 to 6 are Sunday to Saturday<br>7 is Sunday, the same as 0<br># is used to specify nth occurrence of a weekday |
 
-> **Note**
-> Weekday and month names are case-insensitive. Both `MON` and `mon` work.
-> When using `L` in the Day of Week field, it affects all specified weekdays. For example, `5-6#L` means the last Friday and Saturday in the month."
-> The # character can be used to specify the "nth" weekday of the month. For example, 5#2 represents the second Friday of the month.
+> **Note** Weekday and month names are case-insensitive. Both `MON` and `mon`
+> work. When using `L` in the Day of Week field, it affects all specified
+> weekdays. For example, `5-6#L` means the last Friday and Saturday in the
+> month." The # character can be used to specify the "nth" weekday of the month.
+> For example, 5#2 represents the second Friday of the month.
 
 It is also possible to use the following "nicknames" as pattern.
 
-| Nickname | Description |
-| -------- | ----------- |
-| \@yearly | Run once a year, ie.  "0 0 1 1 *". |
-| \@annually | Run once a year, ie.  "0 0 1 1 *". |
-| \@monthly | Run once a month, ie. "0 0 1 * *". |
-| \@weekly | Run once a week, ie.  "0 0 * * 0". |
-| \@daily | Run once a day, ie.   "0 0 * * *". |
-| \@hourly | Run once an hour, ie. "0 * * * *". |
+| Nickname   | Description                        |
+| ---------- | ---------------------------------- |
+| \@yearly   | Run once a year, ie. "0 0 1 1 *".  |
+| \@annually | Run once a year, ie. "0 0 1 1 *".  |
+| \@monthly  | Run once a month, ie. "0 0 1 * *". |
+| \@weekly   | Run once a week, ie. "0 0 * * 0".  |
+| \@daily    | Run once a day, ie. "0 0 * * *".   |
+| \@hourly   | Run once an hour, ie. "0 * * * *". |
 
 ### Documentation
 
-For detailed usage and API documentation, visit [Croner on docs.rs](https://docs.rs/croner/).
+For detailed usage and API documentation, visit
+[Croner on docs.rs](https://docs.rs/croner/).
 
 ## Development
 
@@ -154,15 +183,18 @@ To start developing in the Croner project:
 
 ## Contributing
 
-We welcome contributions! Please feel free to submit a pull request or open an issue.
+We welcome contributions! Please feel free to submit a pull request or open an
+issue.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+This project is licensed under the MIT License - see the
+[LICENSE.md](LICENSE.md) file for details.
 
 ## Acknowledgments
 
-- Thanks to the `chrono` crate for providing robust date and time handling in Rust.
+- Thanks to the `chrono` crate for providing robust date and time handling in
+  Rust.
 - This project adheres to Semantic Versioning.
 
 ## Disclaimer
@@ -171,4 +203,5 @@ This is an early version of Croner, and the API is subject to change.
 
 ## Contact
 
-If you have any questions or feedback, please open an issue in the repository and we'll get back to you as soon as possible.
+If you have any questions or feedback, please open an issue in the repository
+and we'll get back to you as soon as possible.

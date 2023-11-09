@@ -5,6 +5,8 @@ use crate::component::{
 use crate::errors::CronError;
 use chrono::{Datelike, Duration, NaiveDate, Weekday};
 
+pub const NO_MATCH: u32 = 99999;
+
 // This struct is used for representing and validating cron pattern strings.
 // It supports parsing cron patterns with optional seconds field and provides functionality to check pattern matching against specific datetime.
 #[derive(Debug, Clone)]
@@ -346,6 +348,45 @@ impl CronPattern {
             return Err(CronError::InvalidTime);
         }
         self.seconds.is_bit_set(second as u8, ALL_BIT)
+    }
+
+    // Finds the next hour that matches the hour part of the cron pattern.
+    pub fn next_hour_match(&self, hour: u32) -> Result<u32, CronError> {
+        if hour > 23 {
+            return Err(CronError::InvalidTime);
+        }
+        for next_hour in hour..=23 {
+            if self.hours.is_bit_set(next_hour as u8, ALL_BIT)? {
+                return Ok(next_hour);
+            }
+        }
+        Ok(NO_MATCH) // No match found within the current range
+    }
+
+    // Finds the next minute that matches the minute part of the cron pattern.
+    pub fn next_minute_match(&self, minute: u32) -> Result<u32, CronError> {
+        if minute > 59 {
+            return Err(CronError::InvalidTime);
+        }
+        for next_minute in minute..=59 {
+            if self.minutes.is_bit_set(next_minute as u8, ALL_BIT)? {
+                return Ok(next_minute);
+            }
+        }
+        Ok(NO_MATCH) // No match found within the current range
+    }
+
+    // Finds the next second that matches the second part of the cron pattern.
+    pub fn next_second_match(&self, second: u32) -> Result<u32, CronError> {
+        if second > 59 {
+            return Err(CronError::InvalidTime);
+        }
+        for next_second in second..=59 {
+            if self.seconds.is_bit_set(next_second as u8, ALL_BIT)? {
+                return Ok(next_second);
+            }
+        }
+        Ok(NO_MATCH) // No match found within the current range
     }
 }
 

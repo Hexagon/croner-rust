@@ -4,10 +4,10 @@ mod component;
 mod errors;
 
 use errors::CronError;
-use pattern::CronPattern;
+use pattern::{CronPattern, NO_MATCH};
 use std::str::FromStr;
 
-use chrono::{DateTime, Datelike, Duration, TimeZone, Timelike};
+use chrono::{DateTime, Datelike, Duration, LocalResult, TimeZone, Timelike};
 
 pub struct CronIterator<Tz>
 where
@@ -53,6 +53,203 @@ where
             }
             Err(_) => None, // Stop the iteration if we cannot find the next occurrence
         }
+    }
+}
+
+enum TimeComponent {
+    Second = 1,
+    Minute,
+    Hour,
+    Day,
+    Month,
+    Year,
+}
+
+// Recursive function to handle setting the time and managing overflows.
+fn set_time<Tz: TimeZone>(
+    current_time: &mut DateTime<Tz>,
+    year: i32,
+    month: u32,
+    day: u32,
+    hour: u32,
+    minute: u32,
+    second: u32,
+    component: TimeComponent,
+    tz: &Tz,
+) -> Result<(), CronError> {
+    match tz.with_ymd_and_hms(year, month, day, hour, minute, second) {
+        LocalResult::Single(new_time) => {
+            *current_time = new_time;
+            Ok(())
+        }
+        LocalResult::None => {
+            // Handle overflow by incrementing the next higher component.
+            match component {
+                TimeComponent::Second => set_time(
+                    current_time,
+                    year,
+                    month,
+                    day,
+                    hour,
+                    minute + 1,
+                    0,
+                    TimeComponent::Minute,
+                    tz,
+                ),
+                TimeComponent::Minute => set_time(
+                    current_time,
+                    year,
+                    month,
+                    day,
+                    hour + 1,
+                    0,
+                    0,
+                    TimeComponent::Hour,
+                    tz,
+                ),
+                TimeComponent::Hour => set_time(
+                    current_time,
+                    year,
+                    month,
+                    day + 1,
+                    0,
+                    0,
+                    0,
+                    TimeComponent::Day,
+                    tz,
+                ),
+                TimeComponent::Day => set_time(
+                    current_time,
+                    year,
+                    month + 1,
+                    1,
+                    0,
+                    0,
+                    0,
+                    TimeComponent::Month,
+                    tz,
+                ),
+                TimeComponent::Month => set_time(
+                    current_time,
+                    year + 1,
+                    1,
+                    1,
+                    0,
+                    0,
+                    0,
+                    TimeComponent::Year,
+                    tz,
+                ),
+                TimeComponent::Year => Err(CronError::InvalidDate),
+            }
+        }
+        LocalResult::Ambiguous(..) => Err(CronError::InvalidDate),
+    }
+}
+
+fn set_time_component<Tz: TimeZone>(
+    current_time: &mut DateTime<Tz>,
+    component: TimeComponent,
+    set_to: u32,
+) -> Result<(), CronError> {
+    let tz = current_time.timezone();
+
+    // Extract all parts
+    let (year, month, day, hour, minute, _second) = (
+        current_time.year(),
+        current_time.month(),
+        current_time.day(),
+        current_time.hour(),
+        current_time.minute(),
+        current_time.second(),
+    );
+
+    match component {
+        TimeComponent::Year => set_time(current_time, set_to as i32, 0, 0, 0, 0, 0, component, &tz),
+        TimeComponent::Month => set_time(current_time, year, set_to, 0, 0, 0, 0, component, &tz),
+        TimeComponent::Day => set_time(current_time, year, month, set_to, 0, 0, 0, component, &tz),
+        TimeComponent::Hour => {
+            set_time(current_time, year, month, day, set_to, 0, 0, component, &tz)
+        }
+        TimeComponent::Minute => set_time(
+            current_time,
+            year,
+            month,
+            day,
+            hour,
+            set_to,
+            0,
+            component,
+            &tz,
+        ),
+        TimeComponent::Second => set_time(
+            current_time,
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            set_to,
+            component,
+            &tz,
+        ),
+    }
+}
+
+fn increment_time_component<Tz: TimeZone>(
+    current_time: &mut DateTime<Tz>,
+    component: TimeComponent,
+) -> Result<(), CronError> {
+    let tz = current_time.timezone();
+
+    // Extract all parts
+    let (year, month, day, hour, minute, second) = (
+        current_time.year(),
+        current_time.month(),
+        current_time.day(),
+        current_time.hour(),
+        current_time.minute(),
+        current_time.second(),
+    );
+
+    // Increment the component and try to set the new time.
+    match component {
+        TimeComponent::Year => set_time(current_time, year + 1, 1, 1, 0, 0, 0, component, &tz),
+        TimeComponent::Month => set_time(current_time, year, month + 1, 1, 0, 0, 0, component, &tz),
+        TimeComponent::Day => set_time(current_time, year, month, day + 1, 0, 0, 0, component, &tz),
+        TimeComponent::Hour => set_time(
+            current_time,
+            year,
+            month,
+            day,
+            hour + 1,
+            0,
+            0,
+            component,
+            &tz,
+        ),
+        TimeComponent::Minute => set_time(
+            current_time,
+            year,
+            month,
+            day,
+            hour,
+            minute + 1,
+            0,
+            component,
+            &tz,
+        ),
+        TimeComponent::Second => set_time(
+            current_time,
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second + 1,
+            component,
+            &tz,
+        ),
     }
 }
 
@@ -177,17 +374,26 @@ impl Cron {
         start_time: &DateTime<Tz>,
         inclusive: bool,
     ) -> Result<DateTime<Tz>, CronError> {
-        let mut current_time = if inclusive {
-            start_time.clone()
-        } else {
-            self.increment_time(start_time, Duration::seconds(1))?
-        };
+        let mut current_time: DateTime<Tz> = start_time.clone();
+        if !inclusive {
+            increment_time_component(&mut current_time, TimeComponent::Second)?;
+        }
         loop {
-            current_time = self.find_next_matching_month(&current_time)?;
-            current_time = self.find_next_matching_day(&current_time)?;
-            current_time = self.find_next_matching_hour(&current_time)?;
-            current_time = self.find_next_matching_minute(&current_time)?;
-            current_time = self.find_next_matching_second(&current_time)?;
+            if self.find_next_matching_month(&mut current_time)? {
+                continue;
+            };
+            if self.find_next_matching_day(&mut current_time)? {
+                continue;
+            };
+            if self.find_next_matching_hour(&mut current_time)? {
+                continue;
+            };
+            if self.find_next_matching_minute(&mut current_time)? {
+                continue;
+            };
+            if self.find_next_matching_second(&mut current_time)? {
+                continue;
+            };
             if self.is_time_matching(&current_time)? {
                 return Ok(current_time);
             }
@@ -281,122 +487,83 @@ impl Cron {
         CronIterator::new(self.clone(), start_from)
     }
 
-    // Internal function to increment time with a set duration, and give CronError::InvalidTime on failure
-    fn increment_time<Tz: TimeZone>(
-        &self,
-        time: &DateTime<Tz>,
-        duration: Duration,
-    ) -> Result<DateTime<Tz>, CronError> {
-        time.clone()
-            .checked_add_signed(duration)
-            .ok_or(CronError::InvalidTime)
-    }
-
     // Internal functions to check for the next matching month/day/hour/minute/second and return the updated time.
     fn find_next_matching_month<Tz: TimeZone>(
         &self,
-        current_time: &DateTime<Tz>,
-    ) -> Result<DateTime<Tz>, CronError> {
-        let tz = current_time.timezone();
-        let mut year = current_time.year();
-        let mut month = current_time.month();
-        let mut day = current_time.day();
-        let mut hour = current_time.hour();
-        let mut minute = current_time.minute();
-        let mut second = current_time.second();
-        while !self.pattern.month_match(month)? {
-            month += 1;
-            day = 1;
-            hour = 0;
-            minute = 0;
-            second = 0;
-            if month > 12 {
-                month = 1;
-                year += 1;
-                if year > 9999 {
-                    return Err(CronError::TimeSearchLimitExceeded);
-                }
-            }
+        current_time: &mut DateTime<Tz>,
+    ) -> Result<bool, CronError> {
+        let mut incremented = false;
+        while !self.pattern.month_match(current_time.month())? {
+            increment_time_component(current_time, TimeComponent::Month)?;
+            incremented = true;
         }
-        tz.with_ymd_and_hms(year, month, day, hour, minute, second)
-            .single()
-            .ok_or(CronError::InvalidDate)
+        Ok(incremented)
     }
     fn find_next_matching_day<Tz: TimeZone>(
         &self,
-        current_time: &DateTime<Tz>,
-    ) -> Result<DateTime<Tz>, CronError> {
-        let tz = current_time.timezone();
-        let mut date = current_time.clone();
-
-        while !self
-            .pattern
-            .day_match(date.year(), date.month(), date.day())?
-        {
-            date = self.increment_time(&date, Duration::days(1))?;
-            // When the minute changes, reset time
-            date = tz
-                .with_ymd_and_hms(date.year(), date.month(), date.day(), 0, 0, 0)
-                .single()
-                .ok_or(CronError::InvalidTime)?;
+        current_time: &mut DateTime<Tz>,
+    ) -> Result<bool, CronError> {
+        let mut incremented = false;
+        while !self.pattern.day_match(
+            current_time.year(),
+            current_time.month(),
+            current_time.day(),
+        )? {
+            increment_time_component(current_time, TimeComponent::Day)?;
+            incremented = true;
         }
 
-        Ok(date)
+        Ok(incremented)
     }
     fn find_next_matching_hour<Tz: TimeZone>(
         &self,
-        current_time: &DateTime<Tz>,
-    ) -> Result<DateTime<Tz>, CronError> {
-        let tz = current_time.timezone();
-        let mut time = current_time.clone();
-
-        while !self.pattern.hour_match(time.hour())? {
-            time = self.increment_time(&time, Duration::hours(1))?;
-            // When the hour changes, reset minutes and seconds to 0
-            time = tz
-                .with_ymd_and_hms(time.year(), time.month(), time.day(), time.hour(), 0, 0)
-                .single()
-                .ok_or(CronError::InvalidTime)?;
+        current_time: &mut DateTime<Tz>,
+    ) -> Result<bool, CronError> {
+        let mut incremented = false;
+        let next_match = self.pattern.next_hour_match(current_time.hour()).unwrap();
+        if next_match == NO_MATCH {
+            increment_time_component(current_time, TimeComponent::Day)?;
+            incremented = true;
+        } else if next_match != current_time.hour() {
+            incremented = true;
+            set_time_component(current_time, TimeComponent::Hour, next_match)?;
         }
-
-        Ok(time)
+        Ok(incremented)
     }
     fn find_next_matching_minute<Tz: TimeZone>(
         &self,
-        current_time: &DateTime<Tz>,
-    ) -> Result<DateTime<Tz>, CronError> {
-        let tz = current_time.timezone();
-        let mut time = current_time.clone();
-
-        while !self.pattern.minute_match(time.minute())? {
-            time = self.increment_time(&time, Duration::minutes(1))?;
-            // When the minute changes, reset seconds to 0
-            time = tz
-                .with_ymd_and_hms(
-                    time.year(),
-                    time.month(),
-                    time.day(),
-                    time.hour(),
-                    time.minute(),
-                    0,
-                )
-                .single()
-                .ok_or(CronError::InvalidTime)?;
+        current_time: &mut DateTime<Tz>,
+    ) -> Result<bool, CronError> {
+        let mut incremented = false;
+        let next_match = self
+            .pattern
+            .next_minute_match(current_time.minute())
+            .unwrap();
+        if next_match == NO_MATCH {
+            increment_time_component(current_time, TimeComponent::Hour)?;
+            incremented = true;
+        } else if next_match != current_time.minute() {
+            incremented = true;
+            set_time_component(current_time, TimeComponent::Minute, next_match)?;
         }
-
-        Ok(time)
+        Ok(incremented)
     }
     fn find_next_matching_second<Tz: TimeZone>(
         &self,
-        current_time: &DateTime<Tz>,
-    ) -> Result<DateTime<Tz>, CronError> {
-        let mut time = current_time.clone();
-
-        while !self.pattern.second_match(time.second())? {
-            time = self.increment_time(&time, Duration::seconds(1))?;
+        current_time: &mut DateTime<Tz>,
+    ) -> Result<bool, CronError> {
+        let mut incremented = false;
+        let next_match = self
+            .pattern
+            .next_second_match(current_time.second())
+            .unwrap();
+        if next_match == NO_MATCH {
+            increment_time_component(current_time, TimeComponent::Minute)?;
+            incremented = true;
+        } else {
+            set_time_component(current_time, TimeComponent::Second, next_match)?;
         }
-
-        Ok(time)
+        Ok(incremented)
     }
 }
 
@@ -483,7 +650,6 @@ mod tests {
 
         // Verify that the next occurrence is at the expected time.
         let expected_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 30).unwrap();
-        println!("{} {} {}", start_time, next_occurrence, expected_time);
         assert_eq!(next_occurrence, expected_time);
 
         Ok(())
@@ -501,7 +667,6 @@ mod tests {
 
         // Verify that the next occurrence is at the expected time.
         let expected_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 1, 0).unwrap();
-        println!("{} {} {}", start_time, next_occurrence, expected_time);
         assert_eq!(next_occurrence, expected_time);
 
         Ok(())
@@ -519,7 +684,6 @@ mod tests {
 
         // Verify that the next occurrence is at the expected time.
         let expected_time = Local.with_ymd_and_hms(2024, 1, 1, 15, 0, 0).unwrap();
-        println!("{} {} {}", start_time, next_occurrence, expected_time);
         assert_eq!(next_occurrence, expected_time);
 
         Ok(())
