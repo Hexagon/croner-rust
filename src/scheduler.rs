@@ -1,6 +1,6 @@
 use threadpool::ThreadPool;
 
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, TimeZone, Timelike, Utc};
 
 use crate::Cron;
 use std::sync::{Arc, Mutex};
@@ -9,15 +9,15 @@ pub struct CronScheduler<Tz, C, F>
 where
     Tz: TimeZone + Send + Sync + 'static,
     Tz::Offset: std::fmt::Display,
-    C: Clone + Send + Sync + 'static,      // Added Clone here
-    F: FnMut(Option<&C>) + Send + 'static, // Adjusted type
+    C: Clone + Send + Sync + 'static,
+    F: FnMut(Option<&C>) + Send + 'static,
 {
     cron: Cron,
     timezone: Tz,
     task: ScheduledTask,
     context: Option<Arc<Mutex<ScheduledTaskContext<C>>>>,
     thread_pool: ThreadPool,
-    callback: Option<Arc<Mutex<F>>>, // Adjusted type
+    callback: Option<Arc<Mutex<F>>>,
 }
 
 #[derive(PartialEq)]
@@ -87,18 +87,31 @@ where
             return false;
         }
 
-        // Get the current time
-        let now = Utc::now();
-
-        // Check if last_start is the exact same second as now
-        if let Some(last_start) = self.task.last_start {
-            if now.timestamp() == last_start.timestamp() {
-                return true; // It's the exact same second, do not trigger the task
+        // Check if the scheduler is busy
+        {
+            // Temporarily unlock the mutex to set task state to busy
+            let state = self.task.shared_state.lock().unwrap();
+            if TaskState::Busy == state.task_state {
+                // Skip this run
+                return true;
             }
         }
 
-        // Check if it's time to trigger the task
-        if let Some(next_run_time) = self.next_run(true) {
+        let now: DateTime<Utc> = Utc::now();
+
+        // Check if we are past the expected run time
+        if let Some(last_run) = self.task.last_start {
+            if let Some(next_run_time) = self.next_run_after(last_run) {
+                if let Some(next_run_time_no_nano) = next_run_time.with_nanosecond(0) {
+                    if now <= next_run_time_no_nano {
+                        return true; // Not time yet
+                    }
+                }
+            }
+        }
+
+        // Check if it is time to run
+        if let Some(next_run_time) = self.next_run_from(None) {
             if now < next_run_time {
                 return true; // Not time to trigger yet
             }
@@ -112,7 +125,6 @@ where
         let context_clone = self.context.clone(); // Clone the optional context
 
         self.task.last_start = Some(Utc::now());
-
         thread_pool.execute(move || {
             if let Some(callback) = callback_clone {
                 // Temporarily unlock the mutex to set task state to busy
@@ -167,9 +179,19 @@ where
         self
     }
 
-    pub fn next_run(&self, inclusive: bool) -> Option<DateTime<Tz>> {
-        let now = self.timezone.from_utc_datetime(&Utc::now().naive_utc());
-        self.cron.find_next_occurrence(&now, inclusive).ok()
+    pub fn next_run_from(&self, now: Option<DateTime<Utc>>) -> Option<DateTime<Tz>> {
+        if let Some(int_now) = now {
+            let tz_now = self.timezone.from_utc_datetime(&int_now.naive_utc());
+            self.cron.find_next_occurrence(&tz_now, true).ok()
+        } else {
+            let now = self.timezone.from_utc_datetime(&Utc::now().naive_utc());
+            self.cron.find_next_occurrence(&now, true).ok()
+        }
+    }
+
+    pub fn next_run_after(&self, last_run: DateTime<Utc>) -> Option<DateTime<Tz>> {
+        let last_run_utc = self.timezone.from_utc_datetime(&last_run.naive_utc());
+        self.cron.find_next_occurrence(&last_run_utc, false).ok()
     }
 
     pub fn next_runs(&self, count: usize) -> Vec<DateTime<Tz>> {

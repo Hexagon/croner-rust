@@ -1,26 +1,28 @@
 use chrono::Utc;
-use croner::scheduler::{CronScheduler, ScheduledTaskContext};
+use croner::scheduler::CronScheduler;
 use croner::Cron;
-use std::sync::{Arc, Mutex};
 use std::thread;
 
 // Define the Params structure
 #[derive(Clone)]
 struct Params {
     // Define the fields you need
+    test: &'static str,
 }
 
 fn main() {
     // Schedule one task at even seconds
-    let cron_1: Cron = "0/2 * * * * *".parse().expect("Invalid cron expression");
+    let cron_1: Cron = "0/2 * 23 * * *".parse().expect("Invalid cron expression");
     let mut scheduler_1 = CronScheduler::new(cron_1, Utc).with_threadpool_size(5);
 
     // Define the context for the first scheduler
-    let context_1 = Params { /* Initialize fields */ };
+    let context_1 = Params {
+        test: "Hello Context!",
+    };
     scheduler_1.with_context(context_1);
     scheduler_1.start(|opt_context: Option<&Params>| {
-        if let Some(context) = opt_context {
-            // Use the context here if needed
+        if let Some(_context) = opt_context {
+            println!("Context message:{}", _context.test);
         }
         println!("Task 1 started at {:?}, sleeping for 5 seconds", Utc::now());
         //thread::sleep(std::time::Duration::from_secs(5));
@@ -32,10 +34,10 @@ fn main() {
     let mut scheduler_2 = CronScheduler::new(cron_2, Utc);
 
     // Define the context for the second scheduler
-    let context_2 = Params { /* Initialize fields */ };
+    let context_2 = Params { test: "Test" };
     scheduler_2.with_context(context_2);
     scheduler_2.start(|opt_context: Option<&Params>| {
-        if let Some(context) = opt_context {
+        if let Some(_context) = opt_context {
             // Use the context here if needed
         }
         println!("Task 2 started at {:?}, sleeping for 5 seconds", Utc::now());
