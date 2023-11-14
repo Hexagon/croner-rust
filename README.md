@@ -1,31 +1,30 @@
 # Croner
 
-Croner is a lightweight, efficient Rust library for parsing and handling cron
-patterns. Designed with simplicity and performance in mind, it provides Rust
-developers with a tool to schedule tasks efficiently, following the familiar
-cron syntax.
+Croner is a fully featured, lightweight, efficient Rust library for parsing and
+evaluating cron patterns. Designed with simplicity and performance in mind, it
+provides Rust developers with a tool to schedule tasks efficiently, following
+the familiar cron syntax.
 
-This is the **Work in progress** Rust flavor of the popular
-JavaScript/TypeScript cron scheduler
+This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 [croner](https://github.com/hexagon/croner).
 
 ## Features
 
 - Parse and evaluate [cron](https://en.wikipedia.org/wiki/Cron#CRON_expression)
   expressions to calculate upcoming execution times.
+- Schedule tasks in separate threads based on cron patterns, enabling concurrent task execution. 
 - Supports extended Vixie-cron patterns with additional specifiers such as `L`
-  for the last day and weekday of the month, and `#` for the nth weekday of the
-  month.
-- Evaulate cron extpressions across different time zones.
+  for the last day and weekday of the month, `#` for the nth weekday of the
+  month and `W` for closest weekday to a day of month.
+- Evaulate cron expressions across different time zones.
 - Compatible with `chrono` and (optionally) `chrono-tz`.
-- Includes overrun protection to prevent jobs from overlapping in a concurrent
-  environment.
 - Robust error handling.
 - Control execution flow with the ability to pause, resume, or stop scheduled
   tasks.
 - Operates in-memory without the need for persistent storage or configuration
   files.
 - Highly optimized method of finding future/past matches.
+- No dependencies except `chrono`.
 
 ## Getting Started
 
@@ -43,7 +42,7 @@ ready**
 
 ```toml
 [dependencies]
-croner = "0.0.4" # Adjust the version as necessary
+croner = "1.0.0" # Adjust the version as necessary
 ```
 
 ### Usage
@@ -104,6 +103,33 @@ fn main() {
 }
 ```
 
+Here is a basic example to schedule a task:
+
+```rust
+use croner::Cron;
+use croner::scheduler::CronScheduler;
+use chrono::Utc;
+
+use std::thread;
+
+fn main() {
+    let cron: Cron = "0/5 * * * * *".parse().expect("Invalid cron expression");
+    let scheduler = CronScheduler::new(cron, Utc);
+
+    scheduler.start(|| {
+        println!("Task executed at {:?}", Utc::now());
+    });
+
+    // The task can be paused, resumed, or stopped as needed
+    // scheduler.pause();
+    // scheduler.resume();
+    // scheduler.stop();
+    
+    // For demonstration purposes, let's run for some time then stop
+    thread::sleep(std::time::Duration::from_secs(20));
+}
+```
+
 ### Pattern
 
 The expressions used by Croner are very similar to those of Vixie Cron, but with
@@ -133,21 +159,21 @@ a few additions and changes as outlined below:
     signifies the second Friday of the month. This can be combined with ranges
     and supports day names. For instance, MON-FRI#2 would match the Monday
     through Friday of the second week of the month.
-
-- Croner allows you to pass a JavaScript Date object or an ISO 8601 formatted
-  string as a pattern. The scheduled function will trigger at the specified
-  date/time and only once. If you use a timezone different from the local
-  timezone, you should pass the ISO 8601 local time in the target location and
-  specify the timezone using the options (2nd parameter).
+  - _W_: The character 'W' is used to specify the closest weekday to a given day
+    in the day of the month field. For example, 15W will match the closest
+    weekday to the 15th of the month. If the specified day falls on a weekend
+    (Saturday or Sunday), the pattern will match the closest weekday before or
+    after that date. For instance, if the 15th is a Saturday, 15W will match the
+    14th (Friday), and if the 15th is a Sunday, it will match the 16th (Monday).
 
 | Field        | Required | Allowed values  | Allowed special characters | Remarks                                                                                                         |
 | ------------ | -------- | --------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | Seconds      | Optional | 0-59            | * , - / ?                  |                                                                                                                 |
 | Minutes      | Yes      | 0-59            | * , - / ?                  |                                                                                                                 |
 | Hours        | Yes      | 0-23            | * , - / ?                  |                                                                                                                 |
-| Day of Month | Yes      | 1-31            | * , - / ? L                |                                                                                                                 |
+| Day of Month | Yes      | 1-31            | * , - / ? L W              |                                                                                                                 |
 | Month        | Yes      | 1-12 or JAN-DEC | * , - / ?                  |                                                                                                                 |
-| Day of Week  | Yes      | 0-7 or SUN-MON  | * , - / ? #                | 0 to 6 are Sunday to Saturday<br>7 is Sunday, the same as 0<br># is used to specify nth occurrence of a weekday |
+| Day of Week  | Yes      | 0-7 or SUN-MON  | * , - / ? # L              | 0 to 6 are Sunday to Saturday<br>7 is Sunday, the same as 0<br># is used to specify nth occurrence of a weekday |
 
 > **Note** Weekday and month names are case-insensitive. Both `MON` and `mon`
 > work. When using `L` in the Day of Week field, it affects all specified
@@ -191,15 +217,12 @@ issue.
 This project is licensed under the MIT License - see the
 [LICENSE.md](LICENSE.md) file for details.
 
-## Acknowledgments
-
-- Thanks to the `chrono` crate for providing robust date and time handling in
-  Rust.
-- This project adheres to Semantic Versioning.
-
 ## Disclaimer
 
-This is an early version of Croner, and the API is subject to change.
+Please note that Croner is currently in its early stages of development. As
+such, the API is subject to change in future releases, adhering to semantic
+versioning principles. We recommend keeping this in mind when integrating Croner
+into your projects.
 
 ## Contact
 

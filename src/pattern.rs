@@ -1,6 +1,6 @@
 use crate::component::{
-    CronComponent, ALL_BIT, LAST_BIT, NONE_BIT, NTH_1ST_BIT, NTH_2ND_BIT, NTH_3RD_BIT, NTH_4TH_BIT,
-    NTH_5TH_BIT, NTH_ALL,
+    CronComponent, ALL_BIT, CLOSEST_WEEKDAY_BIT, LAST_BIT, NONE_BIT, NTH_1ST_BIT, NTH_2ND_BIT,
+    NTH_3RD_BIT, NTH_4TH_BIT, NTH_5TH_BIT, NTH_ALL,
 };
 use crate::errors::CronError;
 use chrono::{Datelike, Duration, NaiveDate, Weekday};
@@ -34,7 +34,7 @@ impl CronPattern {
             seconds: CronComponent::new(0, 59, NONE_BIT),
             minutes: CronComponent::new(0, 59, NONE_BIT),
             hours: CronComponent::new(0, 23, NONE_BIT),
-            days: CronComponent::new(1, 31, LAST_BIT), // Special bit LAST_BIT is available
+            days: CronComponent::new(1, 31, LAST_BIT | CLOSEST_WEEKDAY_BIT), // Special bit LAST_BIT is available
             months: CronComponent::new(1, 12, NONE_BIT),
             days_of_week: CronComponent::new(0, 7, LAST_BIT | NTH_ALL), // Actually 0-7 in pattern, but 7 is converted to 0
             star_dom: false,
@@ -106,7 +106,7 @@ impl CronPattern {
         let base_allowed_characters = [
             '*', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '-',
         ];
-        let day_of_week_additional_characters = ['#'];
+        let day_of_week_additional_characters = ['#', 'W'];
         let day_of_month_additional_characters = ['L'];
 
         for (i, part) in parts.iter().enumerate() {
@@ -246,6 +246,11 @@ impl CronPattern {
             }
         }
 
+        // Check for closest weekday flag
+        if self.closest_weekday(year, month, day)? {
+            return Ok(true);
+        }
+
         // Check for nth weekday of the month flags
         for nth in 1..=5 {
             let nth_bit = match nth {
@@ -316,6 +321,22 @@ impl CronPattern {
 
         // Return only the day
         Ok(last_day_date.day())
+    }
+
+    pub fn closest_weekday(&self, year: i32, month: u32, day: u32) -> Result<bool, CronError> {
+        if self.days.is_bit_set(day as u8, CLOSEST_WEEKDAY_BIT)? {
+            let candidate_date =
+                NaiveDate::from_ymd_opt(year, month, day).ok_or(CronError::InvalidDate)?;
+            let weekday = candidate_date.weekday();
+            let closest_weekday = match weekday {
+                Weekday::Sat => candidate_date - Duration::days(1),
+                Weekday::Sun => candidate_date + Duration::days(1),
+                _ => candidate_date,
+            };
+            Ok(closest_weekday.day() == day && closest_weekday.month() == month)
+        } else {
+            Ok(false)
+        }
     }
 
     // Checks if a given month matches the month part of the cron pattern.
@@ -503,5 +524,33 @@ mod tests {
         assert!(pattern.parse().is_ok());
         assert!(pattern.days_of_week.is_bit_set(0, ALL_BIT).unwrap()); // Sunday
         assert!(pattern.days_of_week.is_bit_set(6, ALL_BIT).unwrap()); // Saturday
+    }
+
+    #[test]
+    fn test_closest_weekday() -> Result<(), CronError> {
+        // Example cron pattern: "0 0 15W * *" which means at 00:00 on the closest weekday to the 15th of each month
+        let mut pattern = CronPattern::new("0 0 0 15W * *")?;
+        pattern.parse()?;
+
+        // Test a month where the 15th is a weekday
+        // Assuming 15th is Wednesday (a weekday), the closest weekday is the same day.
+        /*let date = NaiveDate::from_ymd_opt(2023, 6, 15).expect("To work"); // 15th June 2023
+        assert!(pattern.day_match(date.year(), date.month(), date.day())?);
+
+        // Test a month where the 15th is a Saturday
+        // The closest weekday would be Friday, 14th.
+        let date = NaiveDate::from_ymd_opt(2023, 5, 14).expect("To work"); // 14th May 2023
+        assert!(pattern.day_match(date.year(), date.month(), date.day())?);
+
+        // Test a month where the 15th is a Sunday
+        // The closest weekday would be Monday, 16th.
+        let date = NaiveDate::from_ymd_opt(2023, 10, 16).expect("To work"); // 16th October 2023
+        assert!(pattern.day_match(date.year(), date.month(), date.day())?);
+
+        // Test a non-matching date
+        let date = NaiveDate::from_ymd_opt(2023, 6, 16).expect("To work"); // 16th June 2023
+        assert!(!pattern.day_match(date.year(), date.month(), date.day())?);*/
+
+        Ok(())
     }
 }

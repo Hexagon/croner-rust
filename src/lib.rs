@@ -1,4 +1,5 @@
 pub mod pattern;
+pub mod scheduler;
 
 mod component;
 mod errors;
@@ -685,6 +686,99 @@ mod tests {
         // Verify that the next occurrence is at the expected time.
         let expected_time = Local.with_ymd_and_hms(2024, 1, 1, 15, 0, 0).unwrap();
         assert_eq!(next_occurrence, expected_time);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_weekday_pattern_correct_weekdays() -> Result<(), CronError> {
+        let schedule = Cron::parse("0 0 0 * * 5,6")?;
+        let start_time = Local
+            .with_ymd_and_hms(2022, 2, 17, 0, 0, 0)
+            .single()
+            .unwrap();
+        let mut next_runs = Vec::new();
+
+        for next in schedule.iter_after(start_time).take(6) {
+            next_runs.push(next);
+        }
+
+        assert_eq!(next_runs[0].year(), 2022);
+        assert_eq!(next_runs[0].month(), 2);
+        assert_eq!(next_runs[0].day(), 18);
+
+        assert_eq!(next_runs[1].day(), 19);
+        assert_eq!(next_runs[2].day(), 25);
+        assert_eq!(next_runs[3].day(), 26);
+
+        assert_eq!(next_runs[4].month(), 3);
+        assert_eq!(next_runs[4].day(), 4);
+        assert_eq!(next_runs[5].day(), 5);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_weekday_pattern_combined_with_day_of_month() -> Result<(), CronError> {
+        let schedule = Cron::parse("59 59 23 2 * 6")?;
+        let start_time = Local
+            .with_ymd_and_hms(2022, 1, 31, 0, 0, 0)
+            .single()
+            .unwrap();
+        let mut next_runs = Vec::new();
+
+        for next in schedule.iter_after(start_time).take(6) {
+            next_runs.push(next);
+        }
+
+        assert_eq!(next_runs[0].year(), 2022);
+        assert_eq!(next_runs[0].month(), 2);
+        assert_eq!(next_runs[0].day(), 2);
+
+        assert_eq!(next_runs[1].month(), 2);
+        assert_eq!(next_runs[1].day(), 5);
+
+        assert_eq!(next_runs[2].month(), 2);
+        assert_eq!(next_runs[2].day(), 12);
+
+        assert_eq!(next_runs[3].month(), 2);
+        assert_eq!(next_runs[3].day(), 19);
+
+        assert_eq!(next_runs[4].month(), 2);
+        assert_eq!(next_runs[4].day(), 26);
+
+        assert_eq!(next_runs[5].month(), 3);
+        assert_eq!(next_runs[5].day(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_weekday_pattern_alone() -> Result<(), CronError> {
+        let schedule = Cron::parse("15 9 * * mon")?;
+        let start_time = Local
+            .with_ymd_and_hms(2022, 2, 28, 23, 59, 0)
+            .single()
+            .unwrap();
+        let mut next_runs = Vec::new();
+
+        for next in schedule.iter_after(start_time).take(3) {
+            next_runs.push(next);
+        }
+
+        assert_eq!(next_runs[0].year(), 2022);
+        assert_eq!(next_runs[0].month(), 3);
+        assert_eq!(next_runs[0].day(), 7);
+        assert_eq!(next_runs[0].hour(), 9);
+        assert_eq!(next_runs[0].minute(), 15);
+
+        assert_eq!(next_runs[1].day(), 14);
+        assert_eq!(next_runs[1].hour(), 9);
+        assert_eq!(next_runs[1].minute(), 15);
+
+        assert_eq!(next_runs[2].day(), 21);
+        assert_eq!(next_runs[2].hour(), 9);
+        assert_eq!(next_runs[2].minute(), 15);
 
         Ok(())
     }

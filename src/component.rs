@@ -12,6 +12,9 @@ pub const NTH_4TH_BIT: u8 = 1 << 4;
 pub const NTH_5TH_BIT: u8 = 1 << 5;
 pub const NTH_ALL: u8 = NTH_1ST_BIT | NTH_2ND_BIT | NTH_3RD_BIT | NTH_4TH_BIT | NTH_5TH_BIT;
 
+// Used for closest weekday
+pub const CLOSEST_WEEKDAY_BIT: u8 = 1 << 7;
+
 // Used for last day of month
 pub const LAST_BIT: u8 = 1 << 6;
 
@@ -145,6 +148,8 @@ impl CronComponent {
                         self.handle_stepping(trimmed_part)?;
                     } else if trimmed_part.contains('-') {
                         self.handle_range(trimmed_part)?;
+                    } else if trimmed_part.contains('w') {
+                        self.handle_closest_weekday(trimmed_part)?;
                     } else if trimmed_part.eq_ignore_ascii_case("l") {
                         // Handle "L" for the last bit
                         self.enable_feature(LAST_BIT)?;
@@ -191,6 +196,24 @@ impl CronComponent {
 
     fn strip_nth_part(value: &str) -> &str {
         value.split('#').next().unwrap_or("")
+    }
+
+    fn handle_closest_weekday(&mut self, value: &str) -> Result<(), CronError> {
+        if let Some(day_pos) = value.find('w') {
+            let day_str = &value[..day_pos];
+            let day = day_str.parse::<u8>().map_err(|_| {
+                CronError::ComponentError("Invalid day for closest weekday.".to_string())
+            })?;
+            if day < self.min || day > self.max {
+                return Err(CronError::ComponentError(
+                    "Day for closest weekday out of bounds.".to_string(),
+                ));
+            }
+            self.set_bit(day, CLOSEST_WEEKDAY_BIT)?;
+        } else {
+            self.handle_number(value)?;
+        }
+        Ok(())
     }
 
     fn handle_range(&mut self, range: &str) -> Result<(), CronError> {
@@ -405,5 +428,13 @@ mod tests {
         assert!(component.parse("10-").is_err());
         assert!(component.parse("*/").is_err());
         assert!(component.parse("60").is_err()); // out of bounds for the minute field
+    }
+
+    #[test]
+    fn test_parse_closest_weekday() {
+        let mut component = CronComponent::new(1, 31, CLOSEST_WEEKDAY_BIT);
+        component.parse("15w").unwrap();
+        assert!(component.is_bit_set(15, CLOSEST_WEEKDAY_BIT).unwrap());
+        // You might want to add more tests for edge cases
     }
 }
