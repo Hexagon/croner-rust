@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::Local;
 use croner::scheduler::CronScheduler;
 use croner::Cron;
 use std::thread;
@@ -12,8 +12,8 @@ struct Params {
 
 fn main() {
     // Schedule one task at even seconds
-    let cron_1: Cron = "0/2 * 23 * * *".parse().expect("Invalid cron expression");
-    let mut scheduler_1 = CronScheduler::new(cron_1, Utc).with_threadpool_size(5);
+    let cron_1: Cron = "0/2 * 21 * * *".parse().expect("Invalid cron expression");
+    let mut scheduler_1 = CronScheduler::new(cron_1).with_threadpool_size(5);
 
     // Define the context for the first scheduler
     let context_1 = Params {
@@ -24,14 +24,14 @@ fn main() {
         if let Some(_context) = opt_context {
             println!("Context message:{}", _context.test);
         }
-        println!("Task 1 started at {:?}, sleeping for 5 seconds", Utc::now());
+        println!("Task 1 started at {:?}, sleeping for 5 seconds", Local::now());
         //thread::sleep(std::time::Duration::from_secs(5));
-        println!("Task 1 done at {:?}", Utc::now());
+        println!("Task 1 done at {:?}", Local::now());
     });
 
     // Schedule another task at odd seconds
     let cron_2: Cron = "1/2 * * * * *".parse().expect("Invalid cron expression");
-    let mut scheduler_2 = CronScheduler::new(cron_2, Utc);
+    let mut scheduler_2 = CronScheduler::new(cron_2);
 
     // Define the context for the second scheduler
     let context_2 = Params { test: "Test" };
@@ -40,9 +40,9 @@ fn main() {
         if let Some(_context) = opt_context {
             // Use the context here if needed
         }
-        println!("Task 2 started at {:?}, sleeping for 5 seconds", Utc::now());
+        println!("Task 2 started at {:?}, sleeping for 5 seconds", Local::now());
         thread::sleep(std::time::Duration::from_secs(5));
-        println!("Task 2 done at {:?}", Utc::now());
+        println!("Task 2 done at {:?}", Local::now());
     });
 
     // The tasks can be paused, resumed, or stopped as needed
@@ -54,7 +54,10 @@ fn main() {
     // scheduler_2.stop();
 
     // Loop to keep the main process alive
-    while scheduler_1.tick() | scheduler_2.tick() {
+    // - You need to supply a time zoned "now" to tick, so that
+    //   croner knows which timezone to match the pattern against.
+    //   Using Local in this example.
+    while scheduler_1.tick(Local::now()) | scheduler_2.tick(Local::now()) {
         // Sleep for a short duration to prevent busy waiting
         thread::sleep(std::time::Duration::from_millis(300));
     }

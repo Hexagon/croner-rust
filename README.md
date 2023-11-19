@@ -113,6 +113,7 @@ use chrono::Utc;
 use std::thread;
 
 fn main() {
+
     let cron: Cron = "0/5 * * * * *".parse().expect("Invalid cron expression");
     let scheduler = CronScheduler::new(cron, Utc);
 

@@ -5,15 +5,12 @@ use chrono::{DateTime, TimeZone, Timelike, Utc};
 use crate::Cron;
 use std::sync::{Arc, Mutex};
 
-pub struct CronScheduler<Tz, C, F>
+pub struct CronScheduler<C, F>
 where
-    Tz: TimeZone + Send + Sync + 'static,
-    Tz::Offset: std::fmt::Display,
     C: Clone + Send + Sync + 'static,
     F: FnMut(Option<&C>) + Send + 'static,
 {
     cron: Cron,
-    timezone: Tz,
     task: ScheduledTask,
     context: Option<Arc<Mutex<ScheduledTaskContext<C>>>>,
     thread_pool: ThreadPool,
@@ -53,17 +50,14 @@ where
     context: Option<C>,
 }
 
-impl<Tz, C, F> CronScheduler<Tz, C, F>
+impl<C, F> CronScheduler<C, F>
 where
-    Tz: TimeZone + Send + Sync + 'static,
-    Tz::Offset: std::fmt::Display,
     C: Clone + Send + Sync + 'static, // Added Clone here
     F: FnMut(Option<&C>) + Send + 'static,
 {
-    pub fn new(cron: Cron, timezone: Tz) -> Self {
+    pub fn new(cron: Cron) -> Self {
         CronScheduler {
             cron,
-            timezone,
             task: ScheduledTask {
                 scheduler_state: SchedulerState::Stopped,
                 last_start: None,
@@ -81,7 +75,8 @@ where
     }
 
     // Will return false if there is no further work to be done
-    pub fn tick(&mut self) -> bool {
+    pub fn tick<Tz: TimeZone>(&mut self, now: DateTime<Tz>) -> bool {
+
         // Check if the scheduler is stopped
         if self.task.scheduler_state == SchedulerState::Stopped {
             return false;
@@ -96,12 +91,11 @@ where
                 return true;
             }
         }
-
-        let now: DateTime<Utc> = Utc::now();
-
         // Check if we are past the expected run time
         if let Some(last_run) = self.task.last_start {
-            if let Some(next_run_time) = self.next_run_after(last_run) {
+            // Last run is stored without timezone
+            let last_run_tz = last_run.with_timezone(&now.timezone());
+            if let Some(next_run_time) = self.next_run_after(last_run_tz) {
                 if let Some(next_run_time_no_nano) = next_run_time.with_nanosecond(0) {
                     if now <= next_run_time_no_nano {
                         return true; // Not time yet
@@ -111,7 +105,7 @@ where
         }
 
         // Check if it is time to run
-        if let Some(next_run_time) = self.next_run_from(None) {
+        if let Some(next_run_time) = self.next_run_from(now.clone()) {
             if now < next_run_time {
                 return true; // Not time to trigger yet
             }
@@ -125,6 +119,7 @@ where
         let context_clone = self.context.clone(); // Clone the optional context
 
         self.task.last_start = Some(Utc::now());
+
         thread_pool.execute(move || {
             if let Some(callback) = callback_clone {
                 // Temporarily unlock the mutex to set task state to busy
@@ -179,40 +174,32 @@ where
         self
     }
 
-    pub fn next_run_from(&self, now: Option<DateTime<Utc>>) -> Option<DateTime<Tz>> {
-        if let Some(int_now) = now {
-            let tz_now = self.timezone.from_utc_datetime(&int_now.naive_utc());
-            self.cron.find_next_occurrence(&tz_now, true).ok()
-        } else {
-            let now = self.timezone.from_utc_datetime(&Utc::now().naive_utc());
-            self.cron.find_next_occurrence(&now, true).ok()
-        }
+    pub fn next_run_from<Tz: TimeZone>(&self, from: DateTime<Tz>) -> Option<DateTime<Tz>> {
+        self.cron.find_next_occurrence(&from, true).ok()
     }
 
-    pub fn next_run_after(&self, last_run: DateTime<Utc>) -> Option<DateTime<Tz>> {
-        let last_run_utc = self.timezone.from_utc_datetime(&last_run.naive_utc());
-        self.cron.find_next_occurrence(&last_run_utc, false).ok()
+    pub fn next_run_after<Tz: TimeZone>(&self, after: DateTime<Tz>) -> Option<DateTime<Tz>> {
+        self.cron.find_next_occurrence(&after, false).ok()
     }
 
-    pub fn next_runs(&self, count: usize) -> Vec<DateTime<Tz>> {
+    pub fn next_runs<Tz: TimeZone>(&self, after: DateTime<Tz>, count: usize) -> Vec<DateTime<Tz>> {
         let mut runs = Vec::new();
-        let current_time = self.timezone.from_utc_datetime(&Utc::now().naive_utc());
-        for next_time in self.cron.iter_after(current_time).take(count) {
+        for next_time in self.cron.iter_after(after).take(count) {
             runs.push(next_time.clone());
         }
         runs
     }
 
     // Returns previous runtime, or current run time if a task is running
-    pub fn previous_or_current_run(&self) -> Option<DateTime<Tz>> {
+    pub fn previous_or_current_run<Tz: TimeZone>(&self, timezone: Tz) -> Option<DateTime<Tz>> {
         let shared_state_clone = self.task.shared_state.clone();
         let state = shared_state_clone.lock().unwrap();
         if let TaskState::Busy = state.task_state {
             self.task
                 .last_start
-                .map(|dt| dt.with_timezone(&self.timezone))
+                .map(|dt| dt.with_timezone(&timezone))
         } else {
-            state.last_finish.map(|dt| dt.with_timezone(&self.timezone))
+            state.last_finish.map(|dt| dt.with_timezone(&timezone))
         }
     }
 

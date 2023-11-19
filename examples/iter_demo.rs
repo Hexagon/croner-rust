@@ -1,12 +1,15 @@
-use chrono::Local;
+use chrono::Utc;
 use croner::Cron;
 
 fn main() {
     // Parse cron expression
     let cron: Cron = "* * * * * *".parse().expect("Couldn't parse cron string");
 
-    // Compare to time now
-    let time = Local::now();
+    // Compare to UTC time now
+    let time = Utc::now();
+
+    // (Or Local)
+    // let time = Local::now();
 
     // Get next 5 matches using iter_from
     // There is also iter_after, which does not match starting time
