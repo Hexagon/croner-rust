@@ -76,7 +76,6 @@ where
 
     // Will return false if there is no further work to be done
     pub fn tick<Tz: TimeZone>(&mut self, now: DateTime<Tz>) -> bool {
-
         // Check if the scheduler is stopped
         if self.task.scheduler_state == SchedulerState::Stopped {
             return false;
@@ -195,9 +194,7 @@ where
         let shared_state_clone = self.task.shared_state.clone();
         let state = shared_state_clone.lock().unwrap();
         if let TaskState::Busy = state.task_state {
-            self.task
-                .last_start
-                .map(|dt| dt.with_timezone(&timezone))
+            self.task.last_start.map(|dt| dt.with_timezone(&timezone))
         } else {
             state.last_finish.map(|dt| dt.with_timezone(&timezone))
         }

@@ -8,20 +8,21 @@ use errors::CronError;
 use pattern::{CronPattern, NO_MATCH};
 use std::str::FromStr;
 
-use chrono::{DateTime, Datelike, Duration, TimeZone, Timelike, NaiveDateTime, NaiveDate, NaiveTime};
+use chrono::{
+    DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Timelike,
+};
 
 pub struct CronIterator<Tz>
 where
-    Tz: TimeZone
+    Tz: TimeZone,
 {
     cron: Cron,
     current_time: DateTime<Tz>,
 }
 
-
 impl<Tz> CronIterator<Tz>
 where
-    Tz: TimeZone
+    Tz: TimeZone,
 {
     fn new(cron: Cron, start_time: DateTime<Tz>) -> Self {
         CronIterator {
@@ -33,7 +34,7 @@ where
 
 impl<Tz> Iterator for CronIterator<Tz>
 where
-    Tz: TimeZone
+    Tz: TimeZone,
 {
     type Item = DateTime<Tz>;
 
@@ -76,7 +77,10 @@ fn set_time(
     component: TimeComponent,
 ) -> Result<(), CronError> {
     // First, try creating a NaiveDate and NaiveTime
-    match (NaiveDate::from_ymd_opt(year, month, day), NaiveTime::from_hms_opt(hour, minute, second)) {
+    match (
+        NaiveDate::from_ymd_opt(year, month, day),
+        NaiveTime::from_hms_opt(hour, minute, second),
+    ) {
         (Some(date), Some(time)) => {
             // Combine date and time into NaiveDateTime
             *current_time = date.and_time(time);
@@ -170,8 +174,9 @@ fn set_time_component(
     }
 }
 
-pub fn to_naive<Tz: TimeZone>(time: &DateTime<Tz>, /*timezone: Tz*/) -> Result<NaiveDateTime, CronError>
-{
+pub fn to_naive<Tz: TimeZone>(
+    time: &DateTime<Tz>, /*timezone: Tz*/
+) -> Result<NaiveDateTime, CronError> {
     // ToDo: Support for alternative time zones
     // Assume `timezone` is of type `&Tz` and compatible with `time`.
     // let local_time = time.withtimezone(timezone);
@@ -182,8 +187,10 @@ pub fn to_naive<Tz: TimeZone>(time: &DateTime<Tz>, /*timezone: Tz*/) -> Result<N
 }
 
 // Convert `NaiveDateTime` back to `DateTime<Tz>`
-pub fn from_naive<Tz: TimeZone>(naive_time: NaiveDateTime, timezone: &Tz) -> Result<DateTime<Tz>, CronError>
-{
+pub fn from_naive<Tz: TimeZone>(
+    naive_time: NaiveDateTime,
+    timezone: &Tz,
+) -> Result<DateTime<Tz>, CronError> {
     match timezone.from_local_datetime(&naive_time) {
         chrono::LocalResult::Single(dt) => Ok(dt),
         _ => Err(CronError::InvalidTime),
@@ -290,8 +297,7 @@ impl Cron {
     ///     time
     /// );
     /// ```
-    pub fn is_time_matching<Tz: TimeZone>(&self, time: &DateTime<Tz>) -> Result<bool, CronError>
-    {
+    pub fn is_time_matching<Tz: TimeZone>(&self, time: &DateTime<Tz>) -> Result<bool, CronError> {
         // Convert to NaiveDateTime
         let naive_time = to_naive(time)?;
 
@@ -299,10 +305,12 @@ impl Cron {
         Ok(self.pattern.second_match(naive_time.second())?
             && self.pattern.minute_match(naive_time.minute())?
             && self.pattern.hour_match(naive_time.hour())?
-            && self.pattern.day_match(naive_time.year(), naive_time.month(), naive_time.day())?
+            && self
+                .pattern
+                .day_match(naive_time.year(), naive_time.month(), naive_time.day())?
             && self.pattern.month_match(naive_time.month())?)
     }
-    
+
     /// Finds the next occurrence of a scheduled date and time that matches the cron pattern,
     /// starting from a given `start_time`. If `inclusive` is `true`, the search includes the
     /// `start_time`; otherwise, it starts from the next second.
@@ -357,8 +365,8 @@ impl Cron {
         start_time: &DateTime<Tz>,
         inclusive: bool,
     ) -> Result<DateTime<Tz>, CronError>
-        where
-        Tz: TimeZone
+    where
+        Tz: TimeZone,
     {
         let mut naive_time = to_naive(start_time)?;
         let originaltimezone = start_time.timezone();
@@ -430,8 +438,8 @@ impl Cron {
     ///
     /// Returns a `CronIterator<Tz>` that can be used to iterate over scheduled times.
     pub fn iter_from<Tz>(&self, start_from: DateTime<Tz>) -> CronIterator<Tz>
-        where
-        Tz: TimeZone
+    where
+        Tz: TimeZone,
     {
         CronIterator::new(self.clone(), start_from)
     }
@@ -472,8 +480,8 @@ impl Cron {
     ///
     /// Returns a `CronIterator<Tz>` that can be used to iterate over scheduled times.
     pub fn iter_after<Tz: TimeZone>(&self, start_after: DateTime<Tz>) -> CronIterator<Tz>
-        where
-        Tz: TimeZone
+    where
+        Tz: TimeZone,
     {
         let start_from = start_after
             .checked_add_signed(Duration::seconds(1))
@@ -635,7 +643,7 @@ mod tests {
         let start_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 29).unwrap();
         // Calculate the next occurrence from the start time.
         let next_occurrence = cron.find_next_occurrence(&start_time, false)?;
-        println!("{}",next_occurrence);
+        println!("{}", next_occurrence);
         // Verify that the next occurrence is at the expected time.
         let expected_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 30).unwrap();
         assert_eq!(next_occurrence, expected_time);
@@ -680,7 +688,10 @@ mod tests {
     #[test]
     fn test_weekday_pattern_correct_weekdays() -> Result<(), CronError> {
         let schedule = Cron::parse("0 0 0 * * 5,6")?;
-        let start_time = Local.with_ymd_and_hms(2022, 2, 17, 0, 0, 0).single().unwrap();
+        let start_time = Local
+            .with_ymd_and_hms(2022, 2, 17, 0, 0, 0)
+            .single()
+            .unwrap();
         let mut next_runs = Vec::new();
 
         for next in schedule.iter_after(start_time).take(6) {
@@ -705,7 +716,10 @@ mod tests {
     #[test]
     fn test_weekday_pattern_combined_with_day_of_month() -> Result<(), CronError> {
         let schedule = Cron::parse("59 59 23 2 * 6")?;
-        let start_time = Local.with_ymd_and_hms(2022, 1, 31, 0, 0, 0).single().unwrap();
+        let start_time = Local
+            .with_ymd_and_hms(2022, 1, 31, 0, 0, 0)
+            .single()
+            .unwrap();
         let mut next_runs = Vec::new();
 
         for next in schedule.iter_after(start_time).take(6) {

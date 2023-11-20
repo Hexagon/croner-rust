@@ -24,7 +24,10 @@ fn main() {
         if let Some(_context) = opt_context {
             println!("Context message:{}", _context.test);
         }
-        println!("Task 1 started at {:?}, sleeping for 5 seconds", Local::now());
+        println!(
+            "Task 1 started at {:?}, sleeping for 5 seconds",
+            Local::now()
+        );
         //thread::sleep(std::time::Duration::from_secs(5));
         println!("Task 1 done at {:?}", Local::now());
     });
@@ -40,7 +43,10 @@ fn main() {
         if let Some(_context) = opt_context {
             // Use the context here if needed
         }
-        println!("Task 2 started at {:?}, sleeping for 5 seconds", Local::now());
+        println!(
+            "Task 2 started at {:?}, sleeping for 5 seconds",
+            Local::now()
+        );
         thread::sleep(std::time::Duration::from_secs(5));
         println!("Task 2 done at {:?}", Local::now());
     });
