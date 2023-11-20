@@ -106,28 +106,34 @@ fn main() {
 Here is a basic example to schedule a task:
 
 ```rust
-use croner::Cron;
+use chrono::Local;
 use croner::scheduler::CronScheduler;
-use chrono::Utc;
-
+use croner::Cron;
 use std::thread;
 
 fn main() {
+    // Schedule a task at even seconds
+    let cron: Cron = "0/2 * * * * *".parse().expect("Invalid cron expression");
+    let mut scheduler = CronScheduler::new(cron);
 
-    let cron: Cron = "0/5 * * * * *".parse().expect("Invalid cron expression");
-    let scheduler = CronScheduler::new(cron, Utc);
-
-    scheduler.start(|| {
-        println!("Task executed at {:?}", Utc::now());
+    // The trigger closure must be set up to accept an optional context
+    scheduler.start(|_: Option<&()>| {
+        println!("Task 1 triggered at {:?}", Local::now());
     });
 
-    // The task can be paused, resumed, or stopped as needed
+    // The tasks can be paused, resumed, or stopped as needed
     // scheduler.pause();
     // scheduler.resume();
     // scheduler.stop();
-    
-    // For demonstration purposes, let's run for some time then stop
-    thread::sleep(std::time::Duration::from_secs(20));
+
+    // Loop to keep the main process alive
+    // - You need to supply a time zoned "now" to tick, so that
+    //   croner knows which timezone to match the pattern against.
+    //   Using Local in this example.
+    while scheduler.tick(Local::now()) {
+        // Sleep for a short duration to prevent busy waiting
+        thread::sleep(std::time::Duration::from_millis(300));
+    }
 }
 ```
 
