@@ -1,8 +1,8 @@
 pub mod scheduler;
 
-mod pattern;
 mod component;
 mod errors;
+mod pattern;
 
 use errors::CronError;
 use pattern::{CronPattern, NO_MATCH};

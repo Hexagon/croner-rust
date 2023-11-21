@@ -3,7 +3,10 @@ use threadpool::ThreadPool;
 use chrono::{DateTime, TimeZone, Timelike, Utc};
 
 use crate::Cron;
-use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc, Mutex,
+};
 
 pub struct CronScheduler<C, F>
 where
@@ -84,7 +87,7 @@ where
         }
 
         // Check if we are past the expected run time
-        if let Some(last_run) = self.task.last_start {           
+        if let Some(last_run) = self.task.last_start {
             let last_run_tz = last_run.with_timezone(&now.timezone());
             if now.with_nanosecond(0) <= last_run_tz.with_nanosecond(0) {
                 return true; // Already run in this second
@@ -107,13 +110,15 @@ where
 
         self.task.last_start = Some(Utc::now());
 
-        thread_pool.execute(move || {        
-
+        thread_pool.execute(move || {
             if let Some(mut callback) = callback_clone {
-                
                 // Temporarily unlock the mutex to increment running tasks
                 {
-                    shared_state_clone.lock().unwrap().active_task_count.fetch_add(1, Ordering::SeqCst);
+                    shared_state_clone
+                        .lock()
+                        .unwrap()
+                        .active_task_count
+                        .fetch_add(1, Ordering::SeqCst);
                 }
 
                 // Clone the context data if it exists, and pass it as an owned value
@@ -127,7 +132,6 @@ where
                 let mut state = shared_state_clone.lock().unwrap();
                 state.last_finish = Some(Utc::now());
                 state.active_task_count.fetch_sub(1, Ordering::SeqCst);
-
             }
         });
 
@@ -193,6 +197,12 @@ where
     }
 
     pub fn is_busy(&self) -> bool {
-        self.task.shared_state.lock().unwrap().active_task_count.load(Ordering::SeqCst) > 0
+        self.task
+            .shared_state
+            .lock()
+            .unwrap()
+            .active_task_count
+            .load(Ordering::SeqCst)
+            > 0
     }
 }

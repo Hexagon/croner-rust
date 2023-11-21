@@ -42,7 +42,7 @@ ready**
 
 ```toml
 [dependencies]
-croner = "1.0.0" # Adjust the version as necessary
+croner = "0.0.8" # Adjust the version as necessary
 ```
 
 ### Usage

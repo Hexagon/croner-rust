@@ -1,6 +1,6 @@
 [package]
 name = "croner"
-version = "0.0.7"
+version = "0.0.8"
 edition = "2021"
 license = "MIT"
 description = "A cron parser and job scheduler library for Rust"
