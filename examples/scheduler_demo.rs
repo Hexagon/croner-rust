@@ -35,6 +35,7 @@ fn main() {
     // Schedule another task at odd seconds
     let cron_2: Cron = "1/2 * * * * *".parse().expect("Invalid cron expression");
     let mut scheduler_2 = CronScheduler::new(cron_2);
+    scheduler_2 = scheduler_2.with_threadpool_size(5);
 
     // Define the context for the second scheduler
     let context_2 = Params { test: "Test" };

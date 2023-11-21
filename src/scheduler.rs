@@ -3,7 +3,7 @@ use threadpool::ThreadPool;
 use chrono::{DateTime, TimeZone, Timelike, Utc};
 
 use crate::Cron;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, atomic::{AtomicUsize, Ordering}};
 
 pub struct CronScheduler<C, F>
 where
@@ -14,7 +14,7 @@ where
     task: ScheduledTask,
     context: Option<Arc<Mutex<ScheduledTaskContext<C>>>>,
     thread_pool: ThreadPool,
-    callback: Option<Arc<Mutex<F>>>,
+    callback: Option<F>,
 }
 
 #[derive(PartialEq)]
@@ -22,12 +22,6 @@ enum SchedulerState {
     Running,
     Paused,
     Stopped,
-}
-
-#[derive(PartialEq)]
-enum TaskState {
-    Busy,
-    Idle,
 }
 
 struct ScheduledTask {
@@ -40,7 +34,7 @@ struct ScheduledTask {
 
 struct SharedTaskState {
     last_finish: Option<DateTime<Utc>>,
-    task_state: TaskState,
+    active_task_count: AtomicUsize,
 }
 
 pub struct ScheduledTaskContext<C>
@@ -53,7 +47,7 @@ where
 impl<C, F> CronScheduler<C, F>
 where
     C: Clone + Send + Sync + 'static, // Added Clone here
-    F: FnMut(Option<&C>) + Send + 'static,
+    F: FnMut(Option<&C>) + Clone + Send + 'static,
 {
     pub fn new(cron: Cron) -> Self {
         CronScheduler {
@@ -64,7 +58,7 @@ where
                 max_executions: None,
                 _executions: 0,
                 shared_state: Arc::new(Mutex::new(SharedTaskState {
-                    task_state: TaskState::Idle,
+                    active_task_count: AtomicUsize::new(0),
                     last_finish: None,
                 })),
             },
@@ -83,23 +77,17 @@ where
 
         // Check if the scheduler is busy
         {
-            // Temporarily unlock the mutex to set task state to busy
-            let state = self.task.shared_state.lock().unwrap();
-            if TaskState::Busy == state.task_state {
+            if self.is_busy() && self.thread_pool.max_count() == 1 {
                 // Skip this run
                 return true;
             }
         }
+
         // Check if we are past the expected run time
-        if let Some(last_run) = self.task.last_start {
-            // Last run is stored without timezone
+        if let Some(last_run) = self.task.last_start {           
             let last_run_tz = last_run.with_timezone(&now.timezone());
-            if let Some(next_run_time) = self.next_run_after(last_run_tz) {
-                if let Some(next_run_time_no_nano) = next_run_time.with_nanosecond(0) {
-                    if now <= next_run_time_no_nano {
-                        return true; // Not time yet
-                    }
-                }
+            if now.with_nanosecond(0) <= last_run_tz.with_nanosecond(0) {
+                return true; // Already run in this second
             }
         }
 
@@ -114,19 +102,19 @@ where
 
         let thread_pool = self.thread_pool.clone();
         let shared_state_clone = self.task.shared_state.clone();
-        let callback_clone = self.callback.as_ref().map(Arc::clone);
+        let callback_clone = self.callback.clone();
         let context_clone = self.context.clone(); // Clone the optional context
 
         self.task.last_start = Some(Utc::now());
 
-        thread_pool.execute(move || {
-            if let Some(callback) = callback_clone {
-                // Temporarily unlock the mutex to set task state to busy
+        thread_pool.execute(move || {        
+
+            if let Some(mut callback) = callback_clone {
+                
+                // Temporarily unlock the mutex to increment running tasks
                 {
-                    let mut state = shared_state_clone.lock().unwrap();
-                    state.task_state = TaskState::Busy;
+                    shared_state_clone.lock().unwrap().active_task_count.fetch_add(1, Ordering::SeqCst);
                 }
-                let mut callback = callback.lock().unwrap();
 
                 // Clone the context data if it exists, and pass it as an owned value
                 let context_clone =
@@ -135,9 +123,11 @@ where
                 // Pass the cloned context (now owned) to the callback
                 callback(context_clone.as_ref());
 
+                // Update task state
                 let mut state = shared_state_clone.lock().unwrap();
                 state.last_finish = Some(Utc::now());
-                state.task_state = TaskState::Idle;
+                state.active_task_count.fetch_sub(1, Ordering::SeqCst);
+
             }
         });
 
@@ -146,7 +136,7 @@ where
 
     pub fn start(&mut self, callback: F) {
         self.task.scheduler_state = SchedulerState::Running;
-        self.callback = Some(Arc::new(Mutex::new(callback))); // Wrap in Arc and Mutex
+        self.callback = Some(callback); // Wrap in Arc and Mutex
     }
 
     pub fn pause(&mut self) {
@@ -191,13 +181,7 @@ where
 
     // Returns previous runtime, or current run time if a task is running
     pub fn previous_or_current_run<Tz: TimeZone>(&self, timezone: Tz) -> Option<DateTime<Tz>> {
-        let shared_state_clone = self.task.shared_state.clone();
-        let state = shared_state_clone.lock().unwrap();
-        if let TaskState::Busy = state.task_state {
-            self.task.last_start.map(|dt| dt.with_timezone(&timezone))
-        } else {
-            state.last_finish.map(|dt| dt.with_timezone(&timezone))
-        }
+        self.task.last_start.map(|dt| dt.with_timezone(&timezone))
     }
 
     pub fn is_running(&self) -> bool {
@@ -209,8 +193,6 @@ where
     }
 
     pub fn is_busy(&self) -> bool {
-        let shared_state_clone = self.task.shared_state.clone();
-        let state = shared_state_clone.lock().unwrap();
-        matches!(state.task_state, TaskState::Busy)
+        self.task.shared_state.lock().unwrap().active_task_count.load(Ordering::SeqCst) > 0
     }
 }

@@ -1,6 +1,6 @@
-pub mod pattern;
 pub mod scheduler;
 
+mod pattern;
 mod component;
 mod errors;
 
@@ -643,7 +643,7 @@ mod tests {
         let start_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 29).unwrap();
         // Calculate the next occurrence from the start time.
         let next_occurrence = cron.find_next_occurrence(&start_time, false)?;
-        println!("{}", next_occurrence);
+
         // Verify that the next occurrence is at the expected time.
         let expected_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 30).unwrap();
         assert_eq!(next_occurrence, expected_time);
