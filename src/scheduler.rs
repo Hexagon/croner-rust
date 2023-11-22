@@ -1,8 +1,9 @@
-use threadpool::ThreadPool;
-
 use chrono::{DateTime, TimeZone, Timelike, Utc};
 
 use crate::Cron;
+
+use crate::threadpool::ThreadPool;
+
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc, Mutex,
@@ -103,7 +104,7 @@ where
             return false; // If there's no next run time, don't proceed
         }
 
-        let thread_pool = self.thread_pool.clone();
+        let thread_pool = &self.thread_pool;
         let shared_state_clone = self.task.shared_state.clone();
         let callback_clone = self.callback.clone();
         let context_clone = self.context.clone(); // Clone the optional context

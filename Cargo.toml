@@ -1,6 +1,6 @@
 [package]
 name = "croner"
-version = "0.0.8"
+version = "0.0.9"
 edition = "2021"
 license = "MIT"
 description = "A cron parser and job scheduler library for Rust"
@@ -17,7 +17,6 @@ path = "src/lib.rs"
 
 [dependencies]
 chrono = "0.4"
-threadpool = "1.8.1"  # Use the latest version available
 
 [dev-dependencies]
 chrono-tz = "0.8.4"
