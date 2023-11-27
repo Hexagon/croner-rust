@@ -1,9 +1,6 @@
 # Croner
 
-Croner is a fully featured, lightweight, efficient Rust library for parsing and
-evaluating cron patterns. Designed with simplicity and performance in mind, it
-provides Rust developers with a tool to schedule tasks efficiently, following
-the familiar cron syntax.
+Croner is a fully-featured, lightweight, and efficient Rust library designed for parsing and evaluating cron patterns. Equipped with a built-in threaded scheduler, it is tailored with a focus on simplicity and high performance. This library empowers Rust developers with a reliable tool to efficiently schedule tasks, following the familiar cron syntax.
 
 This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 [croner](https://github.com/hexagon/croner).
@@ -107,7 +104,7 @@ Here is a basic example to schedule a task:
 
 ```rust
 use chrono::Local;
-use croner::scheduler::CronScheduler;
+use croner::scheduler::{CronScheduler, SchedulerResult};
 use croner::Cron;
 use std::thread;
 
@@ -130,7 +127,7 @@ fn main() {
     // - You need to supply a time zoned "now" to tick, so that
     //   croner knows which timezone to match the pattern against.
     //   Using Local in this example.
-    while scheduler.tick(Local::now()) {
+    while scheduler.tick(Local::now()) != SchedulerResult::Dead {
         // Sleep for a short duration to prevent busy waiting
         thread::sleep(std::time::Duration::from_millis(300));
     }

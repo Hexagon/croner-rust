@@ -1,5 +1,5 @@
 use chrono::Local;
-use croner::scheduler::CronScheduler;
+use croner::scheduler::{CronScheduler, SchedulerResult};
 use croner::Cron;
 use std::thread;
 
@@ -64,7 +64,22 @@ fn main() {
     // - You need to supply a time zoned "now" to tick, so that
     //   croner knows which timezone to match the pattern against.
     //   Using Local in this example.
-    while scheduler_1.tick(Local::now()) | scheduler_2.tick(Local::now()) {
+    loop {
+        // Exit when both schedulers are dead
+        let res1 = scheduler_1.tick(Local::now());
+        let res2 = scheduler_2.tick(Local::now());
+        if res1 == SchedulerResult::Dead && res2 == SchedulerResult::Dead {
+            break;
+        }
+
+        // Warn on pool exhaustion
+        if res1 == SchedulerResult::ThreadPoolExhausted {
+            println!("Scheduler 1 exhausted");
+        }
+        if res2 == SchedulerResult::ThreadPoolExhausted {
+            println!("Scheduler 2 exhausted");
+        }
+
         // Sleep for a short duration to prevent busy waiting
         thread::sleep(std::time::Duration::from_millis(300));
     }

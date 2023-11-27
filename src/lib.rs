@@ -67,6 +67,7 @@ enum TimeComponent {
 }
 
 // Recursive function to handle setting the time and managing overflows.
+#[allow(clippy::too_many_arguments)]
 fn set_time(
     current_time: &mut NaiveDateTime,
     year: i32,

@@ -9,6 +9,8 @@ use std::sync::{
     Arc, Mutex,
 };
 
+const DEFAULT_THREADPOOL_SIZE: usize = 10;
+
 pub struct CronScheduler<C, F>
 where
     C: Clone + Send + Sync + 'static,
@@ -26,6 +28,20 @@ enum SchedulerState {
     Running,
     Paused,
     Stopped,
+}
+
+#[derive(PartialEq)]
+pub enum SchedulerResult {
+    // Indicates that the scheduler/main loop should stop when used in
+    // `while scheduler.tick() { }`
+    Dead = 0,
+
+    // Keep the scheduler/main loop alive
+    NoOp = 1,
+    TaskTriggered,
+
+    // ToDo: Exhaustion check not implemented
+    ThreadPoolExhausted, // The default threadpool size is 10
 }
 
 struct ScheduledTask {
@@ -67,41 +83,39 @@ where
                 })),
             },
             context: None,
-            thread_pool: ThreadPool::new(1),
+            thread_pool: ThreadPool::new(DEFAULT_THREADPOOL_SIZE), // By default, allow 10 concurrent tasks per scheduler
             callback: None,
         }
     }
 
     // Will return false if there is no further work to be done
-    pub fn tick<Tz: TimeZone>(&mut self, now: DateTime<Tz>) -> bool {
+    pub fn tick<Tz: TimeZone>(&mut self, now: DateTime<Tz>) -> SchedulerResult {
         // Check if the scheduler is stopped
         if self.task.scheduler_state == SchedulerState::Stopped {
-            return false;
+            return SchedulerResult::Dead;
         }
 
         // Check if the scheduler is busy
-        {
-            if self.is_busy() && self.thread_pool.max_count() == 1 {
-                // Skip this run
-                return true;
-            }
+        if self.is_busy() && self.thread_pool.max_count() == 1 {
+            // Skip this run
+            return SchedulerResult::NoOp;
         }
 
         // Check if we are past the expected run time
         if let Some(last_run) = self.task.last_start {
             let last_run_tz = last_run.with_timezone(&now.timezone());
             if now.with_nanosecond(0) <= last_run_tz.with_nanosecond(0) {
-                return true; // Already run in this second
+                return SchedulerResult::NoOp; // Already run in this second
             }
         }
 
         // Check if it is time to run
         if let Some(next_run_time) = self.next_run_from(now.clone()) {
             if now < next_run_time {
-                return true; // Not time to trigger yet
+                return SchedulerResult::NoOp; // Not time to trigger yet
             }
         } else {
-            return false; // If there's no next run time, don't proceed
+            return SchedulerResult::Dead; // If there's no next run time, don't proceed
         }
 
         let thread_pool = &self.thread_pool;
@@ -136,7 +150,7 @@ where
             }
         });
 
-        true
+        SchedulerResult::TaskTriggered
     }
 
     pub fn start(&mut self, callback: F) {

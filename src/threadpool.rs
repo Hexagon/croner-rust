@@ -10,7 +10,6 @@ pub struct ThreadPool {
     sender: Arc<Mutex<VecDeque<Task>>>,
     cvar: Arc<Condvar>,
     shutdown: Arc<AtomicBool>,
-    max_threads: usize,
 }
 
 impl ThreadPool {
@@ -35,7 +34,6 @@ impl ThreadPool {
             sender,
             cvar,
             shutdown,
-            max_threads: size,
         }
     }
 
@@ -62,7 +60,7 @@ impl ThreadPool {
     }
 
     pub fn max_count(&self) -> usize {
-        self.max_threads
+        self.workers.len()
     }
 }
 
