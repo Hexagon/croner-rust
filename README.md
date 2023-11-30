@@ -1,6 +1,6 @@
 # Croner
 
-Croner is a fully-featured, lightweight, and efficient Rust library designed for parsing and evaluating cron patterns. Equipped with a built-in threaded scheduler, it is tailored with a focus on simplicity and high performance. This library empowers Rust developers with a reliable tool to efficiently schedule tasks, following the familiar cron syntax.
+Croner is a fully-featured, lightweight, and efficient Rust library designed for parsing and evaluating cron patterns.
 
 This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 [croner](https://github.com/hexagon/croner).
@@ -9,19 +9,12 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 
 - Parse and evaluate [cron](https://en.wikipedia.org/wiki/Cron#CRON_expression)
   expressions to calculate upcoming execution times.
-- Schedule tasks in separate threads based on cron patterns, enabling concurrent task execution. 
 - Supports extended Vixie-cron patterns with additional specifiers such as `L`
   for the last day and weekday of the month, `#` for the nth weekday of the
   month and `W` for closest weekday to a day of month.
 - Evaulate cron expressions across different time zones.
 - Compatible with `chrono` and (optionally) `chrono-tz`.
 - Robust error handling.
-- Control execution flow with the ability to pause, resume, or stop scheduled
-  tasks.
-- Operates in-memory without the need for persistent storage or configuration
-  files.
-- Highly optimized method of finding future/past matches.
-- No dependencies except `chrono`.
 
 ## Getting Started
 
@@ -39,7 +32,7 @@ ready**
 
 ```toml
 [dependencies]
-croner = "0.0.9" # Adjust the version as necessary
+croner = "1.0.0" # Adjust the version as necessary
 ```
 
 ### Usage
@@ -97,40 +90,6 @@ fn main() {
         cron.pattern.to_string(),
         next_est
     );
-}
-```
-
-Here is a basic example to schedule a task:
-
-```rust
-use chrono::Local;
-use croner::scheduler::{CronScheduler, SchedulerResult};
-use croner::Cron;
-use std::thread;
-
-fn main() {
-    // Schedule a task at even seconds
-    let cron: Cron = "0/2 * * * * *".parse().expect("Invalid cron expression");
-    let mut scheduler = CronScheduler::new(cron);
-
-    // The trigger closure must be set up to accept an optional context
-    scheduler.start(|_: Option<&()>| {
-        println!("Task 1 triggered at {:?}", Local::now());
-    });
-
-    // The tasks can be paused, resumed, or stopped as needed
-    // scheduler.pause();
-    // scheduler.resume();
-    // scheduler.stop();
-
-    // Loop to keep the main process alive
-    // - You need to supply a time zoned "now" to tick, so that
-    //   croner knows which timezone to match the pattern against.
-    //   Using Local in this example.
-    while scheduler.tick(Local::now()) != SchedulerResult::Dead {
-        // Sleep for a short duration to prevent busy waiting
-        thread::sleep(std::time::Duration::from_millis(300));
-    }
 }
 ```
 

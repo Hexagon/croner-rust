@@ -1,9 +1,6 @@
-pub mod scheduler;
-
 mod component;
 mod errors;
 mod pattern;
-mod threadpool;
 
 use errors::CronError;
 use pattern::{CronPattern, NO_MATCH};
