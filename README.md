@@ -18,7 +18,7 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 
 ## Why croner instead of cron or saffron?
 
-Croner combines the features of cron and saffron, while having fewer dependencies and following the "standards". See this table:
+Croner combines the features of cron and saffron, while following the POSIX/Vixie "standards" for the relevant parts. See this table:
 
 Feature              | Croner      | Cron      | Saffron |
 ---------------------|-------------|-----------|---------|
