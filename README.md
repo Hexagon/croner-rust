@@ -16,6 +16,29 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 - Compatible with `chrono` and (optionally) `chrono-tz`.
 - Robust error handling.
 
+## Why croner instead of cron or saffron?
+
+Croner combines the features of cron and saffron, while having fewer dependencies and following the "standards". See this table:
+
+Feature              | Croner      | Cron      | Saffron |
+---------------------|-------------|-----------|---------|
+Time Zones | X         |    X    |     | 
+Ranges (15-25)| X         |    X    |   X   | 
+Ranges with stepping (15-25/2)| X         |    X    |   X   |    X   |
+`L` - Last day of month | X         |         |   X   |
+`L` - Last occurrence of weekday |    X     |       |       |
+`#` - Nth occurrence of weekday |    X     |      |   X    |
+`W` - Closest weekday |    X     |        |  X     |
+"Standards"-compliant weekdays (1 is monday) |   X    |      |       |
+Five part patterns (minute granularity) |  X   |         |    X   |
+Six part patterns (second granularity)|  X   |    X    |       |
+Weekday/Month text representations |  X   |    X    |   X   |
+Aliases (`@hourly` etc.) |  X           |     X      |          |
+chrono `DateTime` compatibility |    X     |     X   |   X    |
+
+> **Note**
+> Tests carried out at 2023-12-02 using `cron@0.12.0` and `saffron@.0.1.0`
+
 ## Getting Started
 
 ### Prerequisites
