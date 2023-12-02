@@ -9,9 +9,9 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 
 - Parse and evaluate [cron](https://en.wikipedia.org/wiki/Cron#CRON_expression)
   expressions to calculate upcoming execution times.
-- Supports extended Vixie-cron patterns with additional specifiers such as `L`
+- Follows POSIX/Vixie-cron standards, while extending it with additional specifiers such as `L`
   for the last day and weekday of the month, `#` for the nth weekday of the
-  month and `W` for closest weekday to a day of month.
+  month, `W` for closest weekday to a day of month and second granularity.
 - Evaulate cron expressions across different time zones.
 - Compatible with `chrono` and (optionally) `chrono-tz`.
 - Robust error handling.
