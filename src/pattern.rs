@@ -330,13 +330,15 @@ impl CronPattern {
             NaiveDate::from_ymd_opt(year, month, day).ok_or(CronError::InvalidDate)?;
         let weekday = candidate_date.weekday();
 
-        // Check if the current day has the CLOSEST_WEEKDAY_BIT set
-        if self.days.is_bit_set(day as u8, CLOSEST_WEEKDAY_BIT)? {
-            return Ok(true);
-        }
-
-        // Check the previous and next days if the current day is a weekday
+        // Only check weekdays
         if weekday != Weekday::Sat && weekday != Weekday::Sun {
+
+            // Check if the current day has the CLOSEST_WEEKDAY_BIT set
+            if self.days.is_bit_set(day as u8, CLOSEST_WEEKDAY_BIT)? {
+                return Ok(true);
+            }
+            
+            // Check the previous and next days if the current day is a weekday
             let previous_day = candidate_date - Duration::days(1);
             let next_day = candidate_date + Duration::days(1);
 
