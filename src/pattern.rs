@@ -239,16 +239,16 @@ impl CronPattern {
         let mut dow_matches = false;
 
         // If the 'L' flag is used, we need to check if the given day is the last day of the month
-        if self.days.is_feature_enabled(LAST_BIT) {
+        if !day_matches && self.days.is_feature_enabled(LAST_BIT) {
             let last_day = CronPattern::last_day_of_month(year, month)?;
-            if day == last_day {
+            if !day_matches && day == last_day {
                 day_matches = true;
             }
         }
 
-        // Check for closest weekday flag
-        if self.closest_weekday(year, month, day)? {
-            return Ok(true);
+        // Make an extra check if any adjacent day is matching through the closest-weekday flag
+        if !day_matches && self.closest_weekday(year, month, day)? {
+            day_matches = true;
         }
 
         // Check for nth weekday of the month flags
@@ -267,16 +267,18 @@ impl CronPattern {
                 && CronPattern::is_nth_weekday_of_month(date, nth, date.weekday())
             {
                 dow_matches = true;
+                break;
             }
         }
 
         // If the 'L' flag is used for the day of the week, check if it's the last one of the month
-        if self
-            .days_of_week
-            .is_bit_set(date.weekday().num_days_from_sunday() as u8, LAST_BIT)?
+        if !dow_matches
+            && self
+                .days_of_week
+                .is_bit_set(date.weekday().num_days_from_sunday() as u8, LAST_BIT)?
         {
             let next_weekday = date + chrono::Duration::days(7);
-            if next_weekday.month() != date.month() {
+            if !dow_matches && next_weekday.month() != date.month() {
                 // If adding 7 days changes the month, then it is the last occurrence of the day of the week
                 dow_matches = true;
             }
@@ -324,19 +326,35 @@ impl CronPattern {
     }
 
     pub fn closest_weekday(&self, year: i32, month: u32, day: u32) -> Result<bool, CronError> {
+        let candidate_date =
+            NaiveDate::from_ymd_opt(year, month, day).ok_or(CronError::InvalidDate)?;
+        let weekday = candidate_date.weekday();
+
+        // Check if the current day has the CLOSEST_WEEKDAY_BIT set
         if self.days.is_bit_set(day as u8, CLOSEST_WEEKDAY_BIT)? {
-            let candidate_date =
-                NaiveDate::from_ymd_opt(year, month, day).ok_or(CronError::InvalidDate)?;
-            let weekday = candidate_date.weekday();
-            let closest_weekday = match weekday {
-                Weekday::Sat => candidate_date - Duration::days(1),
-                Weekday::Sun => candidate_date + Duration::days(1),
-                _ => candidate_date,
-            };
-            Ok(closest_weekday.day() == day && closest_weekday.month() == month)
-        } else {
-            Ok(false)
+            return Ok(true);
         }
+
+        // Check the previous and next days if the current day is a weekday
+        if weekday != Weekday::Sat && weekday != Weekday::Sun {
+            let previous_day = candidate_date - Duration::days(1);
+            let next_day = candidate_date + Duration::days(1);
+
+            let check_previous = previous_day.weekday() == Weekday::Sun
+                && self
+                    .days
+                    .is_bit_set(previous_day.day() as u8, CLOSEST_WEEKDAY_BIT)?;
+            let check_next = next_day.weekday() == Weekday::Sat
+                && self
+                    .days
+                    .is_bit_set(next_day.day() as u8, CLOSEST_WEEKDAY_BIT)?;
+            if check_previous || check_next {
+                return Ok(true);
+            }
+        }
+        println!("{}", weekday);
+
+        Ok(false)
     }
 
     // Checks if a given month matches the month part of the cron pattern.
@@ -534,12 +552,12 @@ mod tests {
 
         // Test a month where the 15th is a weekday
         // Assuming 15th is Wednesday (a weekday), the closest weekday is the same day.
-        /*let date = NaiveDate::from_ymd_opt(2023, 6, 15).expect("To work"); // 15th June 2023
+        let date = NaiveDate::from_ymd_opt(2023, 6, 15).expect("To work"); // 15th June 2023
         assert!(pattern.day_match(date.year(), date.month(), date.day())?);
 
         // Test a month where the 15th is a Saturday
         // The closest weekday would be Friday, 14th.
-        let date = NaiveDate::from_ymd_opt(2023, 5, 14).expect("To work"); // 14th May 2023
+        let date = NaiveDate::from_ymd_opt(2024, 6, 14).expect("To work"); // 14th May 2023
         assert!(pattern.day_match(date.year(), date.month(), date.day())?);
 
         // Test a month where the 15th is a Sunday
@@ -549,7 +567,7 @@ mod tests {
 
         // Test a non-matching date
         let date = NaiveDate::from_ymd_opt(2023, 6, 16).expect("To work"); // 16th June 2023
-        assert!(!pattern.day_match(date.year(), date.month(), date.day())?);*/
+        assert!(!pattern.day_match(date.year(), date.month(), date.day())?);
 
         Ok(())
     }

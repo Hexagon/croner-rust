@@ -2,27 +2,35 @@ use chrono::Local;
 use croner::Cron;
 
 fn main() {
-    // Parse cron expression
-    let cron_all: Cron = "0 18 * * * 5".parse().expect("Couldn't parse cron string");
+    // Example: Parse cron expression
+    let cron: Cron = "0 18 * * * FRI"
+        .parse()
+        .expect("Couldn't parse cron string");
 
-    // Compare to time now
+    // Example: Compare cron pattern with current local time
     let time = Local::now();
-    let matches_all = cron_all.is_time_matching(&time).unwrap();
+    let matches = cron.is_time_matching(&time).unwrap();
 
-    // Get next match
-    let next = cron_all.find_next_occurrence(&time, false).unwrap();
+    // Example: Get next match
+    let next = cron.find_next_occurrence(&time, false).unwrap();
 
-    // Output results
-    println!("Time is: {}", time);
+    // Example: Output results
+    println!("Current time is: {}", time);
     println!(
         "Pattern \"{}\" does {} time {}",
-        cron_all.pattern.to_string(),
-        if matches_all { "match" } else { "not match" },
+        cron.pattern.to_string(),
+        if matches { "match" } else { "not match" },
         time
     );
     println!(
         "Pattern \"{}\" will match next time at {}",
-        cron_all.pattern.to_string(),
+        cron.pattern.to_string(),
         next
     );
+
+    // Example: Iterator
+    println!("Next 5 matches:");
+    for time in cron.clone().iter_from(Local::now()).take(5) {
+        println!("{}", time);
+    }
 }
