@@ -352,7 +352,6 @@ impl CronPattern {
                 return Ok(true);
             }
         }
-        println!("{}", weekday);
 
         Ok(false)
     }
