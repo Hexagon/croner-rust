@@ -560,6 +560,11 @@ impl Cron {
         }
         Ok(incremented)
     }
+
+    pub fn with_dom_and_dow(&mut self, value: bool) -> &mut Self {
+        self.pattern.with_dom_and_dow(value);
+        self
+    }
 }
 
 // Enables creating a Cron instance from a string slice, returning a CronError if parsing fails.

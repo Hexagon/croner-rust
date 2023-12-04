@@ -332,12 +332,11 @@ impl CronPattern {
 
         // Only check weekdays
         if weekday != Weekday::Sat && weekday != Weekday::Sun {
-
             // Check if the current day has the CLOSEST_WEEKDAY_BIT set
             if self.days.is_bit_set(day as u8, CLOSEST_WEEKDAY_BIT)? {
                 return Ok(true);
             }
-            
+
             // Check the previous and next days if the current day is a weekday
             let previous_day = candidate_date - Duration::days(1);
             let next_day = candidate_date + Duration::days(1);
@@ -427,6 +426,12 @@ impl CronPattern {
             }
         }
         Ok(NO_MATCH) // No match found within the current range
+    }
+
+    // Method to set the dom_and_dow flag
+    pub fn with_dom_and_dow(&mut self, value: bool) -> &mut Self {
+        self.dom_and_dow = value;
+        self
     }
 }
 
