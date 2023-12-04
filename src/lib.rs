@@ -776,4 +776,31 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_cron_expression_13w_wed() -> Result<(), CronError> {
+        // Parse the cron expression
+        let cron = Cron::parse("0 0 0 13W * WED")?;
+
+        // Define the start date for the test
+        let start_date = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+
+        // Define the expected matching dates
+        let expected_dates = vec![
+            Local.with_ymd_and_hms(2024, 1, 3, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 1, 10, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 1, 12, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 1, 17, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 1, 24, 0, 0, 0).unwrap(),
+        ];
+
+        // Iterate over the expected dates, checking each one
+        let mut idx = 0;
+        for current_date in cron.clone().iter_from(start_date).take(5) {
+            assert_eq!(expected_dates[idx], current_date);
+            idx = idx + 1;
+        }
+
+        Ok(())
+    }
 }
