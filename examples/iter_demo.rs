@@ -19,7 +19,7 @@ fn main() {
         time
     );
 
-    for time in cron.clone().iter_from(time).take(5) {
+    for time in cron.iter_from(time).take(5) {
         println!("{}", time);
     }
 }

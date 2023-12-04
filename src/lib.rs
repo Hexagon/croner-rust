@@ -808,4 +808,32 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_cron_expression_31dec_fri() -> Result<(), CronError> {
+        // Parse the cron expression
+        let mut cron = Cron::parse("0 0 0 31 12 FRI")?;
+        cron.with_dom_and_dow(true);
+
+        // Define the start date for the test
+        let start_date = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+
+        // Define the expected matching dates
+        let expected_dates = vec![
+            Local.with_ymd_and_hms(2027, 12, 31, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2032, 12, 31, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2038, 12, 31, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2049, 12, 31, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2055, 12, 31, 0, 0, 0).unwrap(),
+        ];
+
+        // Iterate over the expected dates, checking each one
+        let mut idx = 0;
+        for current_date in cron.clone().iter_from(start_date).take(5) {
+            assert_eq!(expected_dates[idx], current_date);
+            idx = idx + 1;
+        }
+
+        Ok(())
+    }
 }

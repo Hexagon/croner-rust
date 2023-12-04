@@ -13,6 +13,7 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
   for the last day and weekday of the month, `#` for the nth weekday of the
   month, `W` for closest weekday to a day of month and second granularity.
 - Evaulate cron expressions across different time zones.
+- Allows for flexible combination of DOM and DOW conditions, enabling patterns to match specific days of the week in specific weeks of the month or the closest weekday to a specific day.
 - Compatible with `chrono` and (optionally) `chrono-tz`.
 - Robust error handling.
 
@@ -35,6 +36,7 @@ Six part patterns (second granularity)|  X   |    X    |       |
 Weekday/Month text representations |  X   |    X    |   X   |
 Aliases (`@hourly` etc.) |  X           |     X      |          |
 chrono `DateTime` compatibility |    X     |     X   |   X    |
+DOM-and-DOW option |    X     |           |         |
 
 > **Note**
 > Tests carried out at 2023-12-02 using `cron@0.12.0` and `saffron@.0.1.0`
@@ -55,7 +57,7 @@ ready**
 
 ```toml
 [dependencies]
-croner = "1.0.0" # Adjust the version as necessary
+croner = "1.0.4" # Adjust the version as necessary
 ```
 
 ### Usage
@@ -113,6 +115,28 @@ fn main() {
         cron.pattern.to_string(),
         next_est
     );
+}
+```
+
+This example demonstrates how to calculate the next 5 occurrences of New Year's Eve that fall on a Friday. We'll use a cron expression to match every Friday (`FRI`) in December (`12`) and use the `with_dom_and_dow` method to ensure both day of month and day of week conditions are met.
+
+```rust
+use croner::Cron;
+use chrono::Local;
+
+fn main() {
+    // Parse cron expression for Fridays in December
+    let mut cron = Cron::parse("0 0 0 31 12 FRI").expect("Couldn't parse cron string");
+
+    // Ensure both day of month and day of week conditions are met
+    cron.with_dom_and_dow(true);
+
+    let time = Local::now();
+
+    println!("Finding the next 5 New Year's Eves on a Friday:");
+    for time in cron.iter_from(time).take(5) {
+        println!("{}", time);
+    }
 }
 ```
 
