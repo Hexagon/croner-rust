@@ -18,6 +18,22 @@ pub const CLOSEST_WEEKDAY_BIT: u8 = 1 << 7;
 // Used for last day of month
 pub const LAST_BIT: u8 = 1 << 6;
 
+/// Represents a component of a cron pattern, such as minute, hour, or day of week.
+///
+/// Each `CronComponent` holds information about permissible values (min, max),
+/// features supported (like last day of the month), and specific bits set
+/// for scheduling purposes.
+///
+/// # Examples (for internal use only, CronComponent isn't exported)
+///
+/// let mut minute_component = CronComponent::new(0, 59, CronComponent::LAST_BIT);
+/// // Represents a minute component that supports the 'last' feature.
+///
+/// // Parsing a cron expression for minute component
+/// // This sets specific bits in the component according to the cron syntax
+/// minute_component.parse("*/15").expect("Parsing failed");
+/// // Sets the minute component to trigger at every 15th minute
+
 #[derive(Debug, Default, Clone)]
 pub struct CronComponent {
     bitfields: Vec<u8>,   // Vector of u8 to act as multiple bitfields
@@ -28,13 +44,40 @@ pub struct CronComponent {
 }
 
 impl CronComponent {
-    // Initialize a new CronComponent with min/max values and features.
+    /// Creates a new `CronComponent` with specified minimum and maximum values and features.
+    ///
+    /// `min` and `max` define the range of values this component can take.
+    /// `features` is a bitfield specifying supported special features.
+    ///
+    /// # Parameters
+    ///
+    /// - `min`: The minimum permissible value for this component.
+    /// - `max`: The maximum permissible value for this component.
+    /// - `features`: Bitfield indicating special features like `LAST_BIT`.
+    ///
+    /// # Returns
+    ///
+    /// Returns a new instance of `CronComponent`.
     pub fn new(min: u8, max: u8, features: u8) -> Self {
         Self {
-            bitfields: vec![NONE_BIT; (max + 1) as usize], // Initialize bitfields with NONE_BIT for each element.
+            // Vector of u8 to act as multiple bitfields.
+            // - Initialized with NONE_BIT for each element.
+            bitfields: vec![NONE_BIT; (max + 1) as usize],
+
+            // Minimum value this component can take.
+            // - Example: 0 for the minute-field
             min,
+
+            // Maximum value this component can take.
+            // - Example: 59 for the minute-field
             max,
-            features: features | ALL_BIT | LAST_BIT, // Store the features bitfield, always allow NONE and LAST
+
+            // Bitfield to indicate _supported_ special bits, like LAST_BIT.
+            // - ALL_BIT and LAST_BIT is always allowed
+            features: features | ALL_BIT | LAST_BIT,
+
+            // Bitfield to indicate _enabled_ component-wide special bits like LAST_BIT.
+            // - No features are enabled by default
             enabled_features: 0,
         }
     }
@@ -134,6 +177,32 @@ impl CronComponent {
         (self.enabled_features & feature) == feature
     }
 
+    /// Parses a part of a cron expression string and sets the corresponding bits in the component.
+    ///
+    /// This method interprets the cron syntax provided in `field` and sets
+    /// the relevant bits in the component. It supports standard cron patterns
+    /// like '*', '-', '/', and 'w'. For example, '*/15' in a minute component
+    /// would set the bits for every 15th minute.
+    ///
+    /// # Parameters
+    ///
+    /// - `field`: A string slice containing the cron expression part to parse.
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if parsing is successful, or `CronError` if the parsing fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns `CronError::ComponentError` if the input string contains invalid
+    /// cron syntax or values outside the permissible range of the component.
+    ///
+    /// # Examples (for internal use only, CronComponent isn't exported)
+    ///
+    /// use crate::component::CronComponent;
+    /// let mut hour_component = CronComponent::new(0, 23, 0);
+    /// hour_component.parse("*/3").expect("Parsing failed");
+    /// // Sets the hour component to trigger at every 3rd hour
     pub fn parse(&mut self, field: &str) -> Result<(), CronError> {
         if field == "*" {
             for value in self.min..=self.max {
@@ -200,17 +269,25 @@ impl CronComponent {
 
     fn handle_closest_weekday(&mut self, value: &str) -> Result<(), CronError> {
         if let Some(day_pos) = value.find('w') {
+            // Use a slice
             let day_str = &value[..day_pos];
+
+            // Parse the day from the slice
             let day = day_str.parse::<u8>().map_err(|_| {
                 CronError::ComponentError("Invalid day for closest weekday.".to_string())
             })?;
+
+            // Check if the day is within the allowed range
             if day < self.min || day > self.max {
                 return Err(CronError::ComponentError(
                     "Day for closest weekday out of bounds.".to_string(),
                 ));
             }
+
+            // Set the bit for the closest weekday
             self.set_bit(day, CLOSEST_WEEKDAY_BIT)?;
         } else {
+            // If 'w' is not found, handle the value as a regular number
             self.handle_number(value)?;
         }
         Ok(())
