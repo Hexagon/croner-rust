@@ -33,7 +33,6 @@ pub const LAST_BIT: u8 = 1 << 6;
 /// // This sets specific bits in the component according to the cron syntax
 /// minute_component.parse("*/15").expect("Parsing failed");
 /// // Sets the minute component to trigger at every 15th minute
-
 #[derive(Debug, Default, Clone)]
 pub struct CronComponent {
     bitfields: Vec<u8>,   // Vector of u8 to act as multiple bitfields

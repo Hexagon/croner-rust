@@ -24,12 +24,15 @@ pub struct CronPattern {
     star_dow: bool,
 
     dom_and_dow: bool, // Setting to alter how dom_and_dow is combined
+    with_seconds: bool, // Setting to alter if seconds (6-part patterns) are allowed or not
+
+    is_parsed: bool,
 }
 
 // Implementation block for CronPattern struct, providing methods for creating and parsing cron pattern strings.
 impl CronPattern {
-    pub fn new(pattern: &str) -> Result<Self, CronError> {
-        let mut cron_pattern = CronPattern {
+    pub fn new(pattern: &str) -> Self {
+        let cron_pattern = Self {
             pattern: pattern.to_string(),
             seconds: CronComponent::new(0, 59, NONE_BIT),
             minutes: CronComponent::new(0, 59, NONE_BIT),
@@ -40,9 +43,10 @@ impl CronPattern {
             star_dom: false,
             star_dow: false,
             dom_and_dow: false,
+            with_seconds: true,
+            is_parsed: false,
         };
-        cron_pattern.parse()?;
-        Ok(cron_pattern)
+        cron_pattern
     }
 
     // Parses the cron pattern string into its respective fields.
@@ -75,6 +79,10 @@ impl CronPattern {
         // Default seconds to "0" if omitted
         if parts.len() == 5 {
             parts.insert(0, "0"); // prepend "0" if the seconds part is missing
+
+        // Error it there is an extra part and seconds are not allowed
+        } else if parts.len() > 5 && !self.with_seconds {
+            return Err(CronError::InvalidPattern(String::from("Pattern must consist of five fields, seconds are not allowed by configuration.")));
         }
 
         // Handle star-dom and star-dow
@@ -97,6 +105,7 @@ impl CronPattern {
         }
 
         // Success!
+        self.is_parsed = true;
         Ok(())
     }
 
@@ -433,6 +442,12 @@ impl CronPattern {
         self.dom_and_dow = value;
         self
     }
+
+    // Method to set wether seconds should be allowed
+    pub fn with_seconds(&mut self, value: bool) -> &mut Self {
+        self.with_seconds = value;
+        self
+    }
 }
 
 impl ToString for CronPattern {
@@ -447,7 +462,9 @@ mod tests {
 
     #[test]
     fn test_cron_pattern_new() {
-        let pattern = CronPattern::new("* */5 * * * *").unwrap();
+        let mut pattern = CronPattern::new("* */5 * * * *");
+        let result = pattern.parse();
+        assert!(result.is_ok());
         assert_eq!(pattern.pattern, "* */5 * * * *");
         assert!(pattern.seconds.is_bit_set(5, ALL_BIT).unwrap());
     }
@@ -469,13 +486,17 @@ mod tests {
 
     #[test]
     fn test_cron_pattern_tostring() {
-        let pattern = CronPattern::new("* */5 * * * *").unwrap();
+        let mut pattern = CronPattern::new("* */5 * * * *");
+        let result = pattern.parse();
+        assert!(result.is_ok());
         assert_eq!(pattern.to_string(), "* */5 * * * *");
     }
 
     #[test]
     fn test_cron_pattern_short() {
-        let pattern = CronPattern::new("5/5 * * * *").unwrap();
+        let mut pattern = CronPattern::new("5/5 * * * *");
+        let result = pattern.parse();
+        assert!(result.is_ok());
         assert_eq!(pattern.pattern, "5/5 * * * *");
         assert!(pattern.seconds.is_bit_set(0, ALL_BIT).unwrap());
         assert!(!pattern.seconds.is_bit_set(5, ALL_BIT).unwrap());
@@ -485,7 +506,7 @@ mod tests {
 
     #[test]
     fn test_cron_pattern_parse() {
-        let mut pattern = CronPattern::new("*/15 1 1,15 1 1-5").unwrap();
+        let mut pattern = CronPattern::new("*/15 1 1,15 1 1-5");
         assert!(pattern.parse().is_ok());
         assert!(pattern.minutes.is_bit_set(0, ALL_BIT).unwrap());
         assert!(pattern.hours.is_bit_set(1, ALL_BIT).unwrap());
@@ -505,7 +526,7 @@ mod tests {
 
     #[test]
     fn test_cron_pattern_extra_whitespace() {
-        let mut pattern = CronPattern::new("  */15  1 1,15 1    1-5    ").unwrap();
+        let mut pattern = CronPattern::new("  */15  1 1,15 1    1-5    ");
         assert!(pattern.parse().is_ok());
         assert!(pattern.minutes.is_bit_set(0, ALL_BIT).unwrap());
         assert!(pattern.hours.is_bit_set(1, ALL_BIT).unwrap());
@@ -534,7 +555,7 @@ mod tests {
 
     #[test]
     fn test_month_nickname_range() {
-        let mut pattern = CronPattern::new("0 0 * FEB-MAR *").unwrap();
+        let mut pattern = CronPattern::new("0 0 * FEB-MAR *");
         assert!(pattern.parse().is_ok());
         assert!(!pattern.months.is_bit_set(1, ALL_BIT).unwrap());
         assert!(pattern.months.is_bit_set(2, ALL_BIT).unwrap()); // February
@@ -544,7 +565,7 @@ mod tests {
 
     #[test]
     fn test_weekday_range_sat_sun() {
-        let mut pattern = CronPattern::new("0 0 * * SAT-SUN").unwrap();
+        let mut pattern = CronPattern::new("0 0 * * SAT-SUN");
         assert!(pattern.parse().is_ok());
         assert!(pattern.days_of_week.is_bit_set(0, ALL_BIT).unwrap()); // Sunday
         assert!(pattern.days_of_week.is_bit_set(6, ALL_BIT).unwrap()); // Saturday
@@ -553,8 +574,8 @@ mod tests {
     #[test]
     fn test_closest_weekday() -> Result<(), CronError> {
         // Example cron pattern: "0 0 15W * *" which means at 00:00 on the closest weekday to the 15th of each month
-        let mut pattern = CronPattern::new("0 0 0 15W * *")?;
-        pattern.parse()?;
+        let mut pattern = CronPattern::new("0 0 0 15W * *");
+        assert!(pattern.parse().is_ok());
 
         // Test a month where the 15th is a weekday
         // Assuming 15th is Wednesday (a weekday), the closest weekday is the same day.
@@ -576,5 +597,31 @@ mod tests {
         assert!(!pattern.day_match(date.year(), date.month(), date.day())?);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_with_seconds_false() {
+
+        // Test with a 6-part pattern when seconds are not allowed
+        let mut pattern = CronPattern::new("* * * * * *");
+        pattern.with_seconds(false);
+        assert!(matches!(
+            pattern.parse(),
+            Err(CronError::InvalidPattern(_))
+        ));
+
+        // Test with a 5-part pattern when seconds are not allowed
+        let mut no_seconds_pattern = CronPattern::new("*/10 * * * *");
+        no_seconds_pattern.with_seconds(false);
+   
+        assert!(
+            no_seconds_pattern.parse().is_ok()
+        );
+
+        assert_eq!(no_seconds_pattern.to_string(), "*/10 * * * *");
+
+        // Ensure seconds are defaulted to 0 for a 5-part pattern
+        assert!(no_seconds_pattern.seconds.is_bit_set(0, ALL_BIT).unwrap());
+
     }
 }
