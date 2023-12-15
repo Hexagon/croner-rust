@@ -3,7 +3,7 @@ use croner::Cron;
 
 fn main() {
     // Example: Parse cron expression
-    let cron: Cron = "0 18 * * * FRI"
+    let cron = Cron::new("0 18 * * * FRI")
         .parse()
         .expect("Couldn't parse cron string");
 

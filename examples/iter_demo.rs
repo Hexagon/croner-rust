@@ -3,7 +3,7 @@ use croner::Cron;
 
 fn main() {
     // Parse cron expression
-    let cron: Cron = "* * * * * *".parse().expect("Couldn't parse cron string");
+    let cron = Cron::new("* * * * * *").parse().expect("Couldn't parse cron string");
 
     // Compare to UTC time now
     let time = Utc::now();
