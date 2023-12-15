@@ -25,6 +25,7 @@ pub struct CronPattern {
 
     dom_and_dow: bool, // Setting to alter how dom_and_dow is combined
     with_seconds: bool, // Setting to alter if seconds (6-part patterns) are allowed or not
+    with_seconds_required: bool, // Setting to alter if seconds (6-part patterns) are required or not
 
     is_parsed: bool,
 }
@@ -44,6 +45,7 @@ impl CronPattern {
             star_dow: false,
             dom_and_dow: false,
             with_seconds: true,
+            with_seconds_required: false,
             is_parsed: false,
         };
         cron_pattern
@@ -76,13 +78,21 @@ impl CronPattern {
             return Err(CronError::InvalidPattern(String::from("Pattern must consist of five or six fields (minute, hour, day, month, day of week, and optional second).")));
         }
 
+        // Error if there is five parts and seconds are required
+        if parts.len() == 5 && self.with_seconds_required {
+            return Err(CronError::InvalidPattern(String::from("Pattern must consist of six fields, seconds can not be omitted.")));
+        }
+
+        // Error if there is six parts and seconds are disallowed
+        if parts.len() == 6 && !(self.with_seconds || self.with_seconds_required) {
+            return Err(CronError::InvalidPattern(String::from("Pattern must consist of five fields, seconds are not allowed by configuration.")));
+        }
+
         // Default seconds to "0" if omitted
         if parts.len() == 5 {
             parts.insert(0, "0"); // prepend "0" if the seconds part is missing
 
         // Error it there is an extra part and seconds are not allowed
-        } else if parts.len() > 5 && !self.with_seconds {
-            return Err(CronError::InvalidPattern(String::from("Pattern must consist of five fields, seconds are not allowed by configuration.")));
         }
 
         // Handle star-dom and star-dow
@@ -448,6 +458,12 @@ impl CronPattern {
         self.with_seconds = value;
         self
     }
+
+    // Method to set wether seconds should be allowed
+    pub fn with_seconds_required(&mut self, value: bool) -> &mut Self {
+        self.with_seconds_required = value;
+        self
+    }
 }
 
 impl ToString for CronPattern {
@@ -623,5 +639,29 @@ mod tests {
         // Ensure seconds are defaulted to 0 for a 5-part pattern
         assert!(no_seconds_pattern.seconds.is_bit_set(0, ALL_BIT).unwrap());
 
+    }
+
+    #[test]
+    fn test_with_seconds_required() {
+        // Test with a 5-part pattern when seconds are required
+        let mut no_seconds_pattern = CronPattern::new("*/10 * * * *");
+        no_seconds_pattern.with_seconds_required(true);
+    
+        assert!(matches!(
+            no_seconds_pattern.parse(),
+            Err(CronError::InvalidPattern(_))
+        ));
+    
+        // Test with a 6-part pattern when seconds are required
+        let mut pattern = CronPattern::new("* * * * * *");
+        pattern.with_seconds_required(true);
+       
+        assert!(
+            pattern.parse().is_ok()
+        );
+    
+        // Ensure the 6-part pattern retains seconds information
+        // (This assertion depends on how your CronPattern is structured and how it stores seconds information)
+        assert!(pattern.seconds.is_bit_set(0, ALL_BIT).unwrap());
     }
 }

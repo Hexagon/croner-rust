@@ -244,8 +244,6 @@ fn increment_time_component(
 #[derive(Clone)]
 pub struct Cron { 
     pub pattern: CronPattern, // Parsed cron pattern  
-    dom_and_dow: bool,
-    with_seconds: bool,
 }
 impl Cron {
 
@@ -253,15 +251,11 @@ impl Cron {
     pub fn new(cron_string: &str) -> Self {
         Self {
             pattern: CronPattern::new(cron_string),
-            dom_and_dow: false,
-            with_seconds: true,
         }
     }
     
     // Tries to parse a given cron string into a Cron instance.
     pub fn parse(&mut self) -> Result<Cron, CronError> {
-        self.pattern.with_dom_and_dow(self.dom_and_dow);
-        self.pattern.with_seconds(self.with_seconds);
         self.pattern.parse()?;
         Ok(self.clone())
     }
@@ -577,18 +571,20 @@ impl Cron {
         Ok(incremented)
     }
 
-    // Set the with_dom_and_dow setting
     pub fn with_dom_and_dow(&mut self, value: bool) -> &mut Self {
-        self.dom_and_dow = value;
+        self.pattern.with_dom_and_dow(value);
         self
     }
 
-    // Set the with_seconds setting
     pub fn with_seconds(&mut self, value: bool) -> &mut Self {
-        self.with_seconds = value;
+        self.pattern.with_seconds(value);
         self
     }
 
+    pub fn with_seconds_required(&mut self, value: bool) -> &mut Self {
+        self.pattern.with_seconds_required(value);
+        self
+    }
 }
 
 // Enables creating a Cron instance from a string slice, returning a CronError if parsing fails.
