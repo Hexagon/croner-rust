@@ -40,6 +40,7 @@ pub struct CronComponent {
     pub max: u8,          // Maximum value this component can take
     features: u8,         // Single u8 bitfield to indicate supported special bits, like LAST_BIT
     enabled_features: u8, // Bitfield to hold component-wide special bits like LAST_BIT
+    input_offset: u8,     // Offset for numerical representation of weekdays. normally 0=SUN,1=MON etc, setting this to 1 makes 1=SUN...
 }
 
 impl CronComponent {
@@ -57,7 +58,7 @@ impl CronComponent {
     /// # Returns
     ///
     /// Returns a new instance of `CronComponent`.
-    pub fn new(min: u8, max: u8, features: u8) -> Self {
+    pub fn new(min: u8, max: u8, features: u8, input_offset: u8) -> Self {
         Self {
             // Vector of u8 to act as multiple bitfields.
             // - Initialized with NONE_BIT for each element.
@@ -78,11 +79,15 @@ impl CronComponent {
             // Bitfield to indicate _enabled_ component-wide special bits like LAST_BIT.
             // - No features are enabled by default
             enabled_features: 0,
+
+            // Offset for numerical representation of weekdays. normally 0=SUN,1=MON etc, setting this to 1 makes 1=SUN...
+            input_offset
         }
     }
 
     // Set a bit at a given position (0 to 59)
-    pub fn set_bit(&mut self, pos: u8, bit: u8) -> Result<(), CronError> {
+    pub fn set_bit(&mut self, mut pos: u8, bit: u8) -> Result<(), CronError> {
+        pos -= self.input_offset;
         if pos < self.min || pos > self.max {
             return Err(CronError::ComponentError(format!(
                 "Position {} is out of bounds for the current range ({}-{}).",
@@ -108,7 +113,8 @@ impl CronComponent {
     }
 
     // Unset a specific bit at a given position
-    pub fn unset_bit(&mut self, pos: u8, bit: u8) -> Result<(), CronError> {
+    pub fn unset_bit(&mut self, mut pos: u8, bit: u8) -> Result<(), CronError> {
+        pos -= self.input_offset;
         if pos < self.min || pos > self.max {
             return Err(CronError::ComponentError(format!(
                 "Position {} is out of bounds for the current range ({}-{}).",
@@ -134,7 +140,8 @@ impl CronComponent {
     }
 
     // Check if a specific bit at a given position is set
-    pub fn is_bit_set(&self, pos: u8, bit: u8) -> Result<bool, CronError> {
+    pub fn is_bit_set(&self, mut pos: u8, bit: u8) -> Result<bool, CronError> {
+        pos -= self.input_offset;
         if pos < self.min || pos > self.max {
             Err(CronError::ComponentError(format!(
                 "Position {} is out of bounds for the current range ({}-{}).",
@@ -205,7 +212,8 @@ impl CronComponent {
     pub fn parse(&mut self, field: &str) -> Result<(), CronError> {
         if field == "*" {
             for value in self.min..=self.max {
-                self.set_bit(value, ALL_BIT)?;
+                // Here we use set_bit to set from min to max directly, without input_offset. So add input_offset.
+                self.set_bit(value+self.input_offset, ALL_BIT)?;
             }
         } else {
             // Split the field into parts and handle each part
@@ -412,7 +420,7 @@ mod tests {
 
     #[test]
     fn test_new_cron_component() {
-        let component = CronComponent::new(0, 59, ALL_BIT | LAST_BIT);
+        let component = CronComponent::new(0, 59, ALL_BIT | LAST_BIT, 0);
         assert_eq!(component.min, 0);
         assert_eq!(component.max, 59);
         // Ensure all bitfields are initialized to NONE_BIT
@@ -423,14 +431,14 @@ mod tests {
 
     #[test]
     fn test_set_bit() {
-        let mut component = CronComponent::new(0, 59, ALL_BIT);
+        let mut component = CronComponent::new(0, 59, ALL_BIT, 0);
         assert!(component.set_bit(10, ALL_BIT).is_ok());
         assert!(component.is_bit_set(10, ALL_BIT).unwrap());
     }
 
     #[test]
     fn test_set_bit_out_of_bounds() {
-        let mut component = CronComponent::new(0, 59, ALL_BIT);
+        let mut component = CronComponent::new(0, 59, ALL_BIT, 0);
         assert!(matches!(
             component.set_bit(60, ALL_BIT),
             Err(CronError::ComponentError(_))
@@ -439,7 +447,7 @@ mod tests {
 
     #[test]
     fn test_unset_bit() {
-        let mut component = CronComponent::new(0, 59, ALL_BIT);
+        let mut component = CronComponent::new(0, 59, ALL_BIT, 0);
         component.set_bit(10, ALL_BIT).unwrap();
         assert!(component.unset_bit(10, ALL_BIT).is_ok());
         assert!(!component.is_bit_set(10, ALL_BIT).unwrap());
@@ -447,7 +455,7 @@ mod tests {
 
     #[test]
     fn test_is_feature_enabled() {
-        let mut component = CronComponent::new(0, 59, LAST_BIT);
+        let mut component = CronComponent::new(0, 59, LAST_BIT, 0);
         assert!(!component.is_feature_enabled(LAST_BIT));
         component.enable_feature(LAST_BIT).unwrap();
         assert!(component.is_feature_enabled(LAST_BIT));
@@ -455,7 +463,7 @@ mod tests {
 
     #[test]
     fn test_enable_feature_unsupported() {
-        let mut component = CronComponent::new(0, 59, NONE_BIT);
+        let mut component = CronComponent::new(0, 59, NONE_BIT, 0);
         assert!(matches!(
             component.enable_feature(NTH_1ST_BIT),
             Err(CronError::ComponentError(_))
@@ -464,7 +472,7 @@ mod tests {
 
     #[test]
     fn test_parse_asterisk() {
-        let mut component = CronComponent::new(0, 59, ALL_BIT);
+        let mut component = CronComponent::new(0, 59, ALL_BIT, 0);
         component.parse("*").unwrap();
         for i in 0..=59 {
             assert!(component.is_bit_set(i, ALL_BIT).unwrap());
@@ -473,7 +481,7 @@ mod tests {
 
     #[test]
     fn test_parse_range() {
-        let mut component = CronComponent::new(0, 59, ALL_BIT);
+        let mut component = CronComponent::new(0, 59, ALL_BIT, 0);
         component.parse("10-15").unwrap();
         for i in 10..=15 {
             assert!(component.is_bit_set(i, ALL_BIT).unwrap());
@@ -482,7 +490,7 @@ mod tests {
 
     #[test]
     fn test_parse_stepping() {
-        let mut component = CronComponent::new(0, 59, ALL_BIT);
+        let mut component = CronComponent::new(0, 59, ALL_BIT, 0);
         component.parse("*/5").unwrap();
         for i in (0..=59).filter(|n| n % 5 == 0) {
             assert!(component.is_bit_set(i, ALL_BIT).unwrap());
@@ -491,7 +499,7 @@ mod tests {
 
     #[test]
     fn test_parse_list() {
-        let mut component = CronComponent::new(0, 59, ALL_BIT);
+        let mut component = CronComponent::new(0, 59, ALL_BIT, 0);
         component.parse("5,10,15").unwrap();
         for i in [5, 10, 15].iter() {
             assert!(component.is_bit_set(*i, ALL_BIT).unwrap());
@@ -500,7 +508,7 @@ mod tests {
 
     #[test]
     fn test_parse_invalid_syntax() {
-        let mut component = CronComponent::new(0, 59, ALL_BIT);
+        let mut component = CronComponent::new(0, 59, ALL_BIT, 0);
         assert!(component.parse("10-").is_err());
         assert!(component.parse("*/").is_err());
         assert!(component.parse("60").is_err()); // out of bounds for the minute field
@@ -508,7 +516,7 @@ mod tests {
 
     #[test]
     fn test_parse_closest_weekday() {
-        let mut component = CronComponent::new(1, 31, CLOSEST_WEEKDAY_BIT);
+        let mut component = CronComponent::new(1, 31, CLOSEST_WEEKDAY_BIT, 0);
         component.parse("15w").unwrap();
         assert!(component.is_bit_set(15, CLOSEST_WEEKDAY_BIT).unwrap());
         // You might want to add more tests for edge cases

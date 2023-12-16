@@ -23,32 +23,39 @@ pub struct CronPattern {
     star_dom: bool,
     star_dow: bool,
 
+    // Options
     dom_and_dow: bool, // Setting to alter how dom_and_dow is combined
     with_seconds: bool, // Setting to alter if seconds (6-part patterns) are allowed or not
     with_seconds_required: bool, // Setting to alter if seconds (6-part patterns) are required or not
+    with_alternative_weekdays: bool, // Setting to alter if weekdays are offset by one or not
 
+    // Status
     is_parsed: bool,
 }
 
 // Implementation block for CronPattern struct, providing methods for creating and parsing cron pattern strings.
 impl CronPattern {
     pub fn new(pattern: &str) -> Self {
-        let cron_pattern = Self {
+        Self {
             pattern: pattern.to_string(),
-            seconds: CronComponent::new(0, 59, NONE_BIT),
-            minutes: CronComponent::new(0, 59, NONE_BIT),
-            hours: CronComponent::new(0, 23, NONE_BIT),
-            days: CronComponent::new(1, 31, LAST_BIT | CLOSEST_WEEKDAY_BIT), // Special bit LAST_BIT is available
-            months: CronComponent::new(1, 12, NONE_BIT),
-            days_of_week: CronComponent::new(0, 7, LAST_BIT | NTH_ALL), // Actually 0-7 in pattern, but 7 is converted to 0
+            seconds: CronComponent::new(0, 59, NONE_BIT, 0),
+            minutes: CronComponent::new(0, 59, NONE_BIT, 0),
+            hours: CronComponent::new(0, 23, NONE_BIT, 0),
+            days: CronComponent::new(1, 31, LAST_BIT | CLOSEST_WEEKDAY_BIT, 0), // Special bit LAST_BIT is available
+            months: CronComponent::new(1, 12, NONE_BIT, 0),
+            days_of_week: CronComponent::new(0, 7, LAST_BIT | NTH_ALL, 0), // Actually 0-7 in pattern, 7 is converted to 0 in POSIX mode
             star_dom: false,
             star_dow: false,
+            
+            // Options
             dom_and_dow: false,
             with_seconds: true,
             with_seconds_required: false,
+            with_alternative_weekdays: false,
+
+            // Status
             is_parsed: false,
-        };
-        cron_pattern
+        }
     }
 
     // Parses the cron pattern string into its respective fields.
@@ -67,7 +74,7 @@ impl CronPattern {
         }
 
         // Handle day-of-week and month aliases (MON... and JAN...)
-        self.pattern = Self::replace_alpha_weekdays(&self.pattern)
+        self.pattern = Self::replace_alpha_weekdays(&self.pattern, self.with_alternative_weekdays)
             .trim()
             .to_string();
         self.pattern = Self::replace_alpha_months(&self.pattern).trim().to_string();
@@ -109,7 +116,7 @@ impl CronPattern {
 
         // Handle conversion of 7 to 0 for day_of_week if necessary
         // this has to be done last because range could be 6-7 (sat-sun)
-        if self.days_of_week.is_bit_set(7, ALL_BIT)? {
+        if !self.with_alternative_weekdays && self.days_of_week.is_bit_set(7, ALL_BIT)? {
             self.days_of_week.unset_bit(7, ALL_BIT)?;
             self.days_of_week.set_bit(0, ALL_BIT)?;
         }
@@ -174,18 +181,32 @@ impl CronPattern {
     }
 
     // Converts day-of-week nicknames into their equivalent standard cron pattern.
-    fn replace_alpha_weekdays(pattern: &str) -> String {
+    fn replace_alpha_weekdays(pattern: &str, alternative_weekdays: bool) -> String {
+
         // Day-of-week nicknames to their numeric values.
-        let nicknames = [
-            ("-sun", "-7"), // Use 7 for upper range sunday
-            ("sun", "0"),
-            ("mon", "1"),
-            ("tue", "2"),
-            ("wed", "3"),
-            ("thu", "4"),
-            ("fri", "5"),
-            ("sat", "6"),
-        ];
+        let nicknames = if !alternative_weekdays {
+            [
+                ("-sun", "-7"), // Use 7 for upper range sunday
+                ("sun", "0"),
+                ("mon", "1"),
+                ("tue", "2"),
+                ("wed", "3"),
+                ("thu", "4"),
+                ("fri", "5"),
+                ("sat", "6"),
+            ]
+        } else {
+            [
+                ("-sun", "-1"), 
+                ("sun", "1"),
+                ("mon", "2"),
+                ("tue", "3"),
+                ("wed", "4"),
+                ("thu", "5"),
+                ("fri", "6"),
+                ("sat", "7"),
+            ]
+        };
 
         let mut replaced = pattern.trim().to_lowercase();
 
@@ -464,6 +485,14 @@ impl CronPattern {
         self.with_seconds_required = value;
         self
     }
+
+    // Method to set if weekdays should be offset by one (Quartz Scheduler style)
+    pub fn with_alternative_weekdays(&mut self, value: bool) -> &mut Self {
+        self.with_alternative_weekdays = value;
+        //  We need to recreate self.days_of_week
+        self.days_of_week = CronComponent::new(0, 7, LAST_BIT | NTH_ALL, if value { 1 } else { 0 });
+        self
+    }
 }
 
 impl ToString for CronPattern {
@@ -616,6 +645,35 @@ mod tests {
     }
 
     #[test]
+    fn test_closest_weekday_with_alternative_weekdays() -> Result<(), CronError> {
+        // Example cron pattern: "0 0 15W * *" which means at 00:00 on the closest weekday to the 15th of each month
+        let mut pattern = CronPattern::new("0 0 0 15W * *");
+        pattern.with_alternative_weekdays(true);
+        assert!(pattern.parse().is_ok());
+
+        // Test a month where the 15th is a weekday
+        // Assuming 15th is Wednesday (a weekday), the closest weekday is the same day.
+        let date = NaiveDate::from_ymd_opt(2023, 6, 15).expect("To work"); // 15th June 2023
+        assert!(pattern.day_match(date.year(), date.month(), date.day())?);
+
+        // Test a month where the 15th is a Saturday
+        // The closest weekday would be Friday, 14th.
+        let date = NaiveDate::from_ymd_opt(2024, 6, 14).expect("To work"); // 14th May 2023
+        assert!(pattern.day_match(date.year(), date.month(), date.day())?);
+
+        // Test a month where the 15th is a Sunday
+        // The closest weekday would be Monday, 16th.
+        let date = NaiveDate::from_ymd_opt(2023, 10, 16).expect("To work"); // 16th October 2023
+        assert!(pattern.day_match(date.year(), date.month(), date.day())?);
+
+        // Test a non-matching date
+        let date = NaiveDate::from_ymd_opt(2023, 6, 16).expect("To work"); // 16th June 2023
+        assert!(!pattern.day_match(date.year(), date.month(), date.day())?);
+
+        Ok(())
+    }
+
+    #[test]
     fn test_with_seconds_false() {
 
         // Test with a 6-part pattern when seconds are not allowed
@@ -663,5 +721,21 @@ mod tests {
         // Ensure the 6-part pattern retains seconds information
         // (This assertion depends on how your CronPattern is structured and how it stores seconds information)
         assert!(pattern.seconds.is_bit_set(0, ALL_BIT).unwrap());
+    }
+
+    #[test]
+    fn test_with_alternative_weekdays() {
+        // Test with alternative weekdays enabled
+        let mut pattern = CronPattern::new("* * * * MON-FRI");
+        pattern.with_alternative_weekdays(true);
+    
+        // Parsing should succeed
+        assert!(pattern.parse().is_ok());
+    
+        // Ensure that the days of the week are offset correctly
+        // Note: In this scenario, "MON-FRI" should be treated as "SUN-THU"
+        assert!(pattern.days_of_week.is_bit_set(2, ALL_BIT).unwrap()); // Monday
+        assert!(pattern.days_of_week.is_bit_set(6, ALL_BIT).unwrap()); // Friday
+        assert!(!pattern.days_of_week.is_bit_set(7, ALL_BIT).unwrap()); // Saturday should not be set
     }
 }
