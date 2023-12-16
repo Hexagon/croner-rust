@@ -4,7 +4,9 @@ use croner::Cron;
 
 fn main() {
     // Parse cron expression
-    let cron = Cron::new("0 18 * * * 5").parse().expect("Couldn't parse cron string");
+    let cron = Cron::new("18 * * * 5")
+        .parse()
+        .expect("Couldn't parse cron string");
 
     // Find the next occurrence in Europe/Stockholm
     let now_stockholm = Utc::now().with_timezone(&Tz::Europe__Stockholm);
