@@ -140,8 +140,7 @@ impl CronComponent {
     }
 
     // Check if a specific bit at a given position is set
-    pub fn is_bit_set(&self, mut pos: u8, bit: u8) -> Result<bool, CronError> {
-        pos -= self.input_offset;
+    pub fn is_bit_set(&self, pos: u8, bit: u8) -> Result<bool, CronError> {
         if pos < self.min || pos > self.max {
             Err(CronError::ComponentError(format!(
                 "Position {} is out of bounds for the current range ({}-{}).",

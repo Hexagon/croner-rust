@@ -74,7 +74,9 @@ use chrono::Local;
 fn main() {
 
     // Parse cron expression
-    let cron_all = Cron::new("0 18 * * * 5").parse().expect("Couldn't parse cron string");
+    let cron_all = Cron::new("18 * * * 5")
+      .parse()
+      .expect("Couldn't parse cron string");
 
     // Compare cron pattern with current local time
     let time = Local::now();
@@ -101,7 +103,9 @@ use chrono_tz::Tz;
 
 fn main() {
     // Parse cron expression
-    let cron = Cron::new("0 18 * * * 5").parse().expect("Couldn't parse cron string");
+    let cron = Cron::new("18 * * * 5")
+      .parse()
+      .expect("Couldn't parse cron string");
 
     // Choose a different time zone, for example America/New_York
     let est_timezone: Tz = "America/New_York".parse().expect("Invalid timezone");
@@ -128,10 +132,13 @@ use chrono::Local;
 
 fn main() {
     // Parse cron expression for Fridays in December
-    let mut cron = Cron::new("0 0 0 31 12 FRI").parse().expect("Couldn't parse cron string");
-
-    // Ensure both day of month and day of week conditions are met
-    cron.with_dom_and_dow(true);
+    let cron = Cron::new("0 0 0 31 12 FRI")
+      // Include seconds in pattern
+      .with_seconds_optional()
+      // Ensure both day of month and day of week conditions are met
+      .with_dom_and_dow()
+      .parse()
+      .expect("Couldn't parse cron string");
 
     let time = Local::now();
 
