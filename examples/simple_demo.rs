@@ -4,6 +4,7 @@ use croner::Cron;
 fn main() {
     // Example: Parse cron expression
     let cron = Cron::new("0 18 * * * FRI")
+        .with_seconds_required()
         .parse()
         .expect("Couldn't parse cron string");
 
