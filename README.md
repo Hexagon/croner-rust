@@ -211,6 +211,58 @@ It is also possible to use the following "nicknames" as pattern.
 | \@daily    | Run once a day, ie. "0 0 * * *".   |
 | \@hourly   | Run once an hour, ie. "0 * * * *". |
 
+### Configuration
+
+Croner offers several configuration methods to change how patterns are interpreted:
+
+#### 1. `with_seconds_optional()`
+
+This method enables the inclusion of seconds in the cron pattern, but it's not mandatory. By using this method, you can create cron patterns that either include or omit the seconds field. This offers greater flexibility, allowing for more precise scheduling without imposing the strict requirement of defining seconds in every pattern.
+
+**Example Usage**:
+```rust
+let cron = Cron::new("*/10 * * * * *") // Every 10 seconds
+    .with_seconds_optional()
+    .parse()
+    .expect("Invalid cron pattern");
+```
+
+#### 2. `with_seconds_required()`
+
+In contrast to `with_seconds_optional()`, the `with_seconds_required()` method requires the seconds field in every cron pattern. This enforces a high level of precision in task scheduling, ensuring that every pattern explicitly specifies the second at which the task should run.
+
+**Example Usage**:
+```rust
+let cron = Cron::new("5 */2 * * * *") // At 5 seconds past every 2 minutes
+    .with_seconds_required()
+    .parse()
+    .expect("Invalid cron pattern");
+```
+
+#### 3. `with_dom_and_dow()`
+
+This method enables the combination of Day of Month (DOM) and Day of Week (DOW) conditions in your cron expressions. It's particularly useful for creating schedules that require specificity in terms of both the day of the month and the day of the week, such as running a task when the first of the month is a Monday, or christmas day is on a friday.
+
+**Example Usage**:
+```rust
+let cron = Cron::new("0 0 25 * FRI") // When christmas day is on a friday
+    .with_dom_and_dow()
+    .parse()
+    .expect("Invalid cron pattern");
+```
+
+#### 4. `with_alternative_weekdays()` (Quartz mode)
+
+This configuration method switches the weekday mode from the POSIX standard to the Quartz-style, commonly used in Java-based scheduling systems. It's useful for those who are accustomed to Quartz's way of specifying weekdays or for ensuring compatibility with existing Quartz-based schedules.
+
+**Example Usage**:
+```rust
+let cron = Cron::new("0 0 12 * * 6") // Every Friday (denoted with 6 in Quartz mode) at noon
+    .with_alternative_weekdays()
+    .parse()
+    .expect("Invalid cron pattern");
+```
+
 ### Documentation
 
 For detailed usage and API documentation, visit

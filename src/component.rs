@@ -40,7 +40,7 @@ pub struct CronComponent {
     pub max: u8,          // Maximum value this component can take
     features: u8,         // Single u8 bitfield to indicate supported special bits, like LAST_BIT
     enabled_features: u8, // Bitfield to hold component-wide special bits like LAST_BIT
-    input_offset: u8,     // Offset for numerical representation of weekdays. normally 0=SUN,1=MON etc, setting this to 1 makes 1=SUN...
+    input_offset: u8, // Offset for numerical representation of weekdays. normally 0=SUN,1=MON etc, setting this to 1 makes 1=SUN...
 }
 
 impl CronComponent {
@@ -81,7 +81,7 @@ impl CronComponent {
             enabled_features: 0,
 
             // Offset for numerical representation of weekdays. normally 0=SUN,1=MON etc, setting this to 1 makes 1=SUN...
-            input_offset
+            input_offset,
         }
     }
 
@@ -212,7 +212,7 @@ impl CronComponent {
         if field == "*" {
             for value in self.min..=self.max {
                 // Here we use set_bit to set from min to max directly, without input_offset. So add input_offset.
-                self.set_bit(value+self.input_offset, ALL_BIT)?;
+                self.set_bit(value + self.input_offset, ALL_BIT)?;
             }
         } else {
             // Split the field into parts and handle each part
