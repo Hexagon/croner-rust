@@ -379,9 +379,7 @@ impl Cron {
         let originaltimezone = start_time.timezone();
 
         if !inclusive {
-            println!("{}", naive_time);
             increment_time_component(&mut naive_time, TimeComponent::Second)?;
-            println!("{}", naive_time);
         }
 
         loop {
@@ -583,6 +581,11 @@ impl Cron {
 
     pub fn with_seconds_required(&mut self) -> &mut Self {
         self.pattern.with_seconds_required();
+        self
+    }
+
+    pub fn with_alternative_weekdays(&mut self) -> &mut Self {
+        self.pattern.with_alternative_weekdays();
         self
     }
 }

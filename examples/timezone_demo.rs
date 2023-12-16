@@ -3,6 +3,7 @@ use chrono_tz::Tz;
 use croner::Cron;
 
 fn main() {
+
     // Parse cron expression
     let cron = Cron::new("18 * * * 5")
         .parse()
@@ -20,4 +21,5 @@ fn main() {
         cron.pattern.to_string(),
         next_stockholm
     );
+
 }

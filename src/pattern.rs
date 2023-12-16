@@ -755,8 +755,25 @@ mod tests {
     
         // Ensure that the days of the week are offset correctly
         // Note: In this scenario, "MON-FRI" should be treated as "SUN-THU"
-        assert!(pattern.days_of_week.is_bit_set(2, ALL_BIT).unwrap()); // Monday
-        assert!(pattern.days_of_week.is_bit_set(6, ALL_BIT).unwrap()); // Friday
-        assert!(!pattern.days_of_week.is_bit_set(7, ALL_BIT).unwrap()); // Saturday should not be set
+        assert!(pattern.days_of_week.is_bit_set(1, ALL_BIT).unwrap()); // Monday
+        assert!(pattern.days_of_week.is_bit_set(5, ALL_BIT).unwrap()); // Friday
+        assert!(!pattern.days_of_week.is_bit_set(6, ALL_BIT).unwrap()); // Saturday should not be set
+    }
+
+
+    #[test]
+    fn test_with_alternative_weekdays_numeric() {
+        // Test with alternative weekdays enabled
+        let mut pattern = CronPattern::new("* * * * 2-6");
+        pattern.with_alternative_weekdays();
+    
+        // Parsing should succeed
+        assert!(pattern.parse().is_ok());
+    
+        // Ensure that the days of the week are offset correctly
+        // Note: In this scenario, "MON-FRI" should be treated as "SUN-THU"
+        assert!(pattern.days_of_week.is_bit_set(1, ALL_BIT).unwrap()); // Monday
+        assert!(pattern.days_of_week.is_bit_set(5, ALL_BIT).unwrap()); // Friday
+        assert!(!pattern.days_of_week.is_bit_set(6, ALL_BIT).unwrap()); // Saturday should not be set
     }
 }
