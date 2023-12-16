@@ -1,12 +1,11 @@
-use croner::Cron;
 use chrono::Local;
+use croner::Cron;
 
 fn main() {
-
     // Parse cron expression
     let cron_all = Cron::new("18 * * * 5")
-      .parse()
-      .expect("Couldn't parse cron string");
+        .parse()
+        .expect("Couldn't parse cron string");
 
     // Compare cron pattern with current local time
     let time = Local::now();
@@ -17,7 +16,15 @@ fn main() {
 
     // Output results
     println!("Time is: {}", time);
-    println!("Pattern \"{}\" does {} time {}", cron_all.pattern.to_string(), if matches_all { "match" } else { "not match" }, time );
-    println!("Pattern \"{}\" will match next time at {}", cron_all.pattern.to_string(), next);
-
+    println!(
+        "Pattern \"{}\" does {} time {}",
+        cron_all.pattern.to_string(),
+        if matches_all { "match" } else { "not match" },
+        time
+    );
+    println!(
+        "Pattern \"{}\" will match next time at {}",
+        cron_all.pattern.to_string(),
+        next
+    );
 }

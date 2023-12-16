@@ -24,7 +24,7 @@ pub struct CronPattern {
     star_dow: bool,
 
     // Options
-    dom_and_dow: bool, // Setting to alter how dom_and_dow is combined
+    dom_and_dow: bool,               // Setting to alter how dom_and_dow is combined
     with_seconds_optional: bool, // Setting to alter if seconds (6-part patterns) are allowed or not
     with_seconds_required: bool, // Setting to alter if seconds (6-part patterns) are required or not
     with_alternative_weekdays: bool, // Setting to alter if weekdays are offset by one or not
@@ -46,7 +46,7 @@ impl CronPattern {
             days_of_week: CronComponent::new(0, 7, LAST_BIT | NTH_ALL, 0), // Actually 0-7 in pattern, 7 is converted to 0 in POSIX mode
             star_dom: false,
             star_dow: false,
-            
+
             // Options
             dom_and_dow: false,
             with_seconds_optional: false,
@@ -87,19 +87,23 @@ impl CronPattern {
 
         // Error if there is five parts and seconds are required
         if parts.len() == 5 && self.with_seconds_required {
-            return Err(CronError::InvalidPattern(String::from("Pattern must consist of six fields, seconds can not be omitted.")));
+            return Err(CronError::InvalidPattern(String::from(
+                "Pattern must consist of six fields, seconds can not be omitted.",
+            )));
         }
 
         // Error if there is six parts and seconds are disallowed
         if parts.len() == 6 && !(self.with_seconds_optional || self.with_seconds_required) {
-            return Err(CronError::InvalidPattern(String::from("Pattern must consist of five fields, seconds are not allowed by configuration.")));
+            return Err(CronError::InvalidPattern(String::from(
+                "Pattern must consist of five fields, seconds are not allowed by configuration.",
+            )));
         }
 
         // Default seconds to "0" if omitted
         if parts.len() == 5 {
             parts.insert(0, "0"); // prepend "0" if the seconds part is missing
 
-        // Error it there is an extra part and seconds are not allowed
+            // Error it there is an extra part and seconds are not allowed
         }
 
         // Handle star-dom and star-dow
@@ -182,7 +186,6 @@ impl CronPattern {
 
     // Converts day-of-week nicknames into their equivalent standard cron pattern.
     fn replace_alpha_weekdays(pattern: &str, alternative_weekdays: bool) -> String {
-
         // Day-of-week nicknames to their numeric values.
         let nicknames = if !alternative_weekdays {
             [
@@ -197,7 +200,7 @@ impl CronPattern {
             ]
         } else {
             [
-                ("-sun", "-1"), 
+                ("-sun", "-1"),
                 ("sun", "1"),
                 ("mon", "2"),
                 ("tue", "3"),
@@ -698,26 +701,19 @@ mod tests {
 
     #[test]
     fn test_with_seconds_false() {
-
         // Test with a 6-part pattern when seconds are not allowed
         let mut pattern = CronPattern::new("* * * * * *");
-        assert!(matches!(
-            pattern.parse(),
-            Err(CronError::InvalidPattern(_))
-        ));
+        assert!(matches!(pattern.parse(), Err(CronError::InvalidPattern(_))));
 
         // Test with a 5-part pattern when seconds are not allowed
         let mut no_seconds_pattern = CronPattern::new("*/10 * * * *");
-   
-        assert!(
-            no_seconds_pattern.parse().is_ok()
-        );
+
+        assert!(no_seconds_pattern.parse().is_ok());
 
         assert_eq!(no_seconds_pattern.to_string(), "*/10 * * * *");
 
         // Ensure seconds are defaulted to 0 for a 5-part pattern
         assert!(no_seconds_pattern.seconds.is_bit_set(0, ALL_BIT).unwrap());
-
     }
 
     #[test]
@@ -725,20 +721,18 @@ mod tests {
         // Test with a 5-part pattern when seconds are required
         let mut no_seconds_pattern = CronPattern::new("*/10 * * * *");
         no_seconds_pattern.with_seconds_required();
-    
+
         assert!(matches!(
             no_seconds_pattern.parse(),
             Err(CronError::InvalidPattern(_))
         ));
-    
+
         // Test with a 6-part pattern when seconds are required
         let mut pattern = CronPattern::new("* * * * * *");
         pattern.with_seconds_required();
-       
-        assert!(
-            pattern.parse().is_ok()
-        );
-    
+
+        assert!(pattern.parse().is_ok());
+
         // Ensure the 6-part pattern retains seconds information
         // (This assertion depends on how your CronPattern is structured and how it stores seconds information)
         assert!(pattern.seconds.is_bit_set(0, ALL_BIT).unwrap());
@@ -749,10 +743,10 @@ mod tests {
         // Test with alternative weekdays enabled
         let mut pattern = CronPattern::new("* * * * MON-FRI");
         pattern.with_alternative_weekdays();
-    
+
         // Parsing should succeed
         assert!(pattern.parse().is_ok());
-    
+
         // Ensure that the days of the week are offset correctly
         // Note: In this scenario, "MON-FRI" should be treated as "SUN-THU"
         assert!(pattern.days_of_week.is_bit_set(1, ALL_BIT).unwrap()); // Monday
@@ -760,16 +754,15 @@ mod tests {
         assert!(!pattern.days_of_week.is_bit_set(6, ALL_BIT).unwrap()); // Saturday should not be set
     }
 
-
     #[test]
     fn test_with_alternative_weekdays_numeric() {
         // Test with alternative weekdays enabled
         let mut pattern = CronPattern::new("* * * * 2-6");
         pattern.with_alternative_weekdays();
-    
+
         // Parsing should succeed
         assert!(pattern.parse().is_ok());
-    
+
         // Ensure that the days of the week are offset correctly
         // Note: In this scenario, "MON-FRI" should be treated as "SUN-THU"
         assert!(pattern.days_of_week.is_bit_set(1, ALL_BIT).unwrap()); // Monday
