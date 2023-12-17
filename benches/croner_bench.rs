@@ -3,7 +3,8 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use croner::Cron;
 
 fn parse_take_100(_n: u64) {
-    let cron: Cron = "15 15 15 L 3 *"
+    let cron: Cron = Cron::new("15 15 15 L 3 *")
+        .with_seconds_optional()
         .parse()
         .expect("Couldn't parse cron string");
     let time = Local::now();

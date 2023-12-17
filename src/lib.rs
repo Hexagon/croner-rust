@@ -376,31 +376,27 @@ impl Cron {
     {
         let mut naive_time = to_naive(start_time)?;
         let originaltimezone = start_time.timezone();
-
+    
         if !inclusive {
             increment_time_component(&mut naive_time, TimeComponent::Second)?;
         }
-
+    
         loop {
             if self.find_next_matching_month(&mut naive_time)? {
                 continue;
-            };
-            if self.find_next_matching_day(&mut naive_time)? {
+            } else if self.find_next_matching_day(&mut naive_time)? {
                 continue;
-            };
-            if self.find_next_matching_hour(&mut naive_time)? {
+            } else if self.find_next_matching_hour(&mut naive_time)? {
                 continue;
-            };
-            if self.find_next_matching_minute(&mut naive_time)? {
+            } else if self.find_next_matching_minute(&mut naive_time)? {
                 continue;
-            };
-            if self.find_next_matching_second(&mut naive_time)? {
+            } else if self.find_next_matching_second(&mut naive_time)? {
                 continue;
-            };
-
-            // Convert back to utc
+            }
+    
+            // Convert back to original timezone
             let tz_datetime_result = from_naive(naive_time, &originaltimezone)?;
-
+    
             // Check for match
             if self.is_time_matching(&tz_datetime_result)? {
                 return Ok(tz_datetime_result);
@@ -409,7 +405,7 @@ impl Cron {
             }
         }
     }
-
+    
     /// Creates a `CronIterator` starting from the specified time.
     ///
     /// This function will create an iterator that yields dates and times that
@@ -566,7 +562,7 @@ impl Cron {
             set_time_component(current_time, TimeComponent::Second, next_match)?;
         }
         Ok(incremented)
-    }
+    }    
 
     pub fn with_dom_and_dow(&mut self) -> &mut Self {
         self.pattern.with_dom_and_dow();

@@ -24,10 +24,10 @@ pub struct CronPattern {
     star_dow: bool,
 
     // Options
-    dom_and_dow: bool,               // Setting to alter how dom_and_dow is combined
-    with_seconds_optional: bool, // Setting to alter if seconds (6-part patterns) are allowed or not
-    with_seconds_required: bool, // Setting to alter if seconds (6-part patterns) are required or not
-    with_alternative_weekdays: bool, // Setting to alter if weekdays are offset by one or not
+    pub dom_and_dow: bool,               // Setting to alter how dom_and_dow is combined
+    pub with_seconds_optional: bool, // Setting to alter if seconds (6-part patterns) are allowed or not
+    pub with_seconds_required: bool, // Setting to alter if seconds (6-part patterns) are required or not
+    pub with_alternative_weekdays: bool, // Setting to alter if weekdays are offset by one or not
 
     // Status
     is_parsed: bool,
@@ -60,7 +60,7 @@ impl CronPattern {
 
     // Parses the cron pattern string into its respective fields.
     // Handles optional seconds field, named shortcuts, and determines if 'L' flag is used for last day of the month.
-    pub fn parse(&mut self) -> Result<(), CronError> {
+    pub fn parse(&mut self) -> Result<CronPattern, CronError> {
         if self.pattern.trim().is_empty() {
             return Err(CronError::EmptyPattern);
         }
@@ -127,7 +127,7 @@ impl CronPattern {
 
         // Success!
         self.is_parsed = true;
-        Ok(())
+        Ok(self.clone())
     }
 
     // Validates that the cron pattern only contains legal characters for each field.
@@ -510,9 +510,7 @@ mod tests {
 
     #[test]
     fn test_cron_pattern_new() {
-        let mut pattern = CronPattern::new("*/5 * * * *");
-        let result = pattern.parse();
-        assert!(result.is_ok());
+        let pattern = CronPattern::new("*/5 * * * *").parse().unwrap();
         assert_eq!(pattern.pattern, "*/5 * * * *");
         assert!(pattern.seconds.is_bit_set(0, ALL_BIT).unwrap());
         assert!(pattern.minutes.is_bit_set(5, ALL_BIT).unwrap());
@@ -520,10 +518,7 @@ mod tests {
 
     #[test]
     fn test_cron_pattern_new_with_seconds_optional() {
-        let mut pattern = CronPattern::new("* */5 * * * *");
-        pattern.with_seconds_optional();
-        let result = pattern.parse();
-        assert!(result.is_ok());
+        let pattern = CronPattern::new("* */5 * * * *").with_seconds_optional().parse().expect("Success");
         assert_eq!(pattern.pattern, "* */5 * * * *");
         assert!(pattern.seconds.is_bit_set(5, ALL_BIT).unwrap());
     }
@@ -596,6 +591,26 @@ mod tests {
     #[test]
     fn test_cron_pattern_extra_whitespace() {
         let mut pattern = CronPattern::new("  */15  1 1,15 1    1-5    ");
+        assert!(pattern.parse().is_ok());
+        assert!(pattern.minutes.is_bit_set(0, ALL_BIT).unwrap());
+        assert!(pattern.hours.is_bit_set(1, ALL_BIT).unwrap());
+        assert!(
+            pattern.days.is_bit_set(1, ALL_BIT).unwrap()
+                && pattern.days.is_bit_set(15, ALL_BIT).unwrap()
+        );
+        assert!(
+            pattern.months.is_bit_set(1, ALL_BIT).unwrap()
+                && !pattern.months.is_bit_set(2, ALL_BIT).unwrap()
+        );
+        assert!(
+            pattern.days_of_week.is_bit_set(1, ALL_BIT).unwrap()
+                && pattern.days_of_week.is_bit_set(5, ALL_BIT).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_cron_pattern_leading_zeros() {
+        let mut pattern = CronPattern::new("  */15  01 01,15 01    01-05    ");
         assert!(pattern.parse().is_ok());
         assert!(pattern.minutes.is_bit_set(0, ALL_BIT).unwrap());
         assert!(pattern.hours.is_bit_set(1, ALL_BIT).unwrap());
