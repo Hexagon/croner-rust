@@ -24,7 +24,7 @@ pub struct CronPattern {
     star_dow: bool,
 
     // Options
-    pub dom_and_dow: bool,               // Setting to alter how dom_and_dow is combined
+    pub dom_and_dow: bool, // Setting to alter how dom_and_dow is combined
     pub with_seconds_optional: bool, // Setting to alter if seconds (6-part patterns) are allowed or not
     pub with_seconds_required: bool, // Setting to alter if seconds (6-part patterns) are required or not
     pub with_alternative_weekdays: bool, // Setting to alter if weekdays are offset by one or not
@@ -518,7 +518,10 @@ mod tests {
 
     #[test]
     fn test_cron_pattern_new_with_seconds_optional() {
-        let pattern = CronPattern::new("* */5 * * * *").with_seconds_optional().parse().expect("Success");
+        let pattern = CronPattern::new("* */5 * * * *")
+            .with_seconds_optional()
+            .parse()
+            .expect("Success");
         assert_eq!(pattern.pattern, "* */5 * * * *");
         assert!(pattern.seconds.is_bit_set(5, ALL_BIT).unwrap());
     }

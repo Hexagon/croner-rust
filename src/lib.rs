@@ -6,6 +6,8 @@ use errors::CronError;
 use pattern::{CronPattern, NO_MATCH};
 use std::str::FromStr;
 
+const YEAR_UPPER_LIMIT: i32 = 5000;
+
 use chrono::{
     DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Timelike,
 };
@@ -200,6 +202,11 @@ fn increment_time_component(
     current_time: &mut NaiveDateTime,
     component: TimeComponent,
 ) -> Result<(), CronError> {
+    // Check for time overflow
+    if current_time.year() >= YEAR_UPPER_LIMIT {
+        return Err(CronError::TimeSearchLimitExceeded);
+    }
+
     // Extract all parts
     let (year, month, day, hour, minute, second) = (
         current_time.year(),
@@ -376,27 +383,27 @@ impl Cron {
     {
         let mut naive_time = to_naive(start_time)?;
         let originaltimezone = start_time.timezone();
-    
+
         if !inclusive {
             increment_time_component(&mut naive_time, TimeComponent::Second)?;
         }
-    
+
         loop {
-            if self.find_next_matching_month(&mut naive_time)? {
-                continue;
-            } else if self.find_next_matching_day(&mut naive_time)? {
-                continue;
-            } else if self.find_next_matching_hour(&mut naive_time)? {
-                continue;
-            } else if self.find_next_matching_minute(&mut naive_time)? {
-                continue;
-            } else if self.find_next_matching_second(&mut naive_time)? {
+            let mut updated = false;
+
+            updated |= self.find_next_matching_month(&mut naive_time)?;
+            updated |= self.find_next_matching_day(&mut naive_time)?;
+            updated |= self.find_next_matching_hour(&mut naive_time)?;
+            updated |= self.find_next_matching_minute(&mut naive_time)?;
+            updated |= self.find_next_matching_second(&mut naive_time)?;
+
+            if updated {
                 continue;
             }
-    
+
             // Convert back to original timezone
             let tz_datetime_result = from_naive(naive_time, &originaltimezone)?;
-    
+
             // Check for match
             if self.is_time_matching(&tz_datetime_result)? {
                 return Ok(tz_datetime_result);
@@ -405,7 +412,7 @@ impl Cron {
             }
         }
     }
-    
+
     /// Creates a `CronIterator` starting from the specified time.
     ///
     /// This function will create an iterator that yields dates and times that
@@ -562,7 +569,7 @@ impl Cron {
             set_time_component(current_time, TimeComponent::Second, next_match)?;
         }
         Ok(incremented)
-    }    
+    }
 
     pub fn with_dom_and_dow(&mut self) -> &mut Self {
         self.pattern.with_dom_and_dow();
@@ -879,6 +886,33 @@ mod tests {
     }
 
     #[test]
+    fn test_cron_parse_valid_expressions() {
+        let valid_expressions = vec![
+            "* * * * *",
+            "0 0 * * *",
+            "*/10 * * * *",
+            "0 0 1 1 *",
+            "0 12 * * MON",
+            "0 0   * * 1",
+            "0 0 1 1,7 * ",
+            "00 00 01 * SUN  ",
+            "0 0 1-7 * SUN",
+            "5-10/2 * * * *",
+            "0 0-23/2 * * *",
+            "0 12 15-21 * 1-FRI",
+            "0 0 29 2 *",
+            "0 0 31 * *",
+            "*/15 9-17 * * MON-FRI",
+            "0 12 * JAN-JUN *",
+            "0 0 1,15,L * SUN#L",
+            "0 0 2,1 1-6/2 *",
+        ];
+        for expr in valid_expressions {
+            assert!(Cron::new(expr).parse().is_ok());
+        }
+    }
+
+    #[test]
     fn test_is_time_matching_different_time_zones() -> Result<(), CronError> {
         use chrono::FixedOffset;
 
@@ -989,6 +1023,38 @@ mod tests {
         // Expect the second run to be at 02:36 (29 minutes after the first run)
         assert_eq!(second_run.hour(), 2);
         assert_eq!(second_run.minute(), 36);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_cron_expression_29feb_march_fri() -> Result<(), CronError> {
+        use chrono::TimeZone;
+
+        // Parse the cron expression with specified options
+        let cron = Cron::new("0 0 29 2-3 FRI")
+            .with_dom_and_dow()
+            .with_seconds_optional()
+            .parse()?;
+
+        // Define the start date for the test
+        let start_date = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+
+        // Define the expected matching dates
+        let expected_dates = vec![
+            Local.with_ymd_and_hms(2024, 3, 29, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2030, 3, 29, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2036, 2, 29, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2041, 3, 29, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2047, 3, 29, 0, 0, 0).unwrap(),
+        ];
+
+        // Iterate over the expected dates, checking each one
+        let mut idx = 0;
+        for current_date in cron.iter_from(start_date).take(5) {
+            assert_eq!(expected_dates[idx], current_date);
+            idx += 1;
+        }
 
         Ok(())
     }
