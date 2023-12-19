@@ -57,7 +57,7 @@ Add `croner` to your `Cargo.toml` dependencies:
 
 ```toml
 [dependencies]
-croner = "2.0.1" # Adjust the version as necessary
+croner = "2.0.2" # Adjust the version as necessary
 ```
 
 ### Usage
