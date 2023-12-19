@@ -166,7 +166,7 @@ impl CronComponent {
 
     // Method to enable a feature
     pub fn enable_feature(&mut self, feature: u8) -> Result<(), CronError> {
-        if self.features & feature == feature {
+        if self.is_feature_allowed(feature) {
             self.enabled_features |= feature;
             Ok(())
         } else {
@@ -175,6 +175,10 @@ impl CronComponent {
                 feature, self.features
             )))
         }
+    }
+
+    pub fn is_feature_allowed(&mut self, feature: u8) -> bool {
+        self.features & feature == feature
     }
 
     // Method to check if a feature is enabled
@@ -211,27 +215,52 @@ impl CronComponent {
     pub fn parse(&mut self, field: &str) -> Result<(), CronError> {
         if field == "*" {
             for value in self.min..=self.max {
-                // Here we use set_bit to set from min to max directly, without input_offset. So add input_offset.
                 self.set_bit(value + self.input_offset, ALL_BIT)?;
             }
-        } else {
-            // Split the field into parts and handle each part
-            for part in field.split(',') {
-                let trimmed_part = part.trim();
-                if !trimmed_part.is_empty() {
-                    if trimmed_part.contains('/') {
-                        self.handle_stepping(trimmed_part)?;
-                    } else if trimmed_part.contains('-') {
-                        self.handle_range(trimmed_part)?;
-                    } else if trimmed_part.contains('w') {
-                        self.handle_closest_weekday(trimmed_part)?;
-                    } else if trimmed_part.eq_ignore_ascii_case("l") {
-                        // Handle "L" for the last bit
-                        self.enable_feature(LAST_BIT)?;
-                    } else {
-                        self.handle_number(trimmed_part)?;
-                    }
+            return Ok(());
+        }
+
+        for part in field.split(',') {
+            let trimmed_part = part.trim();
+            if trimmed_part.is_empty() {
+                continue;
+            }
+
+            let mut parsed_part = trimmed_part.to_string();
+
+            if parsed_part.contains('/') {
+                self.handle_stepping(&parsed_part)?;
+            } else if parsed_part.contains('-') {
+                self.handle_range(&parsed_part)?;
+            } else if parsed_part.contains('w') {
+                self.handle_closest_weekday(&parsed_part)?;
+            } else if parsed_part.eq_ignore_ascii_case("l") {
+                // Handle "L" for the last bit
+                self.enable_feature(LAST_BIT)?;
+            } else {
+                // Replace 'l' with 'L'
+                parsed_part = parsed_part.replace('l', "L");
+
+                // If 'L' is contained without '#', like "5L", add the missing '#'
+                if parsed_part.ends_with('L') && !parsed_part.contains('#') {
+                    parsed_part = parsed_part.replace('L', "#L");
                 }
+
+                // If '#' is contained in the number, require feature NTH_ALL to be set
+                if parsed_part.contains('#') && !self.is_feature_allowed(NTH_ALL) {
+                    return Err(CronError::ComponentError(
+                        "Nth specifier # not allowed in the current field.".to_string(),
+                    ));
+                }
+
+                // If 'L' is contained in the number, require feature NTH_ALL to be set
+                if parsed_part.contains('L') && !self.is_feature_allowed(NTH_ALL) {
+                    return Err(CronError::ComponentError(
+                        "L not allowed in the current field.".to_string(),
+                    ));
+                }
+
+                self.handle_number(&parsed_part)?;
             }
         }
 
@@ -269,13 +298,9 @@ impl CronComponent {
         }
     }
 
-    // Removes everything after # and any trailing L or l
+    // Removes everything after #
     fn strip_nth_part(value: &str) -> &str {
-        value
-            .split('#')
-            .next()
-            .unwrap_or("")
-            .trim_end_matches(|c| c == 'L' || c == 'l')
+        value.split('#').next().unwrap_or("")
     }
 
     fn handle_closest_weekday(&mut self, value: &str) -> Result<(), CronError> {

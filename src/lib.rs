@@ -870,9 +870,11 @@ mod tests {
             "* 60 * * * *",
             "-1 59 * * * *",
             "1- 59 * * * *",
+            "0 0 0 5L * *",
+            "0 0 0 5#L * *",
         ];
         for expr in invalid_expressions {
-            assert!(Cron::new(expr).parse().is_err());
+            assert!(Cron::new(expr).with_seconds_optional().parse().is_err());
         }
     }
 
@@ -897,6 +899,7 @@ mod tests {
             "0 12 * JAN-JUN *",
             "0 0 1,15,L * SUN#L",
             "0 0 2,1 1-6/2 *",
+            "0 0 5,L * 5L",
         ];
         for expr in valid_expressions {
             assert!(Cron::new(expr).parse().is_ok());
