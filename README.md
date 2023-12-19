@@ -29,7 +29,8 @@ Time Zones | X         |    X    |     |
 Ranges (15-25)| X         |    X    |   X   | 
 Ranges with stepping (15-25/2)| X         |    X    |   X   |    X   |
 `L` - Last day of month | X         |         |   X   |
-`L` - Last occurrence of weekday |    X     |       |       |
+`5#L` - Last occurrence of weekday |    X     |   X    |       |
+`5L` - Last occurrence of weekday |    X     |    ?   |   X    |
 `#` - Nth occurrence of weekday |    X     |      |   X    |
 `W` - Closest weekday |    X     |        |  X     |
 "Standards"-compliant weekdays (1 is monday) |   X    |      |       |

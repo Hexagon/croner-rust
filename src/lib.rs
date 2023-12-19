@@ -3,7 +3,7 @@ mod errors;
 mod pattern;
 
 use errors::CronError;
-use pattern::{CronPattern, NO_MATCH};
+use pattern::CronPattern;
 use std::str::FromStr;
 
 const YEAR_UPPER_LIMIT: i32 = 5000;
@@ -510,6 +510,7 @@ impl Cron {
         }
         Ok(incremented)
     }
+
     fn find_next_matching_day(&self, current_time: &mut NaiveDateTime) -> Result<bool, CronError> {
         let mut incremented = false;
         while !self.pattern.day_match(
@@ -523,50 +524,68 @@ impl Cron {
 
         Ok(incremented)
     }
+
     fn find_next_matching_hour(&self, current_time: &mut NaiveDateTime) -> Result<bool, CronError> {
         let mut incremented = false;
-        let next_match = self.pattern.next_hour_match(current_time.hour()).unwrap();
-        if next_match == NO_MATCH {
-            increment_time_component(current_time, TimeComponent::Day)?;
-            incremented = true;
-        } else if next_match != current_time.hour() {
-            incremented = true;
-            set_time_component(current_time, TimeComponent::Hour, next_match)?;
+        let next_hour_result = self.pattern.next_hour_match(current_time.hour());
+
+        match next_hour_result {
+            Ok(Some(next_match)) if next_match != current_time.hour() => {
+                set_time_component(current_time, TimeComponent::Hour, next_match)?;
+            }
+            Ok(None) => {
+                increment_time_component(current_time, TimeComponent::Day)?;
+                incremented = true;
+            }
+            Err(e) => return Err(e), // Propagate any CronError
+            _ => {}                  // No action needed if the current hour already matches
         }
         Ok(incremented)
     }
+
     fn find_next_matching_minute(
         &self,
         current_time: &mut NaiveDateTime,
     ) -> Result<bool, CronError> {
         let mut incremented = false;
-        let next_match = self
-            .pattern
-            .next_minute_match(current_time.minute())
-            .unwrap();
-        if next_match == NO_MATCH {
-            increment_time_component(current_time, TimeComponent::Hour)?;
-            incremented = true;
-        } else if next_match != current_time.minute() {
-            incremented = true;
-            set_time_component(current_time, TimeComponent::Minute, next_match)?;
+        let next_minute_result = self.pattern.next_minute_match(current_time.minute());
+
+        match next_minute_result {
+            Ok(Some(next_match)) if next_match != current_time.minute() => {
+                incremented = true;
+                set_time_component(current_time, TimeComponent::Minute, next_match)?;
+            }
+            Ok(None) => {
+                incremented = true;
+                increment_time_component(current_time, TimeComponent::Hour)?;
+            }
+            Err(e) => return Err(e), // Propagate the CronError
+            _ => {}                  // No action needed if the current minute matches
         }
         Ok(incremented)
     }
+
     fn find_next_matching_second(
         &self,
         current_time: &mut NaiveDateTime,
     ) -> Result<bool, CronError> {
         let mut incremented = false;
-        let next_match = self
-            .pattern
-            .next_second_match(current_time.second())
-            .unwrap();
-        if next_match == NO_MATCH {
-            increment_time_component(current_time, TimeComponent::Minute)?;
-            incremented = true;
-        } else {
-            set_time_component(current_time, TimeComponent::Second, next_match)?;
+        let next_second_result = self.pattern.next_second_match(current_time.second());
+
+        match next_second_result {
+            Ok(Some(next_match)) => {
+                // If a matching second is found, set it and mark as incremented.
+                set_time_component(current_time, TimeComponent::Second, next_match)?;
+            }
+            Ok(None) => {
+                // If no match is found in the current minute, increment the minute.
+                increment_time_component(current_time, TimeComponent::Minute)?;
+                incremented = true;
+            }
+            Err(e) => {
+                // Propagate any errors encountered during the match process.
+                return Err(e);
+            }
         }
         Ok(incremented)
     }
@@ -657,6 +676,32 @@ mod tests {
     fn test_last_friday_of_year() -> Result<(), CronError> {
         // This pattern is meant to match 0:00:00 last friday of current year
         let cron = Cron::new("0 0 * * FRI#L").parse()?;
+
+        // February 29th, 2024 is the last day of February in a leap year.
+        let time_matching = Local.with_ymd_and_hms(2023, 12, 29, 0, 0, 0).unwrap();
+
+        assert!(cron.is_time_matching(&time_matching)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_last_friday_of_year_alternative_alpha_syntax() -> Result<(), CronError> {
+        // This pattern is meant to match 0:00:00 last friday of current year
+        let cron = Cron::new("0 0 * * FRIl").parse()?;
+
+        // February 29th, 2024 is the last day of February in a leap year.
+        let time_matching = Local.with_ymd_and_hms(2023, 12, 29, 0, 0, 0).unwrap();
+
+        assert!(cron.is_time_matching(&time_matching)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_last_friday_of_year_alternative_number_syntax() -> Result<(), CronError> {
+        // This pattern is meant to match 0:00:00 last friday of current year
+        let cron = Cron::new("0 0 * * 5L").parse()?;
 
         // February 29th, 2024 is the last day of February in a leap year.
         let time_matching = Local.with_ymd_and_hms(2023, 12, 29, 0, 0, 0).unwrap();

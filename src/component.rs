@@ -239,11 +239,11 @@ impl CronComponent {
     }
 
     fn get_nth_bit(value: &str) -> Result<u8, CronError> {
+        // If value ends with 'L', we set the LAST_BIT and exit early
+        if value.ends_with('L') || value.ends_with('l') {
+            return Ok(LAST_BIT);
+        }
         if let Some(nth_pos) = value.find('#') {
-            // If value ends with 'L', we set the LAST_BIT and exit early
-            if value.ends_with('L') || value.ends_with('l') {
-                return Ok(LAST_BIT);
-            }
             let nth = value[nth_pos + 1..]
                 .parse::<u8>()
                 .map_err(|_| CronError::ComponentError("Invalid nth specifier.".to_string()))?;
@@ -269,8 +269,13 @@ impl CronComponent {
         }
     }
 
+    // Removes everything after # and any trailing L or l
     fn strip_nth_part(value: &str) -> &str {
-        value.split('#').next().unwrap_or("")
+        value
+            .split('#')
+            .next()
+            .unwrap_or("")
+            .trim_end_matches(|c| c == 'L' || c == 'l')
     }
 
     fn handle_closest_weekday(&mut self, value: &str) -> Result<(), CronError> {
@@ -332,7 +337,6 @@ impl CronComponent {
     fn handle_number(&mut self, value: &str) -> Result<(), CronError> {
         let bit_to_set = CronComponent::get_nth_bit(value)?;
         let value_clean = CronComponent::strip_nth_part(value);
-
         let num = value_clean
             .parse::<u8>()
             .map_err(|_| CronError::ComponentError("Invalid number.".to_string()))?;
