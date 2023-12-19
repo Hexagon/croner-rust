@@ -1,60 +1,18 @@
 mod component;
 mod errors;
+mod iterator;
 mod pattern;
 
 use errors::CronError;
+use iterator::CronIterator;
 use pattern::CronPattern;
 use std::str::FromStr;
-
-const YEAR_UPPER_LIMIT: i32 = 5000;
 
 use chrono::{
     DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Timelike,
 };
 
-pub struct CronIterator<Tz>
-where
-    Tz: TimeZone,
-{
-    cron: Cron,
-    current_time: DateTime<Tz>,
-}
-
-impl<Tz> CronIterator<Tz>
-where
-    Tz: TimeZone,
-{
-    fn new(cron: Cron, start_time: DateTime<Tz>) -> Self {
-        CronIterator {
-            cron,
-            current_time: start_time,
-        }
-    }
-}
-
-impl<Tz> Iterator for CronIterator<Tz>
-where
-    Tz: TimeZone,
-{
-    type Item = DateTime<Tz>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.cron.find_next_occurrence(&self.current_time, true) {
-            Ok(next_time) => {
-                // Check if we can add one second without overflow
-                let next_time_clone = next_time.clone();
-                if let Some(updated_time) = next_time.checked_add_signed(Duration::seconds(1)) {
-                    self.current_time = updated_time;
-                    Some(next_time_clone) // Return the next time
-                } else {
-                    // If we hit an overflow, stop the iteration
-                    None
-                }
-            }
-            Err(_) => None, // Stop the iteration if we cannot find the next occurrence
-        }
-    }
-}
+const YEAR_UPPER_LIMIT: i32 = 5000;
 
 enum TimeComponent {
     Second = 1,
@@ -173,18 +131,6 @@ fn set_time_component(
             component,
         ),
     }
-}
-
-pub fn to_naive<Tz: TimeZone>(
-    time: &DateTime<Tz>, /*timezone: Tz*/
-) -> Result<NaiveDateTime, CronError> {
-    // ToDo: Support for alternative time zones
-    // Assume `timezone` is of type `&Tz` and compatible with `time`.
-    // let local_time = time.withtimezone(timezone);
-
-    // Convert to NaiveDateTime
-    // Ok(local_time.naive_local())
-    Ok(time.naive_local())
 }
 
 // Convert `NaiveDateTime` back to `DateTime<Tz>`
@@ -312,7 +258,7 @@ impl Cron {
     /// ```
     pub fn is_time_matching<Tz: TimeZone>(&self, time: &DateTime<Tz>) -> Result<bool, CronError> {
         // Convert to NaiveDateTime
-        let naive_time = to_naive(time)?;
+        let naive_time = time.naive_local();
 
         // Use NaiveDateTime for the comparisons
         Ok(self.pattern.second_match(naive_time.second())?
@@ -381,7 +327,7 @@ impl Cron {
     where
         Tz: TimeZone,
     {
-        let mut naive_time = to_naive(start_time)?;
+        let mut naive_time = start_time.naive_local();
         let originaltimezone = start_time.timezone();
 
         if !inclusive {
