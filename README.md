@@ -55,12 +55,9 @@ Ensure you have Rust installed on your machine. If not, you can get it from
 
 Add `croner` to your `Cargo.toml` dependencies:
 
-**Please note that croner for Rust is work in progress, and not production
-ready**
-
 ```toml
 [dependencies]
-croner = "2.0.0" # Adjust the version as necessary
+croner = "2.0.1" # Adjust the version as necessary
 ```
 
 ### Usage

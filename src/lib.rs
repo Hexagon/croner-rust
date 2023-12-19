@@ -23,175 +23,6 @@ enum TimeComponent {
     Year,
 }
 
-// Recursive function to handle setting the time and managing overflows.
-#[allow(clippy::too_many_arguments)]
-fn set_time(
-    current_time: &mut NaiveDateTime,
-    year: i32,
-    month: u32,
-    day: u32,
-    hour: u32,
-    minute: u32,
-    second: u32,
-    component: TimeComponent,
-) -> Result<(), CronError> {
-    // First, try creating a NaiveDate and NaiveTime
-    match (
-        NaiveDate::from_ymd_opt(year, month, day),
-        NaiveTime::from_hms_opt(hour, minute, second),
-    ) {
-        (Some(date), Some(time)) => {
-            // Combine date and time into NaiveDateTime
-            *current_time = date.and_time(time);
-            Ok(())
-        }
-        _ => {
-            // Handle invalid date or overflow by incrementing the next higher component.
-            match component {
-                TimeComponent::Second => set_time(
-                    current_time,
-                    year,
-                    month,
-                    day,
-                    hour,
-                    minute + 1,
-                    0,
-                    TimeComponent::Minute,
-                ),
-                TimeComponent::Minute => set_time(
-                    current_time,
-                    year,
-                    month,
-                    day,
-                    hour + 1,
-                    0,
-                    0,
-                    TimeComponent::Hour,
-                ),
-                TimeComponent::Hour => set_time(
-                    current_time,
-                    year,
-                    month,
-                    day + 1,
-                    0,
-                    0,
-                    0,
-                    TimeComponent::Day,
-                ),
-                TimeComponent::Day => set_time(
-                    current_time,
-                    year,
-                    month + 1,
-                    1,
-                    0,
-                    0,
-                    0,
-                    TimeComponent::Month,
-                ),
-                TimeComponent::Month => {
-                    set_time(current_time, year + 1, 1, 1, 0, 0, 0, TimeComponent::Year)
-                }
-                TimeComponent::Year => Err(CronError::InvalidDate),
-            }
-        }
-    }
-}
-
-fn set_time_component(
-    current_time: &mut NaiveDateTime,
-    component: TimeComponent,
-    set_to: u32,
-) -> Result<(), CronError> {
-    // Extract all parts
-    let (year, month, day, hour, minute, _second) = (
-        current_time.year(),
-        current_time.month(),
-        current_time.day(),
-        current_time.hour(),
-        current_time.minute(),
-        current_time.second(),
-    );
-
-    match component {
-        TimeComponent::Year => set_time(current_time, set_to as i32, 0, 0, 0, 0, 0, component),
-        TimeComponent::Month => set_time(current_time, year, set_to, 0, 0, 0, 0, component),
-        TimeComponent::Day => set_time(current_time, year, month, set_to, 0, 0, 0, component),
-        TimeComponent::Hour => set_time(current_time, year, month, day, set_to, 0, 0, component),
-        TimeComponent::Minute => {
-            set_time(current_time, year, month, day, hour, set_to, 0, component)
-        }
-        TimeComponent::Second => set_time(
-            current_time,
-            year,
-            month,
-            day,
-            hour,
-            minute,
-            set_to,
-            component,
-        ),
-    }
-}
-
-// Convert `NaiveDateTime` back to `DateTime<Tz>`
-pub fn from_naive<Tz: TimeZone>(
-    naive_time: NaiveDateTime,
-    timezone: &Tz,
-) -> Result<DateTime<Tz>, CronError> {
-    match timezone.from_local_datetime(&naive_time) {
-        chrono::LocalResult::Single(dt) => Ok(dt),
-        _ => Err(CronError::InvalidTime),
-    }
-}
-
-fn increment_time_component(
-    current_time: &mut NaiveDateTime,
-    component: TimeComponent,
-) -> Result<(), CronError> {
-    // Check for time overflow
-    if current_time.year() >= YEAR_UPPER_LIMIT {
-        return Err(CronError::TimeSearchLimitExceeded);
-    }
-
-    // Extract all parts
-    let (year, month, day, hour, minute, second) = (
-        current_time.year(),
-        current_time.month(),
-        current_time.day(),
-        current_time.hour(),
-        current_time.minute(),
-        current_time.second(),
-    );
-
-    // Increment the component and try to set the new time.
-    match component {
-        TimeComponent::Year => set_time(current_time, year + 1, 1, 1, 0, 0, 0, component),
-        TimeComponent::Month => set_time(current_time, year, month + 1, 1, 0, 0, 0, component),
-        TimeComponent::Day => set_time(current_time, year, month, day + 1, 0, 0, 0, component),
-        TimeComponent::Hour => set_time(current_time, year, month, day, hour + 1, 0, 0, component),
-        TimeComponent::Minute => set_time(
-            current_time,
-            year,
-            month,
-            day,
-            hour,
-            minute + 1,
-            0,
-            component,
-        ),
-        TimeComponent::Second => set_time(
-            current_time,
-            year,
-            month,
-            day,
-            hour,
-            minute,
-            second + 1,
-            component,
-        ),
-    }
-}
-
 // The Cron struct represents a cron schedule and provides methods to parse cron strings,
 // check if a datetime matches the cron pattern, and find the next occurrence.
 #[derive(Clone)]
@@ -564,6 +395,175 @@ impl FromStr for Cron {
     fn from_str(cron_string: &str) -> Result<Cron, CronError> {
         let res = Cron::new(cron_string);
         Ok(res)
+    }
+}
+
+// Recursive function to handle setting the time and managing overflows.
+#[allow(clippy::too_many_arguments)]
+fn set_time(
+    current_time: &mut NaiveDateTime,
+    year: i32,
+    month: u32,
+    day: u32,
+    hour: u32,
+    minute: u32,
+    second: u32,
+    component: TimeComponent,
+) -> Result<(), CronError> {
+    // First, try creating a NaiveDate and NaiveTime
+    match (
+        NaiveDate::from_ymd_opt(year, month, day),
+        NaiveTime::from_hms_opt(hour, minute, second),
+    ) {
+        (Some(date), Some(time)) => {
+            // Combine date and time into NaiveDateTime
+            *current_time = date.and_time(time);
+            Ok(())
+        }
+        _ => {
+            // Handle invalid date or overflow by incrementing the next higher component.
+            match component {
+                TimeComponent::Second => set_time(
+                    current_time,
+                    year,
+                    month,
+                    day,
+                    hour,
+                    minute + 1,
+                    0,
+                    TimeComponent::Minute,
+                ),
+                TimeComponent::Minute => set_time(
+                    current_time,
+                    year,
+                    month,
+                    day,
+                    hour + 1,
+                    0,
+                    0,
+                    TimeComponent::Hour,
+                ),
+                TimeComponent::Hour => set_time(
+                    current_time,
+                    year,
+                    month,
+                    day + 1,
+                    0,
+                    0,
+                    0,
+                    TimeComponent::Day,
+                ),
+                TimeComponent::Day => set_time(
+                    current_time,
+                    year,
+                    month + 1,
+                    1,
+                    0,
+                    0,
+                    0,
+                    TimeComponent::Month,
+                ),
+                TimeComponent::Month => {
+                    set_time(current_time, year + 1, 1, 1, 0, 0, 0, TimeComponent::Year)
+                }
+                TimeComponent::Year => Err(CronError::InvalidDate),
+            }
+        }
+    }
+}
+
+fn set_time_component(
+    current_time: &mut NaiveDateTime,
+    component: TimeComponent,
+    set_to: u32,
+) -> Result<(), CronError> {
+    // Extract all parts
+    let (year, month, day, hour, minute, _second) = (
+        current_time.year(),
+        current_time.month(),
+        current_time.day(),
+        current_time.hour(),
+        current_time.minute(),
+        current_time.second(),
+    );
+
+    match component {
+        TimeComponent::Year => set_time(current_time, set_to as i32, 0, 0, 0, 0, 0, component),
+        TimeComponent::Month => set_time(current_time, year, set_to, 0, 0, 0, 0, component),
+        TimeComponent::Day => set_time(current_time, year, month, set_to, 0, 0, 0, component),
+        TimeComponent::Hour => set_time(current_time, year, month, day, set_to, 0, 0, component),
+        TimeComponent::Minute => {
+            set_time(current_time, year, month, day, hour, set_to, 0, component)
+        }
+        TimeComponent::Second => set_time(
+            current_time,
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            set_to,
+            component,
+        ),
+    }
+}
+
+// Convert `NaiveDateTime` back to `DateTime<Tz>`
+pub fn from_naive<Tz: TimeZone>(
+    naive_time: NaiveDateTime,
+    timezone: &Tz,
+) -> Result<DateTime<Tz>, CronError> {
+    match timezone.from_local_datetime(&naive_time) {
+        chrono::LocalResult::Single(dt) => Ok(dt),
+        _ => Err(CronError::InvalidTime),
+    }
+}
+
+fn increment_time_component(
+    current_time: &mut NaiveDateTime,
+    component: TimeComponent,
+) -> Result<(), CronError> {
+    // Check for time overflow
+    if current_time.year() >= YEAR_UPPER_LIMIT {
+        return Err(CronError::TimeSearchLimitExceeded);
+    }
+
+    // Extract all parts
+    let (year, month, day, hour, minute, second) = (
+        current_time.year(),
+        current_time.month(),
+        current_time.day(),
+        current_time.hour(),
+        current_time.minute(),
+        current_time.second(),
+    );
+
+    // Increment the component and try to set the new time.
+    match component {
+        TimeComponent::Year => set_time(current_time, year + 1, 1, 1, 0, 0, 0, component),
+        TimeComponent::Month => set_time(current_time, year, month + 1, 1, 0, 0, 0, component),
+        TimeComponent::Day => set_time(current_time, year, month, day + 1, 0, 0, 0, component),
+        TimeComponent::Hour => set_time(current_time, year, month, day, hour + 1, 0, 0, component),
+        TimeComponent::Minute => set_time(
+            current_time,
+            year,
+            month,
+            day,
+            hour,
+            minute + 1,
+            0,
+            component,
+        ),
+        TimeComponent::Second => set_time(
+            current_time,
+            year,
+            month,
+            day,
+            hour,
+            minute,
+            second + 1,
+            component,
+        ),
     }
 }
 
