@@ -1,9 +1,9 @@
 [package]
 name = "croner"
-version = "2.0.2"
+version = "2.0.3"
 edition = "2021"
 license = "MIT"
-description = "A cron parser and job scheduler library for Rust"
+description = "Fully-featured, lightweight, and efficient Rust library designed for parsing and evaluating cron patterns"
 repository = "https://github.com/hexagon/croner-rust"
 documentation = "https://docs.rs/croner"
 readme = "README.md"
