@@ -1,3 +1,69 @@
+//! # Croner
+//!
+//! Croner is a fully-featured, lightweight, and efficient Rust library designed for parsing and evaluating cron patterns.
+//!
+//! ## Features
+//! - Parses a wide range of cron expressions, including extended formats.
+//! - Evaluates cron patterns to calculate upcoming execution times.
+//! - Supports time zone-aware scheduling.
+//! - Offers granularity up to seconds for precise task scheduling.
+//! - Compatible with the `chrono` library for dealing with date and time in Rust.
+//!
+//! ## Example
+//! The following example demonstrates how to use Croner to parse a cron expression and find the next occurrence of a specified time:
+//!
+//! ```rust
+//! use chrono::Utc;
+//! use croner::Cron;
+//!
+//! // Parse a cron expression to find the next occurrence at 00:00 on Friday
+//! let cron = Cron::new("0 0 * * FRI").parse().expect("Successful parsing");
+//!
+//! // Get the next occurrence from the current time, excluding the current time
+//! let next = cron.find_next_occurrence(&Utc::now(), false).unwrap();
+//!
+//! println!(
+//!     "Pattern \"{}\" will match next at {}",
+//!     cron.pattern.to_string(),
+//!     next
+//! );
+//! ```
+//!
+//! In this example, `Cron::new("0 0 * * FRI")` creates a new Cron instance for the pattern that represents every Friday at midnight. The `find_next_occurrence` method calculates the next time this pattern will be true from the current moment.
+//!
+//! The `false` argument in `find_next_occurrence` specifies that the current time is not included in the calculation, ensuring that only future occurrences are considered.
+//!
+//! ## Getting Started
+//! To start using Croner, add it to your project's `Cargo.toml` and follow the examples to integrate cron pattern parsing and scheduling into your application.
+//!
+//! ## Pattern
+//!
+//! The expressions used by Croner are very similar to those of Vixie Cron, but with
+//! a few additions as outlined below:
+//!
+//! ```javascript
+//! // ┌──────────────── (optional) second (0 - 59)
+//! // │ ┌────────────── minute (0 - 59)
+//! // │ │ ┌──────────── hour (0 - 23)
+//! // │ │ │ ┌────────── day of month (1 - 31)
+//! // │ │ │ │ ┌──────── month (1 - 12, JAN-DEC)
+//! // │ │ │ │ │ ┌────── day of week (0 - 6, SUN-Mon)
+//! // │ │ │ │ │ │       (0 to 6 are Sunday to Saturday; 7 is Sunday, the same as 0)
+//! // │ │ │ │ │ │
+//! // * * * * * *
+//! ```
+//!
+//! | Field        | Required | Allowed values  | Allowed special characters | Remarks                                                                                                         |
+//! | ------------ | -------- | --------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------- |
+//! | Seconds      | Optional | 0-59            | * , - / ?                  |                                                                                                                 |
+//! | Minutes      | Yes      | 0-59            | * , - / ?                  |                                                                                                                 |
+//! | Hours        | Yes      | 0-23            | * , - / ?                  |                                                                                                                 |
+//! | Day of Month | Yes      | 1-31            | * , - / ? L W              |                                                                                                                 |
+//! | Month        | Yes      | 1-12 or JAN-DEC | * , - / ?                  |                                                                                                                 |
+//! | Day of Week  | Yes      | 0-7 or SUN-MON  | * , - / ? # L              | 0 to 6 are Sunday to Saturday, 7 is Sunday, the same as 0. '#' is used to specify the nth occurrence of a weekday |
+//!
+//! For more information, refer to the full [README](https://github.com/hexagon/croner-rust).
+
 mod component;
 mod errors;
 mod iterator;
@@ -162,7 +228,9 @@ impl Cron {
         let originaltimezone = start_time.timezone();
 
         if !inclusive {
-            increment_time_component(&mut naive_time, TimeComponent::Second)?;
+            naive_time = naive_time
+                .checked_add_signed(chrono::Duration::seconds(1))
+                .ok_or(CronError::InvalidTime)?;
         }
 
         loop {
@@ -1049,6 +1117,74 @@ mod tests {
             assert_eq!(expected_dates[idx], current_date);
             idx += 1;
         }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_specific_and_wildcard_entries() -> Result<(), CronError> {
+        let cron = Cron::new("15 */2 * 3,5 FRI").parse()?;
+        let matching_time = Local.with_ymd_and_hms(2023, 3, 3, 2, 15, 0).unwrap();
+        let non_matching_time = Local.with_ymd_and_hms(2023, 3, 3, 3, 15, 0).unwrap();
+
+        assert!(cron.is_time_matching(&matching_time)?);
+        assert!(!cron.is_time_matching(&non_matching_time)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_month_weekday_edge_cases() -> Result<(), CronError> {
+        let cron = Cron::new("0 0 * 2-3 SUN").parse()?;
+
+        let matching_time = Local.with_ymd_and_hms(2023, 2, 5, 0, 0, 0).unwrap();
+        let non_matching_time = Local.with_ymd_and_hms(2023, 2, 5, 0, 0, 1).unwrap();
+
+        assert!(cron.is_time_matching(&matching_time)?);
+        assert!(!cron.is_time_matching(&non_matching_time)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_leap_year() -> Result<(), CronError> {
+        let cron = Cron::new("0 0 29 2 *").parse()?;
+        let leap_year_matching = Local.with_ymd_and_hms(2024, 2, 29, 0, 0, 0).unwrap();
+
+        assert!(cron.is_time_matching(&leap_year_matching)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_time_overflow() -> Result<(), CronError> {
+        let cron_match = Cron::new("59 59 23 31 12 *")
+            .with_seconds_optional()
+            .parse()?;
+        let cron_next = Cron::new("0 0 0 1 1 *").with_seconds_optional().parse()?;
+        let time_matching = Local.with_ymd_and_hms(2023, 12, 31, 23, 59, 59).unwrap();
+        let next_day = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+        let next_match = Local.with_ymd_and_hms(2024, 12, 31, 23, 59, 59).unwrap();
+
+        let is_matching = cron_match.is_time_matching(&time_matching)?;
+        let next_occurrence = cron_next.find_next_occurrence(&time_matching, false)?;
+        let next_match_occurrence = cron_match.find_next_occurrence(&time_matching, false)?;
+
+        assert!(is_matching);
+        assert_eq!(next_occurrence, next_day);
+        assert_eq!(next_match_occurrence, next_match);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_yearly_recurrence() -> Result<(), CronError> {
+        let cron = Cron::new("0 0 1 1 *").parse()?;
+        let matching_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap();
+        let non_matching_time = Local.with_ymd_and_hms(2023, 1, 2, 0, 0, 0).unwrap();
+
+        assert!(cron.is_time_matching(&matching_time)?);
+        assert!(!cron.is_time_matching(&non_matching_time)?);
 
         Ok(())
     }
