@@ -1089,6 +1089,76 @@ mod tests {
         Ok(())
     }
 
+    // Unusual cron pattern found online, perfect for testing
+    #[test]
+    fn test_unusual_cron_expression_end_month_start_month_mon() -> Result<(), CronError> {
+        use chrono::TimeZone;
+
+        // Parse the cron expression with specified options
+        let cron = Cron::new("0 0 */31,1-7 */1 MON").parse()?;
+
+        // Define the start date for the test
+        let start_date = Local.with_ymd_and_hms(2023, 12, 24, 0, 0, 0).unwrap();
+
+        // Define the expected matching dates
+        let expected_dates = vec![
+            Local.with_ymd_and_hms(2023, 12, 25, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 1, 2, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 1, 3, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 1, 4, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 1, 5, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 1, 6, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 1, 7, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 1, 8, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 1, 15, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 1, 22, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 1, 29, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 2, 1, 0, 0, 0).unwrap(),
+        ];
+
+        // Iterate over the expected dates, checking each one
+        let mut idx = 0;
+        for current_date in cron.iter_from(start_date).take(expected_dates.len()) {
+            assert_eq!(expected_dates[idx], current_date);
+            idx += 1;
+        }
+
+        Ok(())
+    }
+
+    // Unusual cron pattern found online, perfect for testing, with dom_and_dow
+    #[test]
+    fn test_unusual_cron_expression_end_month_start_month_mon_dom_and_dow() -> Result<(), CronError>
+    {
+        use chrono::TimeZone;
+
+        // Parse the cron expression with specified options
+        let cron = Cron::new("0 0 */31,1-7 */1 MON")
+            .with_dom_and_dow()
+            .with_seconds_optional() // Just to differ as much from the non dom-and-dow test
+            .parse()?;
+
+        // Define the start date for the test
+        let start_date = Local.with_ymd_and_hms(2023, 12, 24, 0, 0, 0).unwrap();
+
+        // Define the expected matching dates
+        let expected_dates = vec![
+            Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 2, 5, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 3, 4, 0, 0, 0).unwrap(),
+        ];
+
+        // Iterate over the expected dates, checking each one
+        let mut idx = 0;
+        for current_date in cron.iter_from(start_date).take(expected_dates.len()) {
+            assert_eq!(expected_dates[idx], current_date);
+            idx += 1;
+        }
+
+        Ok(())
+    }
+
     #[test]
     fn test_cron_expression_29feb_march_fri() -> Result<(), CronError> {
         use chrono::TimeZone;
