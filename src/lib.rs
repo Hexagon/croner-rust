@@ -64,8 +64,9 @@
 //!
 //! For more information, refer to the full [README](https://github.com/hexagon/croner-rust).
 
+pub mod errors;
+
 mod component;
-mod errors;
 mod iterator;
 mod pattern;
 
