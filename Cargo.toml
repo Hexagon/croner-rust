@@ -8,7 +8,7 @@ repository = "https://github.com/hexagon/croner-rust"
 documentation = "https://docs.rs/croner"
 readme = "README.md"
 keywords = ["cron", "scheduler", "job", "task", "time"]
-categories = ["date-and-time", "scheduling"]
+categories = ["date-and-time", "parser-implementations"]
 homepage = "https://github.com/hexagon/croner-rust"
 
 [lib]
