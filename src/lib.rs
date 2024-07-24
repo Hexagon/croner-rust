@@ -92,7 +92,7 @@ enum TimeComponent {
 
 // The Cron struct represents a cron schedule and provides methods to parse cron strings,
 // check if a datetime matches the cron pattern, and find the next occurrence.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Cron {
     pub pattern: CronPattern, // Parsed cron pattern
 }
