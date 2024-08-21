@@ -494,11 +494,16 @@ impl CronPattern {
         self.days_of_week = CronComponent::new(0, 7, LAST_BIT | NTH_ALL, 1);
         self
     }
+
+    // Get a reference to the original pattern
+    pub fn as_str(&self) -> &str {
+        &self.pattern
+    }
 }
 
-impl ToString for CronPattern {
-    fn to_string(&self) -> String {
-        self.pattern.clone()
+impl std::fmt::Display for CronPattern {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.pattern)
     }
 }
 
