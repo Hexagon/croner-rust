@@ -71,7 +71,7 @@ mod iterator;
 mod pattern;
 
 use errors::CronError;
-use iterator::CronIterator;
+pub use iterator::CronIterator;
 use pattern::CronPattern;
 use std::str::FromStr;
 
