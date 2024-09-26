@@ -68,7 +68,7 @@ impl CronPattern {
 
         // Handle @nicknames
         if self.pattern.contains('@') {
-            self.pattern = Self::handle_nicknames(&self.pattern).trim().to_string();
+            self.pattern = Self::handle_nicknames(&self.pattern, self.with_seconds_required).trim().to_string();
         }
 
         // Handle day-of-week and month aliases (MON... and JAN...)
@@ -165,20 +165,32 @@ impl CronPattern {
         Ok(())
     }
 
+
     // Converts named cron pattern shortcuts like '@daily' into their equivalent standard cron pattern.
-    fn handle_nicknames(pattern: &str) -> &str {
+    fn handle_nicknames(pattern: &str, with_seconds_required: bool) -> &str {
         let pattern = pattern.trim();
 
         // Closure that performs a case-insensitive comparison of two strings.
         let eq_ignore_case = |a: &str, b: &str| a.eq_ignore_ascii_case(b);
 
-        match pattern {
-            p if eq_ignore_case(p, "@yearly") || eq_ignore_case(p, "@annually") => "0 0 1 1 *",
-            p if eq_ignore_case(p, "@monthly") => "0 0 1 * *",
-            p if eq_ignore_case(p, "@weekly") => "0 0 * * 0",
-            p if eq_ignore_case(p, "@daily") => "0 0 * * *",
-            p if eq_ignore_case(p, "@hourly") => "0 * * * *",
-            _ => pattern,
+        if with_seconds_required {
+            match pattern {
+                p if eq_ignore_case(p, "@yearly") || eq_ignore_case(p, "@annually") => "0 0 0 1 1 *",
+                p if eq_ignore_case(p, "@monthly") => "0 0 0 1 * *",
+                p if eq_ignore_case(p, "@weekly") => "0 0 0 * * 0",
+                p if eq_ignore_case(p, "@daily") => "0 0 0 * * *",
+                p if eq_ignore_case(p, "@hourly") => "0 0 * * * *",
+                _ => pattern,
+            }
+        } else {
+            match pattern {
+                p if eq_ignore_case(p, "@yearly") || eq_ignore_case(p, "@annually") => "0 0 1 1 *",
+                p if eq_ignore_case(p, "@monthly") => "0 0 1 * *",
+                p if eq_ignore_case(p, "@weekly") => "0 0 * * 0",
+                p if eq_ignore_case(p, "@daily") => "0 0 * * *",
+                p if eq_ignore_case(p, "@hourly") => "0 * * * *",
+                _ => pattern,
+            }
         }
     }
 
@@ -631,11 +643,19 @@ mod tests {
 
     #[test]
     fn test_cron_pattern_handle_nicknames() {
-        assert_eq!(CronPattern::handle_nicknames("@yearly"), "0 0 1 1 *");
-        assert_eq!(CronPattern::handle_nicknames("@monthly"), "0 0 1 * *");
-        assert_eq!(CronPattern::handle_nicknames("@weekly"), "0 0 * * 0");
-        assert_eq!(CronPattern::handle_nicknames("@daily"), "0 0 * * *");
-        assert_eq!(CronPattern::handle_nicknames("@hourly"), "0 * * * *");
+        assert_eq!(CronPattern::handle_nicknames("@yearly", false), "0 0 1 1 *");
+        assert_eq!(CronPattern::handle_nicknames("@monthly", false), "0 0 1 * *");
+        assert_eq!(CronPattern::handle_nicknames("@weekly", false), "0 0 * * 0");
+        assert_eq!(CronPattern::handle_nicknames("@daily", false), "0 0 * * *");
+        assert_eq!(CronPattern::handle_nicknames("@hourly", false), "0 * * * *");
+    }
+    #[test]
+    fn test_cron_pattern_handle_nicknames_with_seconds_required() {
+        assert_eq!(CronPattern::handle_nicknames("@yearly", true), "0 0 0 1 1 *");
+        assert_eq!(CronPattern::handle_nicknames("@monthly", true), "0 0 0 1 * *");
+        assert_eq!(CronPattern::handle_nicknames("@weekly", true), "0 0 0 * * 0");
+        assert_eq!(CronPattern::handle_nicknames("@daily", true), "0 0 0 * * *");
+        assert_eq!(CronPattern::handle_nicknames("@hourly", true), "0 0 * * * *");
     }
 
     #[test]
