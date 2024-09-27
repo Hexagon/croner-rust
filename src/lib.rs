@@ -455,6 +455,16 @@ impl Cron {
         self.pattern.with_alternative_weekdays();
         self
     }
+
+    pub fn as_str(&self) -> &str {
+        self.pattern.as_str()
+    }
+}
+
+impl std::fmt::Display for Cron {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.pattern)
+    }
 }
 
 // Enables creating a Cron instance from a string slice, returning a CronError if parsing fails.
