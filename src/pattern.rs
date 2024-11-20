@@ -68,7 +68,9 @@ impl CronPattern {
 
         // Handle @nicknames
         if self.pattern.contains('@') {
-            self.pattern = Self::handle_nicknames(&self.pattern, self.with_seconds_required).trim().to_string();
+            self.pattern = Self::handle_nicknames(&self.pattern, self.with_seconds_required)
+                .trim()
+                .to_string();
         }
 
         // Handle day-of-week and month aliases (MON... and JAN...)
@@ -168,10 +170,10 @@ impl CronPattern {
     // Converts named cron pattern shortcuts like '@daily' into their equivalent standard cron pattern.
     fn handle_nicknames(pattern: &str, with_seconds_required: bool) -> String {
         let pattern = pattern.trim();
-    
+
         // Closure for case-insensitive comparison
         let eq_ignore_case = |a: &str, b: &str| a.eq_ignore_ascii_case(b);
-    
+
         let base_pattern = match pattern {
             p if eq_ignore_case(p, "@yearly") || eq_ignore_case(p, "@annually") => "0 0 1 1 *",
             p if eq_ignore_case(p, "@monthly") => "0 0 1 * *",
@@ -180,7 +182,7 @@ impl CronPattern {
             p if eq_ignore_case(p, "@hourly") => "0 * * * *",
             _ => pattern,
         };
-    
+
         if with_seconds_required {
             format!("0 {}", base_pattern)
         } else {
@@ -638,7 +640,10 @@ mod tests {
     #[test]
     fn test_cron_pattern_handle_nicknames() {
         assert_eq!(CronPattern::handle_nicknames("@yearly", false), "0 0 1 1 *");
-        assert_eq!(CronPattern::handle_nicknames("@monthly", false), "0 0 1 * *");
+        assert_eq!(
+            CronPattern::handle_nicknames("@monthly", false),
+            "0 0 1 * *"
+        );
         assert_eq!(CronPattern::handle_nicknames("@weekly", false), "0 0 * * 0");
         assert_eq!(CronPattern::handle_nicknames("@daily", false), "0 0 * * *");
         assert_eq!(CronPattern::handle_nicknames("@hourly", false), "0 * * * *");
@@ -646,11 +651,23 @@ mod tests {
 
     #[test]
     fn test_cron_pattern_handle_nicknames_with_seconds_required() {
-        assert_eq!(CronPattern::handle_nicknames("@yearly", true), "0 0 0 1 1 *");
-        assert_eq!(CronPattern::handle_nicknames("@monthly", true), "0 0 0 1 * *");
-        assert_eq!(CronPattern::handle_nicknames("@weekly", true), "0 0 0 * * 0");
+        assert_eq!(
+            CronPattern::handle_nicknames("@yearly", true),
+            "0 0 0 1 1 *"
+        );
+        assert_eq!(
+            CronPattern::handle_nicknames("@monthly", true),
+            "0 0 0 1 * *"
+        );
+        assert_eq!(
+            CronPattern::handle_nicknames("@weekly", true),
+            "0 0 0 * * 0"
+        );
         assert_eq!(CronPattern::handle_nicknames("@daily", true), "0 0 0 * * *");
-        assert_eq!(CronPattern::handle_nicknames("@hourly", true), "0 0 * * * *");
+        assert_eq!(
+            CronPattern::handle_nicknames("@hourly", true),
+            "0 0 * * * *"
+        );
     }
 
     #[test]
@@ -799,5 +816,42 @@ mod tests {
         assert!(pattern.days_of_week.is_bit_set(1, ALL_BIT).unwrap()); // Monday
         assert!(pattern.days_of_week.is_bit_set(5, ALL_BIT).unwrap()); // Friday
         assert!(!pattern.days_of_week.is_bit_set(6, ALL_BIT).unwrap()); // Saturday should not be set
+    }
+
+    #[test]
+    fn test_seven_to_zero() {
+        // Test with alternative weekdays enabled
+        let mut pattern = CronPattern::new("* * * * 7");
+
+        // Parsing should succeed
+        assert!(pattern.parse().is_ok());
+
+        // Ensure that the days of the week are offset correctly
+        // Note: In this scenario, "MON-FRI" should be treated as "SUN-THU"
+        assert!(pattern.days_of_week.is_bit_set(0, ALL_BIT).unwrap()); // Monday
+    }
+
+    #[test]
+    fn test_one_is_monday_alternative() {
+        // Test with alternative weekdays enabled
+        let mut pattern = CronPattern::new("* * * * 1");
+        pattern.with_alternative_weekdays();
+
+        // Parsing should succeed
+        assert!(pattern.parse().is_ok());
+
+        // Ensure that the days of the week are offset correctly
+        // Note: In this scenario, "MON-FRI" should be treated as "SUN-THU"
+        assert!(pattern.days_of_week.is_bit_set(0, ALL_BIT).unwrap()); // Monday
+    }
+
+    #[test]
+    fn test_zero_with_alternative_weekdays_fails() {
+        // Test with alternative weekdays enabled
+        let mut pattern = CronPattern::new("* * * * 0");
+        pattern.with_alternative_weekdays();
+
+        // Parsing should raise a ComponentError
+        assert!(matches!(pattern.parse(), Err(CronError::ComponentError(_))));
     }
 }

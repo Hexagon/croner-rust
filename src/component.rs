@@ -87,6 +87,12 @@ impl CronComponent {
 
     // Set a bit at a given position (0 to 59)
     pub fn set_bit(&mut self, mut pos: u8, bit: u8) -> Result<(), CronError> {
+        if pos < self.input_offset {
+            return Err(CronError::ComponentError(format!(
+                "Position {} is less than the input offset {}.",
+                pos, self.input_offset
+            )));
+        }
         pos -= self.input_offset;
         if pos < self.min || pos > self.max {
             return Err(CronError::ComponentError(format!(
@@ -114,6 +120,12 @@ impl CronComponent {
 
     // Unset a specific bit at a given position
     pub fn unset_bit(&mut self, mut pos: u8, bit: u8) -> Result<(), CronError> {
+        if pos < self.input_offset {
+            return Err(CronError::ComponentError(format!(
+                "Position {} is less than the input offset {}.",
+                pos, self.input_offset
+            )));
+        }
         pos -= self.input_offset;
         if pos < self.min || pos > self.max {
             return Err(CronError::ComponentError(format!(
