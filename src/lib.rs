@@ -1213,7 +1213,7 @@ mod tests {
 
         // Define the expected matching dates
         let expected_dates = vec![
-            Local.with_ymd_and_hms(2024, 11, 13, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 10, 13, 0, 0, 0).unwrap(),
             Local.with_ymd_and_hms(2024, 11, 10, 0, 0, 0).unwrap(),
             Local.with_ymd_and_hms(2024, 12, 8, 0, 0, 0).unwrap(),
             Local.with_ymd_and_hms(2025, 1, 12, 0, 0, 0).unwrap(),

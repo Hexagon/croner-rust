@@ -1,6 +1,6 @@
 [package]
 name = "croner"
-version = "2.0.7"
+version = "2.0.8"
 edition = "2021"
 license = "MIT"
 description = "Fully-featured, lightweight, and efficient Rust library designed for parsing and evaluating cron patterns"
