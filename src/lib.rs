@@ -1126,6 +1126,8 @@ mod tests {
             idx += 1;
         }
 
+        assert_eq!(idx, 13);
+
         Ok(())
     }
 
@@ -1157,6 +1159,8 @@ mod tests {
             assert_eq!(expected_dates[idx], current_date);
             idx += 1;
         }
+
+        assert_eq!(idx, 3);
 
         Ok(())
     }
@@ -1190,6 +1194,8 @@ mod tests {
             idx += 1;
         }
 
+        assert_eq!(idx, 5);
+
         Ok(())
     }
 
@@ -1220,6 +1226,8 @@ mod tests {
             assert_eq!(expected_dates[idx], current_date);
             idx += 1;
         }
+
+        assert_eq!(idx, 5);
 
         Ok(())
     }
