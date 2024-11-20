@@ -969,6 +969,7 @@ mod tests {
             "0 0 1,15,L * SUN#L",
             "0 0 2,1 1-6/2 *",
             "0 0 5,L * 5L",
+            "0 0 5,L * 7#2",
         ];
         for expr in valid_expressions {
             assert!(Cron::new(expr).parse().is_ok());
@@ -1180,6 +1181,37 @@ mod tests {
             Local.with_ymd_and_hms(2036, 2, 29, 0, 0, 0).unwrap(),
             Local.with_ymd_and_hms(2041, 3, 29, 0, 0, 0).unwrap(),
             Local.with_ymd_and_hms(2047, 3, 29, 0, 0, 0).unwrap(),
+        ];
+
+        // Iterate over the expected dates, checking each one
+        let mut idx = 0;
+        for current_date in cron.iter_from(start_date).take(5) {
+            assert_eq!(expected_dates[idx], current_date);
+            idx += 1;
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_cron_expression_second_sunday_using_seven() -> Result<(), CronError> {
+        use chrono::TimeZone;
+
+        // Parse the cron expression with specified options
+        let cron = Cron::new("0 0 0 * * 7#2")
+            .with_seconds_optional()
+            .parse()?;
+
+        // Define the start date for the test
+        let start_date = Local.with_ymd_and_hms(2024, 10, 1, 0, 0, 0).unwrap();
+
+        // Define the expected matching dates
+        let expected_dates = vec![
+            Local.with_ymd_and_hms(2024, 11, 13, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 11, 10, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 12, 8, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2025, 1, 12, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2025, 2, 9, 0, 0, 0).unwrap(),
         ];
 
         // Iterate over the expected dates, checking each one
