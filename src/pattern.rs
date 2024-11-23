@@ -121,7 +121,14 @@ impl CronPattern {
         // Handle conversion of 7 to 0 for day_of_week if necessary
         // this has to be done last because range could be 6-7 (sat-sun)
         if !self.with_alternative_weekdays {
-            for nth_bit in [ALL_BIT, NTH_1ST_BIT, NTH_2ND_BIT, NTH_3RD_BIT, NTH_4TH_BIT, NTH_5TH_BIT] {
+            for nth_bit in [
+                ALL_BIT,
+                NTH_1ST_BIT,
+                NTH_2ND_BIT,
+                NTH_3RD_BIT,
+                NTH_4TH_BIT,
+                NTH_5TH_BIT,
+            ] {
                 if self.days_of_week.is_bit_set(7, nth_bit)? {
                     self.days_of_week.unset_bit(7, nth_bit)?;
                     self.days_of_week.set_bit(0, nth_bit)?;

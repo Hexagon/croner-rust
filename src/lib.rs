@@ -1214,9 +1214,7 @@ mod tests {
         use chrono::TimeZone;
 
         // Parse the cron expression with specified options
-        let cron = Cron::new("0 0 0 * * 7#2")
-            .with_seconds_optional()
-            .parse()?;
+        let cron = Cron::new("0 0 0 * * 7#2").with_seconds_optional().parse()?;
 
         // Define the start date for the test
         let start_date = Local.with_ymd_and_hms(2024, 10, 1, 0, 0, 0).unwrap();

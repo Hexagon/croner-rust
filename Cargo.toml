@@ -1,6 +1,6 @@
 [package]
 name = "croner"
-version = "2.0.8"
+version = "2.1.0"
 edition = "2021"
 license = "MIT"
 description = "Fully-featured, lightweight, and efficient Rust library designed for parsing and evaluating cron patterns"
@@ -19,7 +19,7 @@ path = "src/lib.rs"
 chrono = "0.4.38"
 
 [dev-dependencies]
-chrono-tz = "0.9.0"
+chrono-tz = "0.10.0"
 criterion = "0.5.1"
 
 [[bench]]
