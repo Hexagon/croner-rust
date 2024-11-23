@@ -2,7 +2,7 @@
 ///
 /// `CronError` is used throughout the `croner` crate to indicate various types of failures
 /// and is exported for consuming programs to use.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CronError {
     /// The pattern string provided was empty.
     ///
