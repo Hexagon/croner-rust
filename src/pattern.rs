@@ -7,7 +7,7 @@ use chrono::{Datelike, Duration, NaiveDate, Weekday};
 
 // This struct is used for representing and validating cron pattern strings.
 // It supports parsing cron patterns with optional seconds field and provides functionality to check pattern matching against specific datetime.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CronPattern {
     pattern: String, // The original pattern
     //
