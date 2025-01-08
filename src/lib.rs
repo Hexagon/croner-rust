@@ -8,6 +8,11 @@
 //! - Supports time zone-aware scheduling.
 //! - Offers granularity up to seconds for precise task scheduling.
 //! - Compatible with the `chrono` library for dealing with date and time in Rust.
+//! 
+//! ## Crate Features
+//! - `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and
+//!   [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for
+//!   [`Cron`](struct.Cron.html). This feature is disabled by default.
 //!
 //! ## Example
 //! The following example demonstrates how to use Croner to parse a cron expression and find the next occurrence of a specified time:
@@ -77,6 +82,14 @@ use std::str::FromStr;
 
 use chrono::{
     DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Timelike,
+};
+
+#[cfg(feature = "serde")]
+use core::fmt;
+#[cfg(feature = "serde")]
+use serde::{
+    de::{self, Visitor},
+    Deserialize, Serialize, Serializer,
 };
 
 const YEAR_UPPER_LIMIT: i32 = 5000;
@@ -477,6 +490,43 @@ impl FromStr for Cron {
     }
 }
 
+#[cfg(feature = "serde")]
+impl Serialize for Cron {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(self.pattern.as_str())
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for Cron {
+    fn deserialize<D>(deserializer: D) -> Result<Cron, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        struct CronVisitor;
+
+        impl Visitor<'_> for CronVisitor {
+            type Value = Cron;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("a valid cron pattern")
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Cron, E>
+            where
+                E: de::Error,
+            {
+                Cron::new(value).parse().map_err(de::Error::custom)
+            }
+        }
+
+        deserializer.deserialize_str(CronVisitor)
+    }
+}
+
 // Recursive function to handle setting the time and managing overflows.
 #[allow(clippy::too_many_arguments)]
 fn set_time(
@@ -650,6 +700,8 @@ fn increment_time_component(
 mod tests {
     use super::*;
     use chrono::{Local, TimeZone};
+    #[cfg(feature = "serde")]
+    use serde_test::{assert_de_tokens_error, assert_tokens, Token};
     #[test]
     fn test_is_time_matching() -> Result<(), CronError> {
         // This pattern is meant to match first second of 9 am on the first day of January.
@@ -1306,5 +1358,39 @@ mod tests {
         assert!(!cron.is_time_matching(&non_matching_time)?);
 
         Ok(())
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_serde_tokens() {
+        let cron = Cron::new("0 0 * * *")
+            .parse()
+            .expect("should be valid pattern");
+        assert_tokens(&cron.to_string(), &[Token::Str("0 0 * * *")]);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_shorthand_serde_tokens() {
+        let expressions = [
+            ("@daily", "0 0 * * *"),
+            ("0 12 * * MON", "0 12 * * 1"),
+            ("*/15 9-17 * * MON-FRI", "*/15 9-17 * * 1-5"),
+        ];
+        for (shorthand, expected) in expressions.iter() {
+            let cron = Cron::new(shorthand)
+                .parse()
+                .expect("should be valid pattern");
+            assert_tokens(&cron.to_string(), &[Token::Str(expected)]);
+        }
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn test_invalid_serde_tokens() {
+        assert_de_tokens_error::<Cron>(
+            &[Token::Str("Invalid cron pattern")],
+            "Invalid pattern: Pattern must consist of five or six fields (minute, hour, day, month, day of week, and optional second)."
+        );
     }
 }
