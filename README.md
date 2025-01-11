@@ -19,6 +19,10 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 - Compatible with `chrono` and (optionally) `chrono-tz`.
 - Robust error handling.
 
+## Crate Features
+
+- `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for [`Cron`](https://docs.rs/croner/2/croner/struct.Cron.html). This feature is disabled by default.
+
 ## Why croner instead of cron or saffron?
 
 Croner combines the features of cron and saffron, while following the POSIX/Vixie "standards" for the relevant parts. See this table:

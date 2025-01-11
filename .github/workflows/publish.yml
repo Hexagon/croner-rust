@@ -25,6 +25,9 @@ jobs:
       - name: Run tests
         run: cargo test
 
+      - name: Run tests with features
+        run: cargo test --all-features
+
       - name: Publish
         run: cargo publish --token ${CRATES_TOKEN} --allow-dirty
         env:
