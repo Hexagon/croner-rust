@@ -1,6 +1,7 @@
 use crate::Cron;
 use chrono::{DateTime, Duration, TimeZone};
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CronIterator<Tz>
 where
     Tz: TimeZone,
