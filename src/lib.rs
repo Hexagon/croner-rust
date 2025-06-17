@@ -260,12 +260,14 @@ impl Cron {
                 continue;
             }
 
-            // Convert back to original timezone
-            let tz_datetime_result = from_naive(naive_time, &originaltimezone)?;
+           // Convert back to original timezone
+           let (tz_datetime, was_adjusted) =
+                from_naive(naive_time, &originaltimezone)?;
 
-            // Check for match
-            if self.is_time_matching(&tz_datetime_result)? {
-                return Ok(tz_datetime_result);
+            // If the time matches or we had to adjust due to a DST gap,
+            // accept tz_datetime as the next occurrence.
+            if self.is_time_matching(&tz_datetime)? || was_adjusted {
+                return Ok(tz_datetime);
             } else {
                 return Err(CronError::TimeSearchLimitExceeded);
             }
@@ -637,16 +639,29 @@ fn set_time_component(
     }
 }
 
-// Convert `NaiveDateTime` back to `DateTime<Tz>`
-pub fn from_naive<Tz: TimeZone>(
-    naive_time: NaiveDateTime,
-    timezone: &Tz,
-) -> Result<DateTime<Tz>, CronError> {
-    match timezone.from_local_datetime(&naive_time) {
-        chrono::LocalResult::Single(dt) => Ok(dt),
-        _ => Err(CronError::InvalidTime),
+    // Convert `NaiveDateTime` back to `DateTime<Tz>`
+    pub fn from_naive<Tz: TimeZone>(
+        naive_time: NaiveDateTime,
+        timezone: &Tz,
+    ) -> Result<(DateTime<Tz>, bool), CronError> {
+        match timezone.from_local_datetime(&naive_time) {
+            chrono::LocalResult::Single(dt) => Ok((dt, false)), // No adjustment needed
+            chrono::LocalResult::Ambiguous(dt1, _dt2) => Ok((dt1, false)), // No adjustment for ambiguity (still original time)
+            chrono::LocalResult::None => {
+                // The naive time is invalid (e.g. DST gap).
+                // Try incrementing until valid.
+                for i in 0..3600 {
+                    let adjusted = naive_time + Duration::seconds(i + 1); // Start with +1 second
+                    match timezone.from_local_datetime(&adjusted) {
+                        chrono::LocalResult::Single(dt) => return Ok((dt, true)), // Found a valid time after adjustment
+                        chrono::LocalResult::Ambiguous(dt1, _dt2) => return Ok((dt1, true)), // Found an ambiguous time after adjustment
+                        chrono::LocalResult::None => continue, // Still in the gap, continue searching
+                    }
+                }
+                Err(CronError::InvalidTime) // No valid time found within 3600 seconds
+            }
+        }
     }
-}
 
 fn increment_time_component(
     current_time: &mut NaiveDateTime,
