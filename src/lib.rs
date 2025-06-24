@@ -8,7 +8,7 @@
 //! - Supports time zone-aware scheduling.
 //! - Offers granularity up to seconds for precise task scheduling.
 //! - Compatible with the `chrono` library for dealing with date and time in Rust.
-//! 
+//!
 //! ## Crate Features
 //! - `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and
 //!   [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for
@@ -234,10 +234,7 @@ impl Cron {
         &self,
         start_time: &DateTime<Tz>,
         inclusive: bool,
-    ) -> Result<DateTime<Tz>, CronError>
-    where
-        Tz: TimeZone,
-    {
+    ) -> Result<DateTime<Tz>, CronError> {
         let mut naive_time = start_time.naive_local();
         let originaltimezone = start_time.timezone();
 
@@ -260,9 +257,8 @@ impl Cron {
                 continue;
             }
 
-           // Convert back to original timezone
-           let (tz_datetime, was_adjusted) =
-                from_naive(naive_time, &originaltimezone)?;
+            // Convert back to original timezone
+            let (tz_datetime, was_adjusted) = from_naive(naive_time, &originaltimezone)?;
 
             // If the time matches or we had to adjust due to a DST gap,
             // accept tz_datetime as the next occurrence.
@@ -349,10 +345,7 @@ impl Cron {
     /// # Returns
     ///
     /// Returns a `CronIterator<Tz>` that can be used to iterate over scheduled times.
-    pub fn iter_after<Tz: TimeZone>(&self, start_after: DateTime<Tz>) -> CronIterator<Tz>
-    where
-        Tz: TimeZone,
-    {
+    pub fn iter_after<Tz: TimeZone>(&self, start_after: DateTime<Tz>) -> CronIterator<Tz> {
         let start_from = start_after
             .checked_add_signed(Duration::seconds(1))
             .expect("Invalid date encountered when adding one second");
@@ -639,29 +632,29 @@ fn set_time_component(
     }
 }
 
-    // Convert `NaiveDateTime` back to `DateTime<Tz>`
-    pub fn from_naive<Tz: TimeZone>(
-        naive_time: NaiveDateTime,
-        timezone: &Tz,
-    ) -> Result<(DateTime<Tz>, bool), CronError> {
-        match timezone.from_local_datetime(&naive_time) {
-            chrono::LocalResult::Single(dt) => Ok((dt, false)), // No adjustment needed
-            chrono::LocalResult::Ambiguous(dt1, _dt2) => Ok((dt1, false)), // No adjustment for ambiguity (still original time)
-            chrono::LocalResult::None => {
-                // The naive time is invalid (e.g. DST gap).
-                // Try incrementing until valid.
-                for i in 0..3600 {
-                    let adjusted = naive_time + Duration::seconds(i + 1); // Start with +1 second
-                    match timezone.from_local_datetime(&adjusted) {
-                        chrono::LocalResult::Single(dt) => return Ok((dt, true)), // Found a valid time after adjustment
-                        chrono::LocalResult::Ambiguous(dt1, _dt2) => return Ok((dt1, true)), // Found an ambiguous time after adjustment
-                        chrono::LocalResult::None => continue, // Still in the gap, continue searching
-                    }
+// Convert `NaiveDateTime` back to `DateTime<Tz>`
+pub fn from_naive<Tz: TimeZone>(
+    naive_time: NaiveDateTime,
+    timezone: &Tz,
+) -> Result<(DateTime<Tz>, bool), CronError> {
+    match timezone.from_local_datetime(&naive_time) {
+        chrono::LocalResult::Single(dt) => Ok((dt, false)), // No adjustment needed
+        chrono::LocalResult::Ambiguous(dt1, _dt2) => Ok((dt1, false)), // No adjustment for ambiguity (still original time)
+        chrono::LocalResult::None => {
+            // The naive time is invalid (e.g. DST gap).
+            // Try incrementing until valid.
+            for i in 0..3600 {
+                let adjusted = naive_time + Duration::seconds(i + 1); // Start with +1 second
+                match timezone.from_local_datetime(&adjusted) {
+                    chrono::LocalResult::Single(dt) => return Ok((dt, true)), // Found a valid time after adjustment
+                    chrono::LocalResult::Ambiguous(dt1, _dt2) => return Ok((dt1, true)), // Found an ambiguous time after adjustment
+                    chrono::LocalResult::None => continue, // Still in the gap, continue searching
                 }
-                Err(CronError::InvalidTime) // No valid time found within 3600 seconds
             }
+            Err(CronError::InvalidTime) // No valid time found within 3600 seconds
         }
     }
+}
 
 fn increment_time_component(
     current_time: &mut NaiveDateTime,
@@ -960,7 +953,7 @@ mod tests {
         let start_date = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
 
         // Define the expected matching dates
-        let expected_dates = vec![
+        let expected_dates = [
             Local.with_ymd_and_hms(2024, 1, 3, 0, 0, 0).unwrap(),
             Local.with_ymd_and_hms(2024, 1, 10, 0, 0, 0).unwrap(),
             Local.with_ymd_and_hms(2024, 1, 12, 0, 0, 0).unwrap(),
@@ -969,10 +962,8 @@ mod tests {
         ];
 
         // Iterate over the expected dates, checking each one
-        let mut idx = 0;
-        for current_date in cron.clone().iter_from(start_date).take(5) {
+        for (idx, current_date) in cron.clone().iter_from(start_date).take(5).enumerate() {
             assert_eq!(expected_dates[idx], current_date);
-            idx = idx + 1;
         }
 
         Ok(())
@@ -990,7 +981,7 @@ mod tests {
         let start_date = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
 
         // Define the expected matching dates
-        let expected_dates = vec![
+        let expected_dates = [
             Local.with_ymd_and_hms(2027, 12, 31, 0, 0, 0).unwrap(),
             Local.with_ymd_and_hms(2032, 12, 31, 0, 0, 0).unwrap(),
             Local.with_ymd_and_hms(2038, 12, 31, 0, 0, 0).unwrap(),
@@ -999,10 +990,8 @@ mod tests {
         ];
 
         // Iterate over the expected dates, checking each one
-        let mut idx = 0;
-        for current_date in cron.clone().iter_from(start_date).take(5) {
+        for (idx, current_date) in cron.clone().iter_from(start_date).take(5).enumerate() {
             assert_eq!(expected_dates[idx], current_date);
-            idx = idx + 1;
         }
 
         Ok(())
@@ -1227,7 +1216,7 @@ mod tests {
         let start_date = Local.with_ymd_and_hms(2023, 12, 24, 0, 0, 0).unwrap();
 
         // Define the expected matching dates
-        let expected_dates = vec![
+        let expected_dates = [
             Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap(),
             Local.with_ymd_and_hms(2024, 2, 5, 0, 0, 0).unwrap(),
             Local.with_ymd_and_hms(2024, 3, 4, 0, 0, 0).unwrap(),
@@ -1259,7 +1248,7 @@ mod tests {
         let start_date = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
 
         // Define the expected matching dates
-        let expected_dates = vec![
+        let expected_dates = [
             Local.with_ymd_and_hms(2024, 3, 29, 0, 0, 0).unwrap(),
             Local.with_ymd_and_hms(2030, 3, 29, 0, 0, 0).unwrap(),
             Local.with_ymd_and_hms(2036, 2, 29, 0, 0, 0).unwrap(),
@@ -1290,7 +1279,7 @@ mod tests {
         let start_date = Local.with_ymd_and_hms(2024, 10, 1, 0, 0, 0).unwrap();
 
         // Define the expected matching dates
-        let expected_dates = vec![
+        let expected_dates = [
             Local.with_ymd_and_hms(2024, 10, 13, 0, 0, 0).unwrap(),
             Local.with_ymd_and_hms(2024, 11, 10, 0, 0, 0).unwrap(),
             Local.with_ymd_and_hms(2024, 12, 8, 0, 0, 0).unwrap(),

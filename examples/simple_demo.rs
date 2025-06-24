@@ -16,22 +16,21 @@ fn main() {
     let next = cron.find_next_occurrence(&time, false).unwrap();
 
     // Example: Output results
-    println!("Current time is: {}", time);
+    println!("Current time is: {time}");
     println!(
         "Pattern \"{}\" does {} time {}",
-        cron.pattern.to_string(),
+        cron.pattern,
         if matches { "match" } else { "not match" },
         time
     );
     println!(
         "Pattern \"{}\" will match next time at {}",
-        cron.pattern.to_string(),
-        next
+        cron.pattern, next
     );
 
     // Example: Iterator
     println!("Next 5 matches:");
     for time in cron.clone().iter_from(Local::now()).take(5) {
-        println!("{}", time);
+        println!("{time}");
     }
 }

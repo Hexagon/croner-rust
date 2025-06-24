@@ -110,8 +110,7 @@ impl CronComponent {
         if index >= self.bitfields.len() {
             // In case the index is somehow out of the vector's bounds
             return Err(CronError::ComponentError(format!(
-                "Position {} is out of the bitfields vector's bounds.",
-                pos
+                "Position {pos} is out of the bitfields vector's bounds."
             )));
         }
         self.bitfields[index] |= bit; // Set the specific bit at the position
@@ -143,8 +142,7 @@ impl CronComponent {
         if index >= self.bitfields.len() {
             // In case the index is somehow out of the vector's bounds
             return Err(CronError::ComponentError(format!(
-                "Position {} is out of the bitfields vector's bounds.",
-                pos
+                "Position {pos} is out of the bitfields vector's bounds."
             )));
         }
         self.bitfields[index] &= !bit; // Unset the specific bit at the position
@@ -167,8 +165,7 @@ impl CronComponent {
             let index = pos as usize;
             if index >= self.bitfields.len() {
                 Err(CronError::ComponentError(format!(
-                    "Position {} is out of the bitfields vector's bounds.",
-                    pos
+                    "Position {pos} is out of the bitfields vector's bounds."
                 )))
             } else {
                 Ok((self.bitfields[index] & bit) != 0)

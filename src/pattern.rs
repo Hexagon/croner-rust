@@ -198,7 +198,7 @@ impl CronPattern {
         };
 
         if with_seconds_required {
-            format!("0 {}", base_pattern)
+            format!("0 {base_pattern}")
         } else {
             base_pattern.to_string()
         }
