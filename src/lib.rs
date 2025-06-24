@@ -105,7 +105,7 @@ enum TimeComponent {
 
 // The Cron struct represents a cron schedule and provides methods to parse cron strings,
 // check if a datetime matches the cron pattern, and find the next occurrence.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Hash)]
 pub struct Cron {
     pub pattern: CronPattern, // Parsed cron pattern
 }
@@ -713,8 +713,11 @@ fn increment_time_component(
 
 #[cfg(test)]
 mod tests {
+    use std::hash::{DefaultHasher, Hash, Hasher as _};
+
     use super::*;
     use chrono::{Local, TimeZone};
+    use rstest::rstest;
     #[cfg(feature = "serde")]
     use serde_test::{assert_de_tokens_error, assert_tokens, Token};
     #[test]
@@ -1373,6 +1376,133 @@ mod tests {
         assert!(!cron.is_time_matching(&non_matching_time)?);
 
         Ok(())
+    }
+
+    /// Utility function used in hashing test
+    fn calculate_hash<T: Hash>(t: &T) -> u64 {
+        let mut s = DefaultHasher::new();
+        t.hash(&mut s);
+        s.finish()
+    }
+
+    #[rstest]
+    // Frequency & Nicknames
+    #[case("@hourly", "@daily", false)]
+    #[case("@daily", "@weekly", false)]
+    #[case("@weekly", "@monthly", false)]
+    #[case("@monthly", "@yearly", false)]
+    #[case("* * * * *", "@hourly", false)]
+    #[case("@annually", "@yearly", true)]
+    // Optional Seconds Field (5 vs 6 fields)
+    #[case("* * * * * *", "* * * * *", false)]
+    #[case("0 12 * * *", "30 0 12 * * *", false)]
+    #[case("0 0 * * * *", "@hourly", false)]
+    // Field Specificity (Earlier vs. Later)
+    #[case("5 * * * * *", "10 * * * * *", false)]
+    #[case("15 * * * *", "45 * * * *", false)]
+    #[case("* * 8 * *", "* * 18 * *", false)]
+    #[case("* * * 1 *", "* * * 6 *", false)]
+    #[case("* * * JAN *", "* * * JUL *", false)]
+    #[case("* * * * 0", "* * * * 3", false)]
+    #[case("* * * * SUN", "* * * * WED", false)]
+    #[case("* * * * 7", "* * * * 1", false)]
+    // Ranges (`-`)
+    #[case("0-29 * * * *", "30-59 * * * *", false)]
+    #[case("* * 1-11 * *", "* * 12-23 * *", false)]
+    #[case("* * * JAN-JUN *", "* * * JUL-DEC *", false)]
+    #[case("* * * * MON-WED", "* * * * THU-SAT", false)]
+    #[case("* * * * *", "0-5 * * * *", false)]
+    // Steps (`/`)
+    #[case("*/15 * * * *", "*/30 * * * *", false)]
+    #[case("0/10 * * * *", "5/10 * * * *", false)]
+    #[case("* * 1-10/2 * *", "* * 1-10/3 * *", false)]
+    #[case("* * * * *", "*/2 * * * *", false)]
+    // Lists (`,`)
+    #[case("0,10,20 * * * *", "30,40,50 * * * *", false)]
+    #[case("* * * * MON,WED,FRI", "* * * * TUE,THU,SAT", false)]
+    // Equivalency & Wildcards
+    #[case("? ? ? ? ? ?", "* * * * * *", true)]
+    #[case("0,15,30,45 * * * *", "*/15 * * * *", true)]
+    #[case("@monthly", "0 0 1 * *", true)]
+    #[case("* * * * 1,3,5", "* * * * MON,WED,FRI", true)]
+    #[case("* * * mar *", "* * * 3 *", true)]
+    // #[case("0 0 1-7 * 1", "0 0 * * 1#1", true)]
+    // #[case("0 0 8-14 * MON", "0 0 * * MON#2", true)]
+    // Day-of-Month vs. Day-of-Week
+    #[case("0 0 * * 1", "0 0 15 * *", false)]
+    #[case("0 0 1 * *", "0 0 1 * 1", false)]
+    // Special Character `L` (Last)
+    #[case("* * 1 * *", "* * L * *", false)]
+    #[case("* * L FEB *", "* * L MAR *", false)]
+    #[case("* * * * 1#L", "* * * * 2#L", false)]
+    #[case("* * * * 4#L", "* * * * FRI#L", false)]
+    // Special Character `W` (Weekday)
+    #[case("* * 1W * *", "* * 1 * *", false)]
+    #[case("* * 15W * *", "* * 16W * *", false)]
+    // Special Character `#` (Nth Weekday)
+    #[case("* * * * 1#2", "* * * * 1#1", false)]
+    #[case("* * * * TUE#4", "* * * * TUE#2", false)]
+    #[case("* * * * 5#1", "* * * * FRI#1", true)]
+    #[case("* * * * MON#1", "* * * * TUE#1", false)]
+    // Complex Combinations
+    #[case("0 10 * * MON#2", "0 10 1-7 * MON", false)]
+    #[case("*/10 8-10 * JAN,DEC 1-5", "0 12 * * 6", false)]
+    fn test_comparison_and_hash(
+        #[case] pattern_1: &str,
+        #[case] pattern_2: &str,
+        #[case] equal: bool,
+    ) {
+        eprintln!("Parsing {pattern_1}");
+        let cron_1 = Cron::new(pattern_1).parse().unwrap_or_else(|err| {
+            eprintln!(
+                "Initial parse attempt failed ({err}). Trying again but with allowed seconds."
+            );
+            Cron::new(pattern_1)
+                .with_seconds_required()
+                .parse()
+                .unwrap()
+        });
+
+        eprintln!("Parsing {pattern_2}");
+        let cron_2 = Cron::new(pattern_2).parse().unwrap_or_else(|err| {
+            eprintln!(
+                "Initial parse attempt failed ({err}). Trying again but with allowed seconds."
+            );
+            Cron::new(pattern_2)
+                .with_seconds_required()
+                .parse()
+                .unwrap()
+        });
+
+        assert_eq!(
+            cron_1 == cron_2,
+            equal,
+            "Equality relation between both patterns is not {equal}"
+        );
+        assert_eq!(
+            calculate_hash(&cron_1) == calculate_hash(&cron_2),
+            equal,
+            "Hashes don't respect quality relation"
+        );
+
+        if !equal {
+            assert!(
+                cron_1 > cron_2,
+                "Ordering between first an second pattern is wrong"
+            );
+        }
+
+        #[expect(clippy::eq_op, reason = "Want to check Eq is correctly implemented")]
+        {
+            assert!(
+                cron_1 == cron_1,
+                "Eq implementation is incorrect for first patter"
+            );
+            assert!(
+                cron_2 == cron_2,
+                "Eq implementation is incorrect for second patter"
+            );
+        }
     }
 
     #[cfg(feature = "serde")]
