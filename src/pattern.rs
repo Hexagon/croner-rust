@@ -63,9 +63,6 @@ impl CronPattern {
             return Err(CronError::EmptyPattern);
         }
 
-        // Replace any '?' with '*' in the cron pattern
-        self.pattern = self.pattern.replace('?', "*");
-
         // Handle @nicknames
         if self.pattern.contains('@') {
             self.pattern = Self::handle_nicknames(&self.pattern, self.with_seconds_required)
@@ -106,6 +103,19 @@ impl CronPattern {
             // Error it there is an extra part and seconds are not allowed
         }
 
+        // Replace ? with * in day-of-month and day-of-week
+        let mut owned_parts = parts.iter().map(|s| s.to_string()).collect::<Vec<String>>();
+        if owned_parts[3].contains('?') {
+            owned_parts[3] = owned_parts[3].replace('?', "*");
+        }
+        if owned_parts[5].contains('?') {
+            owned_parts[5] = owned_parts[5].replace('?', "*");
+        }
+        parts = owned_parts.iter().map(|s| s.as_str()).collect();
+
+        // Throw at illegal characters
+        self.throw_at_illegal_characters(&parts)?;
+
         // Handle star-dom and star-dow
         self.star_dom = parts[3].trim() == "*";
         self.star_dow = parts[5].trim() == "*";
@@ -142,13 +152,12 @@ impl CronPattern {
     }
 
     // Validates that the cron pattern only contains legal characters for each field.
-    // - ? is replaced with * before parsing, so it does not need to be included
-    pub fn throw_at_illegal_characters(&self, parts: &[&str]) -> Result<(), CronError> {
+    fn throw_at_illegal_characters(&self, parts: &[&str]) -> Result<(), CronError> {
         let base_allowed_characters = [
             '*', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '-',
         ];
-        let day_of_week_additional_characters = ['#', 'W'];
-        let day_of_month_additional_characters = ['L'];
+        let day_of_week_additional_characters = ['#', 'l', '?'];
+        let day_of_month_additional_characters = ['l', 'w', '?'];
 
         for (i, part) in parts.iter().enumerate() {
             // Decide which set of allowed characters to use
@@ -168,8 +177,9 @@ impl CronPattern {
 
             for ch in part.chars() {
                 if !allowed.contains(&ch) {
-                    return Err(CronError::IllegalCharacters(String::from(
-                        "CronPattern contains illegal characters.",
+                    return Err(CronError::IllegalCharacters(format!(
+                        "CronPattern contains illegal character '{}' in part '{}'",
+                        ch, part
                     )));
                 }
             }
@@ -869,5 +879,54 @@ mod tests {
 
         // Parsing should raise a ComponentError
         assert!(matches!(pattern.parse(), Err(CronError::ComponentError(_))));
+    }
+
+    #[test]
+    fn test_question_mark_allowed_in_day_of_month() {
+        let pattern = "* * ? * *";
+        let mut parser = CronPattern::new(pattern);
+        let result = parser.parse();
+        assert!(result.is_ok(), "Should allow '?' in the day-of-month field.");
+    }
+
+    #[test]
+    fn test_question_mark_allowed_in_day_of_week() {
+        let pattern = "* * * * ?";
+        let mut parser = CronPattern::new(pattern);
+        let result = parser.parse();
+        assert!(result.is_ok(), "Should allow '?' in the day-of-week field.");
+    }
+
+    #[test]
+    fn test_question_mark_disallowed_in_minute() {
+        let pattern = "? * * * *";
+        let mut parser = CronPattern::new(pattern);
+        let result = parser.parse();
+        assert!(
+            matches!(result.err(), Some(CronError::IllegalCharacters(_))),
+            "Should not allow '?' in the minute field."
+        );
+    }
+
+    #[test]
+    fn test_question_mark_disallowed_in_hour() {
+        let pattern = "* ? * * *";
+        let mut parser = CronPattern::new(pattern);
+        let result = parser.parse();
+        assert!(
+            matches!(result.err(), Some(CronError::IllegalCharacters(_))),
+            "Should not allow '?' in the hour field."
+        );
+    }
+
+    #[test]
+    fn test_question_mark_disallowed_in_month() {
+        let pattern = "* * * ? *";
+        let mut parser = CronPattern::new(pattern);
+        let result = parser.parse();
+        assert!(
+            matches!(result.err(), Some(CronError::IllegalCharacters(_))),
+            "Should not allow '?' in the month field."
+        );
     }
 }
