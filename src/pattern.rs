@@ -59,22 +59,25 @@ impl CronPattern {
     // Parses the cron pattern string into its respective fields.
     // Handles optional seconds field, named shortcuts, and determines if 'L' flag is used for last day of the month.
     pub fn parse(&mut self) -> Result<CronPattern, CronError> {
-        if self.pattern.trim().is_empty() {
+        
+        // Ensure upper case in parsing, and trim it
+        self.pattern = self.pattern.to_uppercase().trim().to_string();
+
+        // Should already be trimmed
+        if self.pattern.is_empty() {
             return Err(CronError::EmptyPattern);
         }
 
         // Handle @nicknames
         if self.pattern.contains('@') {
             self.pattern = Self::handle_nicknames(&self.pattern, self.with_seconds_required)
-                .trim()
                 .to_string();
         }
 
         // Handle day-of-week and month aliases (MON... and JAN...)
         self.pattern = Self::replace_alpha_weekdays(&self.pattern, self.with_alternative_weekdays)
-            .trim()
             .to_string();
-        self.pattern = Self::replace_alpha_months(&self.pattern).trim().to_string();
+        self.pattern = Self::replace_alpha_months(&self.pattern).to_string();
 
         // Check that the pattern contains 5 or 6 parts
         let mut parts: Vec<&str> = self.pattern.split_whitespace().collect();
@@ -152,12 +155,13 @@ impl CronPattern {
     }
 
     // Validates that the cron pattern only contains legal characters for each field.
+    // - Assumes only lowercase characters
     fn throw_at_illegal_characters(&self, parts: &[&str]) -> Result<(), CronError> {
         let base_allowed_characters = [
             '*', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '-',
         ];
-        let day_of_week_additional_characters = ['#', 'l', '?'];
-        let day_of_month_additional_characters = ['l', 'w', '?'];
+        let day_of_week_additional_characters = ['#', 'L', '?'];
+        let day_of_month_additional_characters = ['L', 'W', '?'];
 
         for (i, part) in parts.iter().enumerate() {
             // Decide which set of allowed characters to use
@@ -216,29 +220,29 @@ impl CronPattern {
         // Day-of-week nicknames to their numeric values.
         let nicknames = if !alternative_weekdays {
             [
-                ("-sun", "-7"), // Use 7 for upper range sunday
-                ("sun", "0"),
-                ("mon", "1"),
-                ("tue", "2"),
-                ("wed", "3"),
-                ("thu", "4"),
-                ("fri", "5"),
-                ("sat", "6"),
+                ("-SUN", "-7"), // Use 7 for upper range sunday
+                ("SUN", "0"),
+                ("MON", "1"),
+                ("TUE", "2"),
+                ("WED", "3"),
+                ("THU", "4"),
+                ("FRI", "5"),
+                ("SAT", "6"),
             ]
         } else {
             [
-                ("-sun", "-1"),
-                ("sun", "1"),
-                ("mon", "2"),
-                ("tue", "3"),
-                ("wed", "4"),
-                ("thu", "5"),
-                ("fri", "6"),
-                ("sat", "7"),
+                ("-SUN", "-1"),
+                ("SUN", "1"),
+                ("MON", "2"),
+                ("TUE", "3"),
+                ("WED", "4"),
+                ("THU", "5"),
+                ("FRI", "6"),
+                ("SAT", "7"),
             ]
         };
 
-        let mut replaced = pattern.trim().to_lowercase();
+        let mut replaced = pattern.to_string();
 
         // Replace nicknames with their numeric values
         for &(nickname, value) in &nicknames {
@@ -252,21 +256,21 @@ impl CronPattern {
     fn replace_alpha_months(pattern: &str) -> String {
         // Day-of-week nicknames to their numeric values.
         let nicknames = [
-            ("jan", "1"),
-            ("feb", "2"),
-            ("mar", "3"),
-            ("apr", "4"),
-            ("may", "5"),
-            ("jun", "6"),
-            ("jul", "7"),
-            ("aug", "8"),
-            ("sep", "9"),
-            ("oct", "10"),
-            ("nov", "11"),
-            ("dec", "12"),
+            ("JAN", "1"),
+            ("FEB", "2"),
+            ("MAR", "3"),
+            ("APR", "4"),
+            ("MAY", "5"),
+            ("JUN", "6"),
+            ("JUL", "7"),
+            ("AUG", "8"),
+            ("SEP", "9"),
+            ("OCT", "10"),
+            ("NOV", "11"),
+            ("DEC", "12"),
         ];
 
-        let mut replaced = pattern.trim().to_lowercase();
+        let mut replaced = pattern.to_string();
 
         // Replace nicknames with their numeric values
         for &(nickname, value) in &nicknames {
@@ -929,4 +933,27 @@ mod tests {
             "Should not allow '?' in the month field."
         );
     }
+
+    #[test]
+    fn test_case_sensitivity_lowercase_special_character_ok() {
+        let pattern = "* * 15w * *";
+        let mut parser = CronPattern::new(pattern);
+        let result = parser.parse();
+        assert!(
+            result.is_ok(),
+            "Should allow lowercase special character w."
+        );
+    }
+
+    #[test]
+    fn test_case_sensitivity_uppercase_special_character_ok() {
+        let pattern = "* * 15W * *";
+        let mut parser = CronPattern::new(pattern);
+        let result = parser.parse();
+        assert!(
+            result.is_ok(),
+            "Should allow uppercase special character W."
+        );
+    }
+
 }

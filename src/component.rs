@@ -244,15 +244,12 @@ impl CronComponent {
                 self.handle_stepping(&parsed_part)?;
             } else if parsed_part.contains('-') {
                 self.handle_range(&parsed_part)?;
-            } else if parsed_part.contains('w') {
+            } else if parsed_part.contains('W') {
                 self.handle_closest_weekday(&parsed_part)?;
-            } else if parsed_part.eq_ignore_ascii_case("l") {
+            } else if parsed_part.eq_ignore_ascii_case("L") {
                 // Handle "L" for the last bit
                 self.enable_feature(LAST_BIT)?;
             } else {
-                // Replace 'l' with 'L'
-                parsed_part = parsed_part.replace('l', "L");
-
                 // If 'L' is contained without '#', like "5L", add the missing '#'
                 if parsed_part.ends_with('L') && !parsed_part.contains('#') {
                     parsed_part = parsed_part.replace('L', "#L");
@@ -281,7 +278,7 @@ impl CronComponent {
 
     fn get_nth_bit(value: &str) -> Result<u8, CronError> {
         // If value ends with 'L', we set the LAST_BIT and exit early
-        if value.ends_with('L') || value.ends_with('l') {
+        if value.ends_with('L') {
             return Ok(LAST_BIT);
         }
         if let Some(nth_pos) = value.find('#') {
@@ -316,7 +313,7 @@ impl CronComponent {
     }
 
     fn handle_closest_weekday(&mut self, value: &str) -> Result<(), CronError> {
-        if let Some(day_pos) = value.find('w') {
+        if let Some(day_pos) = value.find('W') {
             // Use a slice
             let day_str = &value[..day_pos];
 
@@ -335,7 +332,7 @@ impl CronComponent {
             // Set the bit for the closest weekday
             self.set_bit(day, CLOSEST_WEEKDAY_BIT)?;
         } else {
-            // If 'w' is not found, handle the value as a regular number
+            // If 'W' is not found, handle the value as a regular number
             self.handle_number(value)?;
         }
         Ok(())
@@ -557,7 +554,7 @@ mod tests {
     #[test]
     fn test_parse_closest_weekday() {
         let mut component = CronComponent::new(1, 31, CLOSEST_WEEKDAY_BIT, 0);
-        component.parse("15w").unwrap();
+        component.parse("15W").unwrap();
         assert!(component.is_bit_set(15, CLOSEST_WEEKDAY_BIT).unwrap());
         // You might want to add more tests for edge cases
     }
