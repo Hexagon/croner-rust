@@ -31,7 +31,13 @@ fn main() {
 
     // Example: Iterator
     println!("Next 5 matches:");
-    for time in cron.clone().iter_from(Local::now()).take(5) {
+    for time in cron.clone().iter_after(Local::now()).take(5) {
+        println!("{}", time);
+    }
+
+    // Example: Reverse Iterator
+    println!("Previous 5 matches:");
+    for time in cron.clone().iter_before(Local::now()).take(5) {
         println!("{}", time);
     }
 }

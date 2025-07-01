@@ -3,6 +3,7 @@ use crate::component::{
     NTH_3RD_BIT, NTH_4TH_BIT, NTH_5TH_BIT, NTH_ALL,
 };
 use crate::errors::CronError;
+use crate::{Direction, TimeComponent};
 use chrono::{Datelike, Duration, NaiveDate, Weekday};
 
 // This struct is used for representing and validating cron pattern strings.
@@ -57,7 +58,6 @@ impl CronPattern {
     }
 
     // Parses the cron pattern string into its respective fields.
-    // Handles optional seconds field, named shortcuts, and determines if 'L' flag is used for last day of the month.
     pub fn parse(&mut self) -> Result<CronPattern, CronError> {
         if self.pattern.trim().is_empty() {
             return Err(CronError::EmptyPattern);
@@ -101,11 +101,8 @@ impl CronPattern {
 
         // Default seconds to "0" if omitted
         if parts.len() == 5 {
-            parts.insert(0, "0"); // prepend "0" if the seconds part is missing
-
-            // Error it there is an extra part and seconds are not allowed
+            parts.insert(0, "0");
         }
-
         // Handle star-dom and star-dow
         self.star_dom = parts[3].trim() == "*";
         self.star_dow = parts[5].trim() == "*";
@@ -118,7 +115,7 @@ impl CronPattern {
         self.months.parse(parts[4])?;
         self.days_of_week.parse(parts[5])?;
 
-        // Handle conversion of 7 to 0 for day_of_week if necessary
+                // Handle conversion of 7 to 0 for day_of_week if necessary
         // this has to be done last because range could be 6-7 (sat-sun)
         if !self.with_alternative_weekdays {
             for nth_bit in [
@@ -136,10 +133,10 @@ impl CronPattern {
             }
         }
 
-        // Success!
         self.is_parsed = true;
         Ok(self.clone())
     }
+
 
     // Validates that the cron pattern only contains legal characters for each field.
     // - ? is replaced with * before parsing, so it does not need to be included
@@ -181,8 +178,6 @@ impl CronPattern {
     // Converts named cron pattern shortcuts like '@daily' into their equivalent standard cron pattern.
     fn handle_nicknames(pattern: &str, with_seconds_required: bool) -> String {
         let pattern = pattern.trim();
-
-        // Closure for case-insensitive comparison
         let eq_ignore_case = |a: &str, b: &str| a.eq_ignore_ascii_case(b);
 
         let base_pattern = match pattern {
@@ -203,31 +198,17 @@ impl CronPattern {
 
     // Converts day-of-week nicknames into their equivalent standard cron pattern.
     fn replace_alpha_weekdays(pattern: &str, alternative_weekdays: bool) -> String {
-        // Day-of-week nicknames to their numeric values.
         let nicknames = if !alternative_weekdays {
             [
-                ("-sun", "-7"), // Use 7 for upper range sunday
-                ("sun", "0"),
-                ("mon", "1"),
-                ("tue", "2"),
-                ("wed", "3"),
-                ("thu", "4"),
-                ("fri", "5"),
-                ("sat", "6"),
+                ("-sun", "-7"), ("sun", "0"), ("mon", "1"), ("tue", "2"),
+                ("wed", "3"), ("thu", "4"), ("fri", "5"), ("sat", "6"),
             ]
         } else {
             [
-                ("-sun", "-1"),
-                ("sun", "1"),
-                ("mon", "2"),
-                ("tue", "3"),
-                ("wed", "4"),
-                ("thu", "5"),
-                ("fri", "6"),
-                ("sat", "7"),
+                ("-sun", "-1"), ("sun", "1"), ("mon", "2"), ("tue", "3"),
+                ("wed", "4"), ("thu", "5"), ("fri", "6"), ("sat", "7"),
             ]
         };
-
         let mut replaced = pattern.trim().to_lowercase();
 
         // Replace nicknames with their numeric values
@@ -240,20 +221,10 @@ impl CronPattern {
 
     // Converts month nicknames into their equivalent standard cron pattern.
     fn replace_alpha_months(pattern: &str) -> String {
-        // Day-of-week nicknames to their numeric values.
         let nicknames = [
-            ("jan", "1"),
-            ("feb", "2"),
-            ("mar", "3"),
-            ("apr", "4"),
-            ("may", "5"),
-            ("jun", "6"),
-            ("jul", "7"),
-            ("aug", "8"),
-            ("sep", "9"),
-            ("oct", "10"),
-            ("nov", "11"),
-            ("dec", "12"),
+            ("jan", "1"), ("feb", "2"), ("mar", "3"), ("apr", "4"),
+            ("may", "5"), ("jun", "6"), ("jul", "7"), ("aug", "8"),
+            ("sep", "9"), ("oct", "10"), ("nov", "11"), ("dec", "12"),
         ];
 
         let mut replaced = pattern.trim().to_lowercase();
@@ -266,12 +237,10 @@ impl CronPattern {
         replaced
     }
 
-    // Additional method needed to determine the nth weekday of the month
+    // Determines the nth weekday of the month
     fn is_nth_weekday_of_month(date: chrono::NaiveDate, nth: u8, weekday: Weekday) -> bool {
         let mut count = 0;
-        let mut current = date
-            .with_day(1)
-            .expect("Invalid date encountered while setting to first of the month");
+        let mut current = date.with_day(1).unwrap();
         while current.month() == date.month() {
             if current.weekday() == weekday {
                 count += 1;
@@ -284,80 +253,51 @@ impl CronPattern {
         false
     }
 
-    // This method checks if a given year, month, and day match the day part of the cron pattern.
+    // Checks if a given year, month, and day match the day part of the cron pattern.
     pub fn day_match(&self, year: i32, month: u32, day: u32) -> Result<bool, CronError> {
-        // First, check if the day is within the valid range
         if day == 0 || day > 31 || month == 0 || month > 12 {
             return Err(CronError::InvalidDate);
         }
 
-        // Convert year, month, and day into a date object to work with
-        let date =
-            chrono::NaiveDate::from_ymd_opt(year, month, day).ok_or(CronError::InvalidDate)?;
-
+        let date = NaiveDate::from_ymd_opt(year, month, day).ok_or(CronError::InvalidDate)?;
         let mut day_matches = self.days.is_bit_set(day as u8, ALL_BIT)?;
         let mut dow_matches = false;
 
-        // If the 'L' flag is used, we need to check if the given day is the last day of the month
         if !day_matches && self.days.is_feature_enabled(LAST_BIT) {
-            let last_day = CronPattern::last_day_of_month(year, month)?;
-            if !day_matches && day == last_day {
+            if day == Self::last_day_of_month(year, month)? {
                 day_matches = true;
             }
         }
 
-        // Make an extra check if any adjacent day is matching through the closest-weekday flag
         if !day_matches && self.closest_weekday(year, month, day)? {
             day_matches = true;
         }
 
-        // Check for nth weekday of the month flags
         for nth in 1..=5 {
             let nth_bit = match nth {
-                1 => NTH_1ST_BIT,
-                2 => NTH_2ND_BIT,
-                3 => NTH_3RD_BIT,
-                4 => NTH_4TH_BIT,
-                5 => NTH_5TH_BIT,
-                _ => continue, // We have already validated that nth is between 1 and 5
+                1 => NTH_1ST_BIT, 2 => NTH_2ND_BIT, 3 => NTH_3RD_BIT,
+                4 => NTH_4TH_BIT, 5 => NTH_5TH_BIT, _ => continue,
             };
-            if self
-                .days_of_week
-                .is_bit_set(date.weekday().num_days_from_sunday() as u8, nth_bit)?
-                && CronPattern::is_nth_weekday_of_month(date, nth, date.weekday())
+            if self.days_of_week.is_bit_set(date.weekday().num_days_from_sunday() as u8, nth_bit)?
+                && Self::is_nth_weekday_of_month(date, nth, date.weekday())
             {
                 dow_matches = true;
                 break;
             }
         }
 
-        // If the 'L' flag is used for the day of the week, check if it's the last one of the month
-        if !dow_matches
-            && self
-                .days_of_week
-                .is_bit_set(date.weekday().num_days_from_sunday() as u8, LAST_BIT)?
-        {
-            let next_weekday = date + chrono::Duration::days(7);
-            if !dow_matches && next_weekday.month() != date.month() {
-                // If adding 7 days changes the month, then it is the last occurrence of the day of the week
+        if !dow_matches && self.days_of_week.is_bit_set(date.weekday().num_days_from_sunday() as u8, LAST_BIT)? {
+            if (date + chrono::Duration::days(7)).month() != date.month() {
                 dow_matches = true;
             }
         }
 
-        // Check if the specific day of the week is set in the bitset
-        // Note: In chrono, Sunday is 0, Monday is 1, and so on...
-        let day_of_week = date.weekday().num_days_from_sunday() as u8; // Adjust as necessary for your bitset
-        dow_matches = dow_matches || self.days_of_week.is_bit_set(day_of_week, ALL_BIT)?;
+        dow_matches = dow_matches || self.days_of_week.is_bit_set(date.weekday().num_days_from_sunday() as u8, ALL_BIT)?;
 
-        // The day matches if it's set in the days bitset or the days of the week bitset
         if (day_matches && self.star_dow) || (dow_matches && self.star_dom) {
             Ok(true)
         } else if !self.star_dom && !self.star_dow {
-            if !self.dom_and_dow {
-                Ok(day_matches || dow_matches)
-            } else {
-                Ok(day_matches && dow_matches)
-            }
+            if !self.dom_and_dow { Ok(day_matches || dow_matches) } else { Ok(day_matches && dow_matches) }
         } else {
             Ok(false)
         }
@@ -365,156 +305,112 @@ impl CronPattern {
 
     // Helper function to find the last day of a given month
     fn last_day_of_month(year: i32, month: u32) -> Result<u32, CronError> {
-        if month == 0 || month > 12 {
-            return Err(CronError::InvalidDate);
-        }
-
-        // Create a date that should be the first day of the next month
-        let next_month_year = if month == 12 { year + 1 } else { year };
-        let next_month = if month == 12 { 1 } else { month + 1 };
-
-        let next_month_date = NaiveDate::from_ymd_opt(next_month_year, next_month, 1)
-            .ok_or(CronError::InvalidDate)?;
-
-        // Subtract one day to get the last day of the given month
-        let last_day_date = next_month_date
-            .checked_sub_signed(Duration::days(1))
-            .ok_or(CronError::InvalidDate)?;
-
-        // Return only the day
-        Ok(last_day_date.day())
+        if !(1..=12).contains(&month) { return Err(CronError::InvalidDate); }
+        let (y, m) = if month == 12 { (year + 1, 1) } else { (year, month + 1) };
+        Ok(NaiveDate::from_ymd_opt(y, m, 1).unwrap().pred_opt().unwrap().day())
     }
 
     pub fn closest_weekday(&self, year: i32, month: u32, day: u32) -> Result<bool, CronError> {
-        let candidate_date =
-            NaiveDate::from_ymd_opt(year, month, day).ok_or(CronError::InvalidDate)?;
+        let candidate_date = NaiveDate::from_ymd_opt(year, month, day).ok_or(CronError::InvalidDate)?;
         let weekday = candidate_date.weekday();
 
-        // Only check weekdays
         if weekday != Weekday::Sat && weekday != Weekday::Sun {
-            // Check if the current day has the CLOSEST_WEEKDAY_BIT set
             if self.days.is_bit_set(day as u8, CLOSEST_WEEKDAY_BIT)? {
                 return Ok(true);
             }
-
-            // Check the previous and next days if the current day is a weekday
-            let previous_day = candidate_date - Duration::days(1);
-            let next_day = candidate_date + Duration::days(1);
-
-            let check_previous = previous_day.weekday() == Weekday::Sun
-                && self
-                    .days
-                    .is_bit_set(previous_day.day() as u8, CLOSEST_WEEKDAY_BIT)?;
-            let check_next = next_day.weekday() == Weekday::Sat
-                && self
-                    .days
-                    .is_bit_set(next_day.day() as u8, CLOSEST_WEEKDAY_BIT)?;
-            if check_previous || check_next {
+            let prev = candidate_date - Duration::days(1);
+            let next = candidate_date + Duration::days(1);
+            if (prev.weekday() == Weekday::Sun && self.days.is_bit_set(prev.day() as u8, CLOSEST_WEEKDAY_BIT)?)
+                || (next.weekday() == Weekday::Sat && self.days.is_bit_set(next.day() as u8, CLOSEST_WEEKDAY_BIT)?)
+            {
                 return Ok(true);
             }
         }
-
         Ok(false)
     }
 
-    // Checks if a given month matches the month part of the cron pattern.
     pub fn month_match(&self, month: u32) -> Result<bool, CronError> {
-        if month == 0 || month > 12 {
-            return Err(CronError::InvalidDate);
-        }
+        if !(1..=12).contains(&month) { return Err(CronError::InvalidDate); }
         self.months.is_bit_set(month as u8, ALL_BIT)
     }
 
-    // Checks if a given hour matches the hour part of the cron pattern.
     pub fn hour_match(&self, hour: u32) -> Result<bool, CronError> {
-        if hour > 23 {
-            return Err(CronError::InvalidTime);
-        }
+        if hour > 23 { return Err(CronError::InvalidTime); }
         self.hours.is_bit_set(hour as u8, ALL_BIT)
     }
 
-    // Checks if a given minute matches the minute part of the cron pattern.
     pub fn minute_match(&self, minute: u32) -> Result<bool, CronError> {
-        if minute > 59 {
-            return Err(CronError::InvalidTime);
-        }
+        if minute > 59 { return Err(CronError::InvalidTime); }
         self.minutes.is_bit_set(minute as u8, ALL_BIT)
     }
 
-    // Checks if a given second matches the second part of the cron pattern.
     pub fn second_match(&self, second: u32) -> Result<bool, CronError> {
-        if second > 59 {
-            return Err(CronError::InvalidTime);
-        }
+        if second > 59 { return Err(CronError::InvalidTime); }
         self.seconds.is_bit_set(second as u8, ALL_BIT)
     }
 
-    // Finds the next hour that matches the hour part of the cron pattern.
-    pub fn next_hour_match(&self, hour: u32) -> Result<Option<u32>, CronError> {
-        if hour > 23 {
-            return Err(CronError::InvalidTime);
+    /// Finds the next or previous matching value for a given time component based on direction.
+    pub fn find_match_in_component(
+        &self,
+        value: u32,
+        component_type: TimeComponent,
+        direction: Direction,
+    ) -> Result<Option<u32>, CronError> {
+        let component = match component_type {
+            TimeComponent::Second => &self.seconds,
+            TimeComponent::Minute => &self.minutes,
+            TimeComponent::Hour => &self.hours,
+            _ => return Err(CronError::ComponentError("Invalid component type for match search".to_string())),
+        };
+
+        let value_u8 = value as u8;
+        if value_u8 > component.max {
+            return Err(CronError::ComponentError(format!(
+                "Input value {} is out of bounds for the component (max: {}).",
+                value, component.max
+            )));
         }
-        for next_hour in hour..=23 {
-            if self.hours.is_bit_set(next_hour as u8, ALL_BIT)? {
-                return Ok(Some(next_hour));
+
+        match direction {
+            Direction::Forward => {
+                for next_value in value_u8..=component.max {
+                    if component.is_bit_set(next_value, ALL_BIT)? {
+                        return Ok(Some(next_value as u32));
+                    }
+                }
+            }
+            Direction::Backward => {
+                for prev_value in (component.min..=value_u8).rev() {
+                    if component.is_bit_set(prev_value, ALL_BIT)? {
+                        return Ok(Some(prev_value as u32));
+                    }
+                }
             }
         }
-        Ok(None) // No match found within the current range
+        Ok(None)
     }
 
-    // Finds the next minute that matches the minute part of the cron pattern.
-    pub fn next_minute_match(&self, minute: u32) -> Result<Option<u32>, CronError> {
-        if minute > 59 {
-            return Err(CronError::InvalidTime);
-        }
-        for next_minute in minute..=59 {
-            if self.minutes.is_bit_set(next_minute as u8, ALL_BIT)? {
-                return Ok(Some(next_minute));
-            }
-        }
-        Ok(None) // No match found within the current range
-    }
-
-    // Finds the next second that matches the second part of the cron pattern.
-    pub fn next_second_match(&self, second: u32) -> Result<Option<u32>, CronError> {
-        if second > 59 {
-            return Err(CronError::InvalidTime);
-        }
-        for next_second in second..=59 {
-            if self.seconds.is_bit_set(next_second as u8, ALL_BIT)? {
-                return Ok(Some(next_second));
-            }
-        }
-        Ok(None) // No match found within the current range
-    }
-
-    // Method to set the dom_and_dow flag
     pub fn with_dom_and_dow(&mut self) -> &mut Self {
         self.dom_and_dow = true;
         self
     }
 
-    // Method to set wether seconds should be allowed
     pub fn with_seconds_optional(&mut self) -> &mut Self {
         self.with_seconds_optional = true;
         self
     }
 
-    // Method to set wether seconds should be allowed
     pub fn with_seconds_required(&mut self) -> &mut Self {
         self.with_seconds_required = true;
         self
     }
 
-    // Method to set if weekdays should be offset by one (Quartz Scheduler style)
     pub fn with_alternative_weekdays(&mut self) -> &mut Self {
         self.with_alternative_weekdays = true;
-        //  We need to recreate self.days_of_week
         self.days_of_week = CronComponent::new(0, 7, LAST_BIT | NTH_ALL, 1);
         self
     }
 
-    // Get a reference to the original pattern
     pub fn as_str(&self) -> &str {
         &self.pattern
     }
