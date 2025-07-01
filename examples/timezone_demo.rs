@@ -17,7 +17,6 @@ fn main() {
     println!("Time in Europe/Stockholm time is: {}", &now_stockholm);
     println!(
         "Pattern \"{}\" will match next time at (Europe/Stockholm): {}",
-        cron.pattern.to_string(),
-        next_stockholm
+        cron.pattern, next_stockholm
     );
 }

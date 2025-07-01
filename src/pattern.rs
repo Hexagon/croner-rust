@@ -1,3 +1,6 @@
+use std::cmp::Ordering;
+use std::hash::Hasher;
+
 use crate::component::{
     CronComponent, ALL_BIT, CLOSEST_WEEKDAY_BIT, LAST_BIT, NONE_BIT, NTH_1ST_BIT, NTH_2ND_BIT,
     NTH_3RD_BIT, NTH_4TH_BIT, NTH_5TH_BIT, NTH_ALL,
@@ -7,7 +10,7 @@ use chrono::{Datelike, Duration, NaiveDate, Weekday};
 
 // This struct is used for representing and validating cron pattern strings.
 // It supports parsing cron patterns with optional seconds field and provides functionality to check pattern matching against specific datetime.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq)]
 pub struct CronPattern {
     pattern: String, // The original pattern
     //
@@ -195,7 +198,7 @@ impl CronPattern {
         };
 
         if with_seconds_required {
-            format!("0 {}", base_pattern)
+            format!("0 {base_pattern}")
         } else {
             base_pattern.to_string()
         }
@@ -523,6 +526,107 @@ impl CronPattern {
 impl std::fmt::Display for CronPattern {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.pattern)
+    }
+}
+
+impl PartialEq for CronPattern {
+    /// Checks for functional equality between two CronPattern instances.
+    ///
+    /// Two patterns are considered equal if they have been parsed and their
+    /// resulting schedule components and behavioral options are identical.
+    /// The original pattern string is ignored in this comparison.
+    ///
+    /// Returns `false` if either pattern has not been parsed.
+    fn eq(&self, other: &Self) -> bool {
+        match (self.is_parsed, other.is_parsed) {
+            // Compare all parsed components and boolean flags that define the schedule.
+            // `self.pattern` is ignored.
+            (true, true) => {
+                self.seconds == other.seconds
+                    && self.minutes == other.minutes
+                    && self.hours == other.hours
+                    && self.days == other.days
+                    && self.months == other.months
+                    && self.days_of_week == other.days_of_week
+                    && self.star_dom == other.star_dom
+                    && self.star_dow == other.star_dow
+                    && self.dom_and_dow == other.dom_and_dow
+                    && self.with_seconds_optional == other.with_seconds_optional
+                    && self.with_seconds_required == other.with_seconds_required
+                    && self.with_alternative_weekdays == other.with_alternative_weekdays
+            }
+            (false, false) => true,
+            _ => false,
+        }
+    }
+}
+
+// To implement Ord, we must first implement PartialOrd.
+// For types where comparison never fails, this is the standard way to do it.
+impl PartialOrd for CronPattern {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+// The primary implementation for Ord.
+impl Ord for CronPattern {
+    /// Implements the total ordering for `CronPattern`.
+    ///
+    /// This allows for consistent, deterministic sorting of cron patterns based on
+    /// their functional schedule, not their string representation. The comparison
+    /// is performed lexicographically on the parsed time components and behavioral flags.
+    ///
+    /// An unparsed pattern is always considered less than a parsed one.
+    fn cmp(&self, other: &Self) -> Ordering {
+        // First, compare by the `is_parsed` status.
+        self.is_parsed
+            .cmp(&other.is_parsed)
+            // If both have the same parsed status, compare the time components
+            // in logical order, from most to least significant.
+            .then_with(|| self.seconds.cmp(&other.seconds))
+            .then_with(|| self.minutes.cmp(&other.minutes))
+            .then_with(|| self.hours.cmp(&other.hours))
+            .then_with(|| self.days.cmp(&other.days))
+            .then_with(|| self.months.cmp(&other.months))
+            .then_with(|| self.days_of_week.cmp(&other.days_of_week))
+            // Finally, compare the boolean flags to ensure a stable order
+            // for patterns that are otherwise identical.
+            .then_with(|| self.star_dom.cmp(&other.star_dom))
+            .then_with(|| self.star_dow.cmp(&other.star_dow))
+            .then_with(|| self.dom_and_dow.cmp(&other.dom_and_dow))
+            .then_with(|| self.with_seconds_optional.cmp(&other.with_seconds_optional))
+            .then_with(|| self.with_seconds_required.cmp(&other.with_seconds_required))
+            .then_with(|| {
+                self.with_alternative_weekdays
+                    .cmp(&other.with_alternative_weekdays)
+            })
+    }
+}
+impl std::hash::Hash for CronPattern {
+    /// Hashes the functionally significant fields of the CronPattern.
+    ///
+    /// This implementation is consistent with the `PartialEq` implementation,
+    /// ensuring that functionally identical patterns produce the same hash.
+    /// The original pattern string is not included in the hash.
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // Only hash the fields that are used for equality checks.
+        // Also include `is_parsed` to differentiate between parsed and unparsed states.
+        self.is_parsed.hash(state);
+        if self.is_parsed {
+            self.seconds.hash(state);
+            self.minutes.hash(state);
+            self.hours.hash(state);
+            self.days.hash(state);
+            self.months.hash(state);
+            self.days_of_week.hash(state);
+            self.star_dom.hash(state);
+            self.star_dow.hash(state);
+            self.dom_and_dow.hash(state);
+            self.with_seconds_optional.hash(state);
+            self.with_seconds_required.hash(state);
+            self.with_alternative_weekdays.hash(state);
+        }
     }
 }
 

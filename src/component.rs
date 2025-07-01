@@ -33,7 +33,7 @@ pub const LAST_BIT: u8 = 1 << 6;
 /// // This sets specific bits in the component according to the cron syntax
 /// minute_component.parse("*/15").expect("Parsing failed");
 /// // Sets the minute component to trigger at every 15th minute
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CronComponent {
     bitfields: Vec<u8>,   // Vector of u8 to act as multiple bitfields
     pub min: u8,          // Minimum value this component can take
@@ -110,8 +110,7 @@ impl CronComponent {
         if index >= self.bitfields.len() {
             // In case the index is somehow out of the vector's bounds
             return Err(CronError::ComponentError(format!(
-                "Position {} is out of the bitfields vector's bounds.",
-                pos
+                "Position {pos} is out of the bitfields vector's bounds."
             )));
         }
         self.bitfields[index] |= bit; // Set the specific bit at the position
@@ -143,8 +142,7 @@ impl CronComponent {
         if index >= self.bitfields.len() {
             // In case the index is somehow out of the vector's bounds
             return Err(CronError::ComponentError(format!(
-                "Position {} is out of the bitfields vector's bounds.",
-                pos
+                "Position {pos} is out of the bitfields vector's bounds."
             )));
         }
         self.bitfields[index] &= !bit; // Unset the specific bit at the position
@@ -167,8 +165,7 @@ impl CronComponent {
             let index = pos as usize;
             if index >= self.bitfields.len() {
                 Err(CronError::ComponentError(format!(
-                    "Position {} is out of the bitfields vector's bounds.",
-                    pos
+                    "Position {pos} is out of the bitfields vector's bounds."
                 )))
             } else {
                 Ok((self.bitfields[index] & bit) != 0)
