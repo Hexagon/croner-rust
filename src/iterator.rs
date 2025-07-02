@@ -1,5 +1,5 @@
-use crate::Cron;
-use chrono::{DateTime, Duration, TimeZone};
+use crate::{Cron, CronError, Direction};
+use chrono::{DateTime, TimeZone};
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Hash)]
 pub struct CronIterator<Tz>
@@ -8,16 +8,30 @@ where
 {
     cron: Cron,
     current_time: DateTime<Tz>,
+    is_first: bool,
+    inclusive: bool,
+    direction: Direction,
 }
 
 impl<Tz> CronIterator<Tz>
 where
     Tz: TimeZone,
 {
-    pub fn new(cron: Cron, start_time: DateTime<Tz>) -> Self {
+    /// Creates a new `CronIterator`.
+    ///
+    /// # Arguments
+    ///
+    /// * `cron` - The `Cron` schedule instance.
+    /// * `start_time` - The `DateTime` to start iterating from.
+    /// * `inclusive` - Whether the `start_time` should be included in the results if it matches.
+    /// * `direction` - The direction to iterate in (Forward or Backward).
+    pub fn new(cron: Cron, start_time: DateTime<Tz>, inclusive: bool, direction: Direction) -> Self {
         CronIterator {
             cron,
             current_time: start_time,
+            is_first: true,
+            inclusive,
+            direction,
         }
     }
 }
@@ -28,20 +42,33 @@ where
 {
     type Item = DateTime<Tz>;
 
+    /// Finds the next or previous occurrence of the cron schedule based on the iterator's direction.
     fn next(&mut self) -> Option<Self::Item> {
-        match self.cron.find_next_occurrence(&self.current_time, true) {
-            Ok(next_time) => {
-                // Check if we can add one second without overflow
-                let next_time_clone = next_time.clone();
-                if let Some(updated_time) = next_time.checked_add_signed(Duration::seconds(1)) {
-                    self.current_time = updated_time;
-                    Some(next_time_clone) // Return the next time
-                } else {
-                    // If we hit an overflow, stop the iteration
-                    None
-                }
+        // Determine if the search should be inclusive based on whether it's the first run.
+        let inclusive_search = if self.is_first {
+            self.is_first = false;
+            self.inclusive
+        } else {
+            false // Subsequent searches are always exclusive of the last found time.
+        };
+
+        let result = match self.direction {
+            Direction::Forward => self
+                .cron
+                .find_next_occurrence(&self.current_time, inclusive_search),
+            Direction::Backward => self
+                .cron
+                .find_previous_occurrence(&self.current_time, inclusive_search),
+        };
+
+        match result {
+            Ok(found_time) => {
+                // Update the current time to the found occurrence for the next iteration.
+                self.current_time = found_time.clone();
+                Some(found_time)
             }
-            Err(_) => None, // Stop the iteration if we cannot find the next occurrence
+            Err(CronError::TimeSearchLimitExceeded) => None, // Stop if we hit the year limit.
+            Err(_) => None, // Stop the iteration on any other error.
         }
     }
 }

@@ -14,14 +14,14 @@ fn main() {
     // (Or Local)
     // let time = Local::now();
 
-    // Get next 5 matches using iter_from
+    // Get next 5 matches using iter_after
     // There is also iter_after, which does not match starting time
     println!(
         "Finding matches of pattern '{}' starting from {}:",
         cron.pattern, time
     );
 
-    for time in cron.iter_from(time).take(5) {
+    for time in cron.iter_after(time).take(5) {
         println!("{time}");
     }
 }
