@@ -169,8 +169,9 @@ a few additions and changes as outlined below:
 ```
 
 - Croner expressions have the following additional modifiers:
-  - _?_: In the Rust version of croner, a questionmark behaves just as *, to
-    allow for legacy cron patterns to be used.
+  - _?_: In the Rust version of croner, a questionmark in the day-of-month or 
+    day-of-week field behaves just as *. This allow for legacy cron patterns 
+    to be used.
   - _L_: The letter 'L' can be used in the day of the month field to indicate
     the last day of the month. When used in the day of the week field in
     conjunction with the # character, it denotes the last specific weekday of
@@ -189,11 +190,11 @@ a few additions and changes as outlined below:
 
 | Field        | Required | Allowed values  | Allowed special characters | Remarks                                                                                                         |
 | ------------ | -------- | --------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| Seconds      | Optional | 0-59            | * , - / ?                  |                                                                                                                 |
-| Minutes      | Yes      | 0-59            | * , - / ?                  |                                                                                                                 |
-| Hours        | Yes      | 0-23            | * , - / ?                  |                                                                                                                 |
+| Seconds      | Optional | 0-59            | * , - /                    |                                                                                                                 |
+| Minutes      | Yes      | 0-59            | * , - /                    |                                                                                                                 |
+| Hours        | Yes      | 0-23            | * , - /                    |                                                                                                                 |
 | Day of Month | Yes      | 1-31            | * , - / ? L W              |                                                                                                                 |
-| Month        | Yes      | 1-12 or JAN-DEC | * , - / ?                  |                                                                                                                 |
+| Month        | Yes      | 1-12 or JAN-DEC | * , - /                    |                                                                                                                 |
 | Day of Week  | Yes      | 0-7 or SUN-MON  | * , - / ? # L              | 0 to 6 are Sunday to Saturday<br>7 is Sunday, the same as 0<br># is used to specify nth occurrence of a weekday |
 
 > **Note** Weekday and month names are case-insensitive. Both `MON` and `mon`
