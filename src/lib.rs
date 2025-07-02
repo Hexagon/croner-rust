@@ -1412,8 +1412,6 @@ mod tests {
     #[case("@monthly", "0 0 1 * *", true)]
     #[case("* * * * 1,3,5", "* * * * MON,WED,FRI", true)]
     #[case("* * * mar *", "* * * 3 *", true)]
-    // #[case("0 0 1-7 * 1", "0 0 * * 1#1", true)]
-    // #[case("0 0 8-14 * MON", "0 0 * * MON#2", true)]
     // Day-of-Month vs. Day-of-Week
     #[case("0 0 * * 1", "0 0 15 * *", false)]
     #[case("0 0 1 * *", "0 0 1 * 1", false)]
@@ -1489,6 +1487,18 @@ mod tests {
                 "Eq implementation is incorrect for second patter"
             );
         }
+    }
+
+    /// KNOWN BUG: these patterns are technically identical but the current
+    /// `PartialEq` implementation doesn't respect that.
+    #[rstest]
+    #[case("0 0 1-7 * 1", "0 0 * * 1#1")]
+    #[case("0 0 8-14 * MON", "0 0 * * MON#2")]
+    #[should_panic(expected = "Patterns are not equal")]
+    fn failed_equality(#[case] pattern_1: &str, #[case] pattern_2: &str) {
+        let cron_1 = Cron::new(pattern_1).parse().unwrap();
+        let cron_2 = Cron::new(pattern_2).parse().unwrap();
+        assert!(cron_1 == cron_2, "Patterns are not equal");
     }
 
     #[cfg(feature = "serde")]
