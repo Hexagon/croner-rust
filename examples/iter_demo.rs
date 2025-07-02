@@ -18,8 +18,7 @@ fn main() {
     // There is also iter_after, which does not match starting time
     println!(
         "Finding matches of pattern '{}' starting from {}:",
-        cron.pattern.to_string(),
-        time
+        cron.pattern, time
     );
 
     for time in cron.iter_after(time).take(5) {

@@ -1,8 +1,7 @@
 use crate::{Cron, CronError, Direction};
 use chrono::{DateTime, TimeZone};
 
-/// An iterator over the occurrences of a cron schedule.
-/// It can iterate both forwards and backwards in time.
+#[derive(Debug, Clone, PartialEq, PartialOrd, Hash)]
 pub struct CronIterator<Tz>
 where
     Tz: TimeZone,

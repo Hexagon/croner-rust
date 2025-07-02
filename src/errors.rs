@@ -51,11 +51,11 @@ impl std::fmt::Display for CronError {
             CronError::EmptyPattern => write!(f, "CronPattern cannot be an empty string."),
             CronError::InvalidDate => write!(f, "CronScheduler encountered an invalid date."),
             CronError::InvalidTime => write!(f, "CronScheduler encountered an invalid time."),
-            CronError::InvalidPattern(msg) => write!(f, "Invalid pattern: {}", msg),
+            CronError::InvalidPattern(msg) => write!(f, "Invalid pattern: {msg}"),
             CronError::IllegalCharacters(msg) => {
-                write!(f, "Pattern contains illegal characters: {}", msg)
+                write!(f, "Pattern contains illegal characters: {msg}")
             }
-            CronError::ComponentError(msg) => write!(f, "Component error: {}", msg),
+            CronError::ComponentError(msg) => write!(f, "Component error: {msg}"),
         }
     }
 }
