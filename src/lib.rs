@@ -86,7 +86,7 @@ mod iterator;
 mod pattern;
 
 // Enum to specify the direction of time search, defined locally.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub enum Direction {
     Forward,
     Backward,
@@ -908,7 +908,7 @@ mod tests {
         ];
 
         // Iterate over the expected dates, checking each one
-        for (idx, current_date) in cron.clone().iter_from(start_date, Direction::Forward).take(5) {
+        for (idx, current_date) in cron.clone().iter_from(start_date, Direction::Forward).take(5).enumerate() {
             assert_eq!(expected_dates[idx], current_date);
         }
 
@@ -936,8 +936,7 @@ mod tests {
         ];
 
         // Iterate over the expected dates, checking each one
-        let mut idx = 0;
-        for current_date in cron.clone().iter_from(start_date, Direction::Forward).take(5) {
+        for (idx, current_date) in cron.clone().iter_from(start_date, Direction::Forward).take(5).enumerate() {
             assert_eq!(expected_dates[idx], current_date);
         }
 
@@ -1357,7 +1356,7 @@ mod tests {
     #[case("0,10,20 * * * *", "30,40,50 * * * *", false)]
     #[case("* * * * MON,WED,FRI", "* * * * TUE,THU,SAT", false)]
     // Equivalency & Wildcards
-    #[case("? ? ? ? ? ?", "* * * * * *", true)]
+    #[case("* * * ? * ?", "* * * * * *", true)]
     #[case("0,15,30,45 * * * *", "*/15 * * * *", true)]
     #[case("@monthly", "0 0 1 * *", true)]
     #[case("* * * * 1,3,5", "* * * * MON,WED,FRI", true)]

@@ -227,8 +227,7 @@ impl CronPattern {
                 ("WED", "4"), ("THU", "5"), ("FRI", "6"), ("SAT", "7"),
             ]
         };
-        let mut replaced = pattern.trim().to_lowercase();
-
+        let mut replaced = pattern.to_string();
 
         // Replace nicknames with their numeric values
         for &(nickname, value) in &nicknames {
