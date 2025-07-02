@@ -22,6 +22,6 @@ fn main() {
     );
 
     for time in cron.iter_after(time).take(5) {
-        println!("{}", time);
+        println!("{time}");
     }
 }
