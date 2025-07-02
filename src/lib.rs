@@ -4,6 +4,7 @@
 //!
 //! ## Features
 //! - Parses a wide range of cron expressions, including extended formats.
+//! - Generates human-readable descriptions of cron patterns.
 //! - Evaluates cron patterns to calculate upcoming and previous execution times.
 //! - Supports time zone-aware scheduling.
 //! - Offers granularity up to seconds for precise task scheduling.
@@ -48,6 +49,31 @@
 //!
 //! The `false` argument in `find_next_occurrence` specifies that the current time is not included in the calculation, ensuring that only future occurrences are considered.
 //!
+//! ## Describing a Pattern
+//! Croner can also generate a human-readable, English description of a cron pattern. This is highly useful for displaying schedule information in a UI or for debugging complex patterns.
+//!
+//! The .describe() method returns a String detailing what the schedule means.
+//!
+//! ```rust 
+//! use croner::Cron; 
+//! 
+//! 
+//! // A pattern that runs at 6:30 PM on the 15th and the last day of the month, 
+//! // but only if the day is also a Friday and the month is March. 
+//! let cron = Cron::new("0 30 18 15,L MAR FRI") 
+//!     .with_seconds_optional() 
+//!     .with_dom_and_dow() // Both day-of-month and day-of-week must match 
+//!     .parse() 
+//!     .expect("Failed to parse"); 
+//! 
+//! // Get the English description 
+//! let description = cron.describe(); 
+//! 
+//! println!("Pattern: \"{}\"", cron.pattern.to_string()); 
+//! println!("Description: {}", description); 
+//! // Outputs: Description: At 18:30, on the last day of the month and day 15 (if it is also Friday), in March. 
+//! ```
+//!
 //! ## Getting Started
 //! To start using Croner, add it to your project's `Cargo.toml` and follow the examples to integrate cron pattern parsing and scheduling into your application.
 //!
@@ -80,6 +106,7 @@
 //! For more information, refer to the full [README](https://github.com/hexagon/croner-rust).
 
 pub mod errors;
+pub mod describe;
 
 mod component;
 mod iterator;
@@ -370,7 +397,33 @@ impl Cron {
             Direction::Backward,
         )
     }
+  
+    /// Returns a human-readable description of the cron pattern.
+    ///
+    /// This method provides a best-effort English description of the cron schedule.
+    /// Note: The cron instance must be parsed successfully before calling this method.
+    ///
+    /// # Example
+    /// ```
+    /// use croner::Cron;
+    ///
+    /// let cron = Cron::new("0 12 * * MON-FRI").parse().unwrap();
+    /// println!("{}", cron.describe());
+    /// // Output: At on minute 0, at hour 12, on Monday,Tuesday,Wednesday,Thursday,Friday.
+    /// ```
+    pub fn describe(&self) -> String {
+        self.pattern.describe()
+    }
 
+    /// Returns a human-readable description using a provided language provider.
+    ///
+    /// # Arguments
+    ///
+    /// * `lang` - An object that implements the `Language` trait.
+    pub fn describe_lang<L: crate::describe::Language>(&self, lang: L) -> String {
+        self.pattern.describe_lang(lang)
+    }
+  
     // TIME MANIPULATION FUNCTIONS
 
     /// Sets a time component and resets lower-order ones based on direction.
@@ -1412,7 +1465,7 @@ mod tests {
         assert_eq!(
             cron_1 == cron_2,
             equal,
-            "Equality relation between both patterns is not {equal}"
+            "Equality relation between both patterns is not {equal}. {cron_1} != {cron_2}."
         );
         assert_eq!(
             calculate_hash(&cron_1) == calculate_hash(&cron_2),

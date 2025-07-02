@@ -1,5 +1,6 @@
 use chrono::Local;
 use croner::Cron;
+use croner::describe::lang::swedish::Swedish; // For demonstrating translation
 
 fn main() {
     // Example: Parse cron expression
@@ -15,6 +16,14 @@ fn main() {
     // Example: Get next match
     let next = cron.find_next_occurrence(&time, false).unwrap();
 
+    // Example: Get and print the human-readable description
+    let description = cron.describe();
+    println!("Description: {}", description);
+    
+    // Example: Get and print the human-readable description in Swedish
+    let swedish_description = cron.describe_lang(Swedish::default()); // 2. Call describe_lang() with Swedish
+    println!("Swedish Description: {}", swedish_description);
+    
     // Example: Output results
     println!("Current time is: {time}");
     println!(
