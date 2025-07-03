@@ -1281,6 +1281,46 @@ mod tests {
     }
 
     #[test]
+    fn test_tabs_for_separator() -> Result<(), CronError> {
+        let cron = Cron::new("0 0   29  2   *").parse()?;
+        let leap_year_matching = Local.with_ymd_and_hms(2024, 2, 29, 0, 0, 0).unwrap();
+
+        assert!(cron.is_time_matching(&leap_year_matching)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_mixed_separators() -> Result<(), CronError> {
+        let cron = Cron::new("0  0    29  2      *").parse()?;
+        let leap_year_matching = Local.with_ymd_and_hms(2024, 2, 29, 0, 0, 0).unwrap();
+
+        assert!(cron.is_time_matching(&leap_year_matching)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_mixed_leading_separators() -> Result<(), CronError> {
+        let cron = Cron::new("  0 0 29 2 *").parse()?;
+        let leap_year_matching = Local.with_ymd_and_hms(2024, 2, 29, 0, 0, 0).unwrap();
+
+        assert!(cron.is_time_matching(&leap_year_matching)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_mixed_tailing_separators() -> Result<(), CronError> {
+        let cron = Cron::new("0 0 29 2 *    ").parse()?;
+        let leap_year_matching = Local.with_ymd_and_hms(2024, 2, 29, 0, 0, 0).unwrap();
+
+        assert!(cron.is_time_matching(&leap_year_matching)?);
+
+        Ok(())
+    }
+
+    #[test]
     fn test_time_overflow() -> Result<(), CronError> {
         let cron_match = Cron::new("59 59 23 31 12 *")
             .with_seconds_optional()

@@ -83,6 +83,11 @@ impl CronPattern {
         self.pattern = Self::replace_alpha_months(&self.pattern).to_string();
 
         // Check that the pattern contains 5 or 6 parts
+        // 
+        // split_whitespace() takes care of leading, trailing, and multiple 
+        // consequent whitespaces. The unicode definition of a whitespace 
+        // includes the ones commonly used in cron - 
+        // Space (U+0020) and Tab (U+0009).
         let mut parts: Vec<&str> = self.pattern.split_whitespace().collect();
         if parts.len() < 5 || parts.len() > 6 {
             return Err(CronError::InvalidPattern(String::from("Pattern must consist of five or six fields (minute, hour, day, month, day of week, and optional second).")));
