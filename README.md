@@ -203,7 +203,7 @@ a few additions and changes as outlined below:
 > month." The # character can be used to specify the "nth" weekday of the month.
 > For example, 5#2 represents the second Friday of the month.
 
-> **Note:** This feature is constrained within the given month. The search for 
+> **Note:** The `W` feature is constrained within the given month. The search for 
 > the closest weekday will not cross into a previous or subsequent month. For
 > example, if the 1st of the month is a Saturday, 1W will trigger on Monday 
 > the 3rd, not the last Friday of the previous month.
