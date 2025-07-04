@@ -27,23 +27,23 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 
 Croner combines the features of cron and saffron, while following the POSIX/Vixie "standards" for the relevant parts. See this table:
 
-Feature              | Croner      | Cron      | Saffron |
----------------------|-------------|-----------|---------|
-Time Zones | X         |    X    |     | 
-Ranges (15-25)| X         |    X    |   X   | 
-Ranges with stepping (15-25/2)| X         |    X    |   X   |    X   |
-`L` - Last day of month | X         |         |   X   |
-`5#L` - Last occurrence of weekday |    X     |   X    |       |
-`5L` - Last occurrence of weekday |    X     |    ?   |   X    |
-`#` - Nth occurrence of weekday |    X     |      |   X    |
-`W` - Closest weekday |    X     |        |  X     |
-"Standards"-compliant weekdays (1 is monday) |   X    |      |       |
-Five part patterns (minute granularity) |  X   |         |    X   |
-Six part patterns (second granularity)|  X   |    X    |       |
-Weekday/Month text representations |  X   |    X    |   X   |
-Aliases (`@hourly` etc.) |  X           |     X      |          |
-chrono `DateTime` compatibility |    X     |     X   |   X    |
-DOM-and-DOW option |    X     |           |         |
+| Feature              | Croner      | Cron      | Saffron |
+|----------------------|-------------|-----------|---------|
+| Time Zones | X         |    X    |     |
+| Ranges (15-25)| X         |    X    |   X   |
+| Ranges with stepping (15-25/2)| X         |    X    |   X   |
+| `L` - Last day of month | X         |         |   X   |
+| `5#L` - Last occurrence of weekday |    X     |   X    |       |
+| `5L` - Last occurrence of weekday |    X     |    ?   |   X    |
+| `#` - Nth occurrence of weekday |    X     |      |   X    |
+| `W` - Closest weekday |    X     |        |  X     |
+| "Standards"-compliant weekdays (1 is monday) |   X    |      |       |
+| Five part patterns (minute granularity) |  X   |         |    X   |
+| Six part patterns (second granularity)|  X   |    X    |       |
+| Weekday/Month text representations |  X   |    X    |   X   |
+| Aliases (`@hourly` etc.) |  X           |     X      |          |
+| chrono `DateTime` compatibility |    X     |     X   |   X    |
+| DOM-and-DOW option |    X     |           |         |
 
 > **Note**
 > Tests carried out at 2023-12-02 using `cron@0.12.0` and `saffron@.0.1.0`
@@ -169,8 +169,8 @@ a few additions and changes as outlined below:
 ```
 
 - Croner expressions have the following additional modifiers:
-  - _?_: In the Rust version of croner, a questionmark in the day-of-month or 
-    day-of-week field behaves just as `*`. This allow for legacy cron patterns 
+  - _?_: In the Rust version of croner, a questionmark in the day-of-month or
+    day-of-week field behaves just as `*`. This allow for legacy cron patterns
     to be used.
   - _L_: The letter 'L' can be used in the day of the month field to indicate
     the last day of the month. When used in the day of the week field in
@@ -216,7 +216,7 @@ It is also possible to use the following "nicknames" as pattern.
 | \@annually | Run once a year, ie. "0 0 1 1 *".  |
 | \@monthly  | Run once a month, ie. "0 0 1 * *". |
 | \@weekly   | Run once a week, ie. "0 0 * * 0".  |
-| \@daily    | Run once a day, ie. "0 0 * * *".   |
+| \@daily    | Run once a day, ie.  "0 0 * * *".  |
 | \@hourly   | Run once an hour, ie. "0 * * * *". |
 
 ### Configuration
@@ -228,6 +228,7 @@ Croner offers several configuration methods to change how patterns are interpret
 This method enables the inclusion of seconds in the cron pattern, but it's not mandatory. By using this method, you can create cron patterns that either include or omit the seconds field. This offers greater flexibility, allowing for more precise scheduling without imposing the strict requirement of defining seconds in every pattern.
 
 **Example Usage**:
+
 ```rust
 let cron = Cron::new("*/10 * * * * *") // Every 10 seconds
     .with_seconds_optional()
@@ -240,6 +241,7 @@ let cron = Cron::new("*/10 * * * * *") // Every 10 seconds
 In contrast to `with_seconds_optional()`, the `with_seconds_required()` method requires the seconds field in every cron pattern. This enforces a high level of precision in task scheduling, ensuring that every pattern explicitly specifies the second at which the task should run.
 
 **Example Usage**:
+
 ```rust
 let cron = Cron::new("5 */2 * * * *") // At 5 seconds past every 2 minutes
     .with_seconds_required()
@@ -252,6 +254,7 @@ let cron = Cron::new("5 */2 * * * *") // At 5 seconds past every 2 minutes
 This method enables the combination of Day of Month (DOM) and Day of Week (DOW) conditions in your cron expressions. It's particularly useful for creating schedules that require specificity in terms of both the day of the month and the day of the week, such as running a task when the first of the month is a Monday, or christmas day is on a friday.
 
 **Example Usage**:
+
 ```rust
 let cron = Cron::new("0 0 25 * FRI") // When christmas day is on a friday
     .with_dom_and_dow()
@@ -264,6 +267,7 @@ let cron = Cron::new("0 0 25 * FRI") // When christmas day is on a friday
 This configuration method switches the weekday mode from the POSIX standard to the Quartz-style, commonly used in Java-based scheduling systems. It's useful for those who are accustomed to Quartz's way of specifying weekdays or for ensuring compatibility with existing Quartz-based schedules.
 
 **Example Usage**:
+
 ```rust
 let cron = Cron::new("0 0 12 * * 6") // Every Friday (denoted with 6 in Quartz mode) at noon
     .with_alternative_weekdays()
