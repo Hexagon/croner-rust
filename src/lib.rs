@@ -116,9 +116,16 @@ use serde::{
     Deserialize, Serialize, Serializer,
 };
 
+/// Safeguard to prevent infinite loops when searching for future 
+/// occurrences of a cron pattern that may never match. It ensures that the search 
+/// function will eventually terminate and return an error instead of running indefinitely.
 const YEAR_UPPER_LIMIT: i32 = 5000;
-const YEAR_LOWER_LIMIT: i32 = 1970;
 
+/// Sets the lower year limit to 1 AD/CE. 
+/// This is a pragmatic choice to avoid the complexities of year 0 (1 BCE) and pre-CE 
+/// dates, which involve different calendar systems and are outside the scope of a 
+/// modern scheduling library.
+const YEAR_LOWER_LIMIT: i32 = 1;
 
 // The Cron struct represents a cron schedule and provides methods to parse cron strings,
 // check if a datetime matches the cron pattern, and find the next occurrence.
@@ -418,15 +425,19 @@ impl Cron {
         component: TimeComponent,
         direction: Direction,
     ) -> Result<(), CronError> {
-        let limit = match direction {
-            Direction::Forward => YEAR_UPPER_LIMIT,
-            Direction::Backward => YEAR_LOWER_LIMIT,
-        };
-
-        if current_time.year() == limit {
-            return Err(CronError::TimeSearchLimitExceeded);
+        // Check for limits
+        match direction {
+            Direction::Forward => {
+                if current_time.year() >= YEAR_UPPER_LIMIT {
+                    return Err(CronError::TimeSearchLimitExceeded);
+                }
+            }
+            Direction::Backward => {
+                if current_time.year() <= YEAR_LOWER_LIMIT {
+                    return Err(CronError::TimeSearchLimitExceeded);
+                }
+            }
         }
-
         match direction {
             Direction::Forward => {
                 let duration = match component {
@@ -1545,6 +1556,63 @@ mod tests {
         let prev_occurrence_2 = cron.find_previous_occurrence(&start_time_2, false)?;
         let expected_time_2 = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap();
         assert_eq!(prev_occurrence_2, expected_time_2);
+        Ok(())
+    }
+
+    #[test]
+    fn test_find_occurrence_at_min_year_limit() -> Result<(), CronError> {
+        // This pattern matches at midnight on January 1st every year.
+        let cron = Cron::new("0 0 1 1 *").parse()?;
+    
+        // Start the search just after midnight on the first day of the minimum allowed year.
+        let start_time = Local.with_ymd_and_hms(YEAR_LOWER_LIMIT, 1, 1, 0, 0, 1).unwrap();
+    
+        // Find the previous occurrence, which should be exactly at the start of the minimum year.
+        let prev_occurrence = cron.find_previous_occurrence(&start_time, false)?;
+        let expected_time = Local.with_ymd_and_hms(YEAR_LOWER_LIMIT, 1, 1, 0, 0, 0).unwrap();
+        assert_eq!(prev_occurrence, expected_time);
+    
+        // With the core logic fixed, searching past the limit will now correctly return TimeSearchLimitExceeded.
+        let result = cron.find_previous_occurrence(&expected_time, false);
+        assert!(matches!(result, Err(CronError::TimeSearchLimitExceeded)));
+    
+        Ok(())
+    }
+
+    #[test]
+    fn test_find_occurrence_at_max_year_limit() -> Result<(), CronError> {
+        // This pattern matches at midnight on January 1st every year.
+        let cron = Cron::new("0 0 1 1 *").parse()?;
+
+        // Start the search late in the year just before the upper limit.
+        let start_time = Local.with_ymd_and_hms(YEAR_UPPER_LIMIT - 1, 12, 31, 23, 59, 59).unwrap();
+
+        let next_occurrence = cron.find_next_occurrence(&start_time, false)?;
+        let expected_time = Local.with_ymd_and_hms(YEAR_UPPER_LIMIT, 1, 1, 0, 0, 0).unwrap();
+        assert_eq!(next_occurrence, expected_time);
+
+        // Any search beyond the maximum year limit should fail.
+        let result = cron.find_next_occurrence(&expected_time, false);
+        assert!(matches!(result, Err(CronError::TimeSearchLimitExceeded)));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_weekday_for_historical_date_1831() -> Result<(), CronError> {
+        // This pattern should match at midnight every Sunday.
+        let cron = Cron::new("0 0 * * SUN").parse()?;
+
+        // June 5, 1831 was a Sunday.
+        let matching_sunday = Local.with_ymd_and_hms(1831, 6, 5, 0, 0, 0).unwrap();
+        
+        // June 6, 1831 was a Monday.
+        let non_matching_monday = Local.with_ymd_and_hms(1831, 6, 6, 0, 0, 0).unwrap();
+
+        // Verify that the Sunday matches and the Monday does not.
+        assert!(cron.is_time_matching(&matching_sunday)?, "Should match on Sunday, June 5, 1831");
+        assert!(!cron.is_time_matching(&non_matching_monday)?, "Should not match on Monday, June 6, 1831");
+
         Ok(())
     }
 }

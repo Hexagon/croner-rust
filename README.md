@@ -276,6 +276,14 @@ let cron = Cron::new("0 0 12 * * 6") // Every Friday (denoted with 6 in Quartz m
 For detailed usage and API documentation, visit
 [Croner on docs.rs](https://docs.rs/croner/).
 
+**A Note on Historical Dates, the Proleptic Gregorian Calendar and future dates**
+
+Croner relies on the `chrono` crate for all date and time calculations. It's important to understand that `chrono` uses a **proleptic Gregorian calendar**.
+
+A practical consequence of this is that `croner` will not show the "missing days" from historical calendar reforms. For example, during the Gregorian calendar reform in October 1582, the days from the 5th to the 14th were skipped in many countries. `croner`, following `chrono`'s proleptic calendar, will iterate through these non-existent dates (e.g., Oct 5, Oct 6, etc.) as if they were real.
+
+To ensure stability and practical usability, `croner` operates within a defined date range. The earliest date supported is the beginning of **year 1 AD/CE**, a choice made to avoid the complexities of pre-CE calendar systems. The latest supported date is capped at the beginning of the **year 5000**, which serves as a safeguard to prevent infinite loops when searching for schedules that may be too far in the future or can never occur.
+
 ## Development
 
 To start developing in the Croner project:
