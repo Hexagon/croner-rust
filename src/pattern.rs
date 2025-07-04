@@ -62,7 +62,6 @@ impl CronPattern {
 
     // Parses the cron pattern string into its respective fields.
     pub fn parse(&mut self) -> Result<CronPattern, CronError> {
-        
         // Ensure upper case in parsing, and trim it
         self.pattern = self.pattern.to_uppercase().trim().to_string();
 
@@ -73,20 +72,20 @@ impl CronPattern {
 
         // Handle @nicknames
         if self.pattern.contains('@') {
-            self.pattern = Self::handle_nicknames(&self.pattern, self.with_seconds_required)
-                .to_string();
+            self.pattern =
+                Self::handle_nicknames(&self.pattern, self.with_seconds_required).to_string();
         }
 
         // Handle day-of-week and month aliases (MON... and JAN...)
-        self.pattern = Self::replace_alpha_weekdays(&self.pattern, self.with_alternative_weekdays)
-            .to_string();
+        self.pattern =
+            Self::replace_alpha_weekdays(&self.pattern, self.with_alternative_weekdays).to_string();
         self.pattern = Self::replace_alpha_months(&self.pattern).to_string();
 
         // Check that the pattern contains 5 or 6 parts
-        // 
-        // split_whitespace() takes care of leading, trailing, and multiple 
-        // consequent whitespaces. The unicode definition of a whitespace 
-        // includes the ones commonly used in cron - 
+        //
+        // split_whitespace() takes care of leading, trailing, and multiple
+        // consequent whitespaces. The unicode definition of a whitespace
+        // includes the ones commonly used in cron -
         // Space (U+0020) and Tab (U+0009).
         let mut parts: Vec<&str> = self.pattern.split_whitespace().collect();
         if parts.len() < 5 || parts.len() > 6 {
@@ -137,7 +136,7 @@ impl CronPattern {
         self.months.parse(parts[4])?;
         self.days_of_week.parse(parts[5])?;
 
-                // Handle conversion of 7 to 0 for day_of_week if necessary
+        // Handle conversion of 7 to 0 for day_of_week if necessary
         // this has to be done last because range could be 6-7 (sat-sun)
         if !self.with_alternative_weekdays {
             for nth_bit in [
@@ -158,7 +157,6 @@ impl CronPattern {
         self.is_parsed = true;
         Ok(self.clone())
     }
-
 
     // Validates that the cron pattern only contains legal characters for each field.
     // - Assumes only lowercase characters
@@ -223,13 +221,25 @@ impl CronPattern {
     fn replace_alpha_weekdays(pattern: &str, alternative_weekdays: bool) -> String {
         let nicknames = if !alternative_weekdays {
             [
-                ("-SUN", "-7"), ("SUN", "0"), ("MON", "1"), ("TUE", "2"),
-                ("WED", "3"), ("THU", "4"), ("FRI", "5"), ("SAT", "6"),
+                ("-SUN", "-7"),
+                ("SUN", "0"),
+                ("MON", "1"),
+                ("TUE", "2"),
+                ("WED", "3"),
+                ("THU", "4"),
+                ("FRI", "5"),
+                ("SAT", "6"),
             ]
         } else {
             [
-                ("-SUN", "-1"), ("SUN", "1"), ("MON", "2"), ("TUE", "3"),
-                ("WED", "4"), ("THU", "5"), ("FRI", "6"), ("SAT", "7"),
+                ("-SUN", "-1"),
+                ("SUN", "1"),
+                ("MON", "2"),
+                ("TUE", "3"),
+                ("WED", "4"),
+                ("THU", "5"),
+                ("FRI", "6"),
+                ("SAT", "7"),
             ]
         };
         let mut replaced = pattern.to_string();
@@ -245,9 +255,18 @@ impl CronPattern {
     // Converts month nicknames into their equivalent standard cron pattern.
     fn replace_alpha_months(pattern: &str) -> String {
         let nicknames = [
-            ("JAN", "1"), ("FEB", "2"), ("MAR", "3"), ("APR", "4"),
-            ("MAY", "5"), ("JUN", "6"), ("JUL", "7"), ("AUG", "8"),
-            ("SEP", "9"), ("OCT", "10"), ("NOV", "11"), ("DEC", "12"),
+            ("JAN", "1"),
+            ("FEB", "2"),
+            ("MAR", "3"),
+            ("APR", "4"),
+            ("MAY", "5"),
+            ("JUN", "6"),
+            ("JUL", "7"),
+            ("AUG", "8"),
+            ("SEP", "9"),
+            ("OCT", "10"),
+            ("NOV", "11"),
+            ("DEC", "12"),
         ];
 
         let mut replaced = pattern.to_string();
@@ -286,7 +305,10 @@ impl CronPattern {
         let mut day_matches = self.days.is_bit_set(day as u8, ALL_BIT)?;
         let mut dow_matches = false;
 
-        if !day_matches && self.days.is_feature_enabled(LAST_BIT) && day == Self::last_day_of_month(year, month)? {
+        if !day_matches
+            && self.days.is_feature_enabled(LAST_BIT)
+            && day == Self::last_day_of_month(year, month)?
+        {
             day_matches = true;
         }
 
@@ -296,10 +318,16 @@ impl CronPattern {
 
         for nth in 1..=5 {
             let nth_bit = match nth {
-                1 => NTH_1ST_BIT, 2 => NTH_2ND_BIT, 3 => NTH_3RD_BIT,
-                4 => NTH_4TH_BIT, 5 => NTH_5TH_BIT, _ => continue,
+                1 => NTH_1ST_BIT,
+                2 => NTH_2ND_BIT,
+                3 => NTH_3RD_BIT,
+                4 => NTH_4TH_BIT,
+                5 => NTH_5TH_BIT,
+                _ => continue,
             };
-            if self.days_of_week.is_bit_set(date.weekday().num_days_from_sunday() as u8, nth_bit)?
+            if self
+                .days_of_week
+                .is_bit_set(date.weekday().num_days_from_sunday() as u8, nth_bit)?
                 && Self::is_nth_weekday_of_month(date, nth, date.weekday())
             {
                 dow_matches = true;
@@ -307,16 +335,28 @@ impl CronPattern {
             }
         }
 
-        if !dow_matches && self.days_of_week.is_bit_set(date.weekday().num_days_from_sunday() as u8, LAST_BIT)? && (date + chrono::Duration::days(7)).month() != date.month() {
+        if !dow_matches
+            && self
+                .days_of_week
+                .is_bit_set(date.weekday().num_days_from_sunday() as u8, LAST_BIT)?
+            && (date + chrono::Duration::days(7)).month() != date.month()
+        {
             dow_matches = true;
         }
 
-        dow_matches = dow_matches || self.days_of_week.is_bit_set(date.weekday().num_days_from_sunday() as u8, ALL_BIT)?;
+        dow_matches = dow_matches
+            || self
+                .days_of_week
+                .is_bit_set(date.weekday().num_days_from_sunday() as u8, ALL_BIT)?;
 
         if (day_matches && self.star_dow) || (dow_matches && self.star_dom) {
             Ok(true)
         } else if !self.star_dom && !self.star_dow {
-            if !self.dom_and_dow { Ok(day_matches || dow_matches) } else { Ok(day_matches && dow_matches) }
+            if !self.dom_and_dow {
+                Ok(day_matches || dow_matches)
+            } else {
+                Ok(day_matches && dow_matches)
+            }
         } else {
             Ok(false)
         }
@@ -324,9 +364,19 @@ impl CronPattern {
 
     // Helper function to find the last day of a given month
     fn last_day_of_month(year: i32, month: u32) -> Result<u32, CronError> {
-        if !(1..=12).contains(&month) { return Err(CronError::InvalidDate); }
-        let (y, m) = if month == 12 { (year + 1, 1) } else { (year, month + 1) };
-        Ok(NaiveDate::from_ymd_opt(y, m, 1).unwrap().pred_opt().unwrap().day())
+        if !(1..=12).contains(&month) {
+            return Err(CronError::InvalidDate);
+        }
+        let (y, m) = if month == 12 {
+            (year + 1, 1)
+        } else {
+            (year, month + 1)
+        };
+        Ok(NaiveDate::from_ymd_opt(y, m, 1)
+            .unwrap()
+            .pred_opt()
+            .unwrap()
+            .day())
     }
 
     pub fn closest_weekday(&self, year: i32, month: u32, day: u32) -> Result<bool, CronError> {
@@ -335,17 +385,19 @@ impl CronPattern {
             if self.days.is_bit_set(pattern_day_u8, CLOSEST_WEEKDAY_BIT)? {
                 // A 'W' day exists in the pattern. Check if it resolves to the function's date argument.
                 let pattern_day = pattern_day_u8 as u32;
-    
+
                 // Ensure the 'W' day is a valid calendar date for the given month/year.
                 if let Some(pattern_date) = NaiveDate::from_ymd_opt(year, month, pattern_day) {
                     let weekday = pattern_date.weekday();
-    
+
                     // Determine the actual trigger date based on the 'W' rule.
                     let target_date = match weekday {
                         // If the pattern day is a weekday, it triggers on that day.
-                        Weekday::Mon | Weekday::Tue | Weekday::Wed | Weekday::Thu | Weekday::Fri => {
-                            pattern_date
-                        }
+                        Weekday::Mon
+                        | Weekday::Tue
+                        | Weekday::Wed
+                        | Weekday::Thu
+                        | Weekday::Fri => pattern_date,
                         // If it's a Saturday, find the nearest weekday within the month.
                         Weekday::Sat => {
                             // The nearest weekday is Friday, but check if it's in the same month.
@@ -369,7 +421,7 @@ impl CronPattern {
                             }
                         }
                     };
-    
+
                     // Check if the calculated target day is the day we're currently testing.
                     if target_date.day() == day && target_date.month() == month {
                         return Ok(true);
@@ -377,28 +429,36 @@ impl CronPattern {
                 }
             }
         }
-    
+
         // No 'W' pattern matched the current day.
         Ok(false)
     }
 
     pub fn month_match(&self, month: u32) -> Result<bool, CronError> {
-        if !(1..=12).contains(&month) { return Err(CronError::InvalidDate); }
+        if !(1..=12).contains(&month) {
+            return Err(CronError::InvalidDate);
+        }
         self.months.is_bit_set(month as u8, ALL_BIT)
     }
 
     pub fn hour_match(&self, hour: u32) -> Result<bool, CronError> {
-        if hour > 23 { return Err(CronError::InvalidTime); }
+        if hour > 23 {
+            return Err(CronError::InvalidTime);
+        }
         self.hours.is_bit_set(hour as u8, ALL_BIT)
     }
 
     pub fn minute_match(&self, minute: u32) -> Result<bool, CronError> {
-        if minute > 59 { return Err(CronError::InvalidTime); }
+        if minute > 59 {
+            return Err(CronError::InvalidTime);
+        }
         self.minutes.is_bit_set(minute as u8, ALL_BIT)
     }
 
     pub fn second_match(&self, second: u32) -> Result<bool, CronError> {
-        if second > 59 { return Err(CronError::InvalidTime); }
+        if second > 59 {
+            return Err(CronError::InvalidTime);
+        }
         self.seconds.is_bit_set(second as u8, ALL_BIT)
     }
 
@@ -413,7 +473,11 @@ impl CronPattern {
             TimeComponent::Second => &self.seconds,
             TimeComponent::Minute => &self.minutes,
             TimeComponent::Hour => &self.hours,
-            _ => return Err(CronError::ComponentError("Invalid component type for match search".to_string())),
+            _ => {
+                return Err(CronError::ComponentError(
+                    "Invalid component type for match search".to_string(),
+                ))
+            }
         };
 
         let value_u8 = value as u8;
@@ -926,7 +990,10 @@ mod tests {
         let pattern = "* * ? * *";
         let mut parser = CronPattern::new(pattern);
         let result = parser.parse();
-        assert!(result.is_ok(), "Should allow '?' in the day-of-month field.");
+        assert!(
+            result.is_ok(),
+            "Should allow '?' in the day-of-month field."
+        );
     }
 
     #[test]
@@ -995,27 +1062,51 @@ mod tests {
     #[test]
     fn test_closest_weekday_month_boundary() -> Result<(), CronError> {
         // --- TEST START OF MONTH ---
-        let pattern = CronPattern::new("0 0 0 1W * *").with_seconds_optional().parse()?;
+        let pattern = CronPattern::new("0 0 0 1W * *")
+            .with_seconds_optional()
+            .parse()?;
 
         // Case 1: The 1st is a Saturday (Nov 2025).
         // Should trigger on Monday the 3rd, not jump back to October.
-        assert!(!pattern.day_match(2025, 10, 31)?, "Should not trigger on previous month");
-        assert!(pattern.day_match(2025, 11, 3)?, "Should trigger on Mon 3rd for Sat 1st");
-        assert!(!pattern.day_match(2025, 11, 1)?, "Should not trigger on Sat 1st itself");
-
+        assert!(
+            !pattern.day_match(2025, 10, 31)?,
+            "Should not trigger on previous month"
+        );
+        assert!(
+            pattern.day_match(2025, 11, 3)?,
+            "Should trigger on Mon 3rd for Sat 1st"
+        );
+        assert!(
+            !pattern.day_match(2025, 11, 1)?,
+            "Should not trigger on Sat 1st itself"
+        );
 
         // Case 2: The 1st is a Sunday (June 2025).
         // Should trigger on Monday the 2nd.
-        assert!(pattern.day_match(2025, 6, 2)?, "Should trigger on Mon 2nd for Sun 1st");
-        assert!(!pattern.day_match(2025, 6, 3)?, "Should NOT trigger on Tue 3rd for Sun 1st");
+        assert!(
+            pattern.day_match(2025, 6, 2)?,
+            "Should trigger on Mon 2nd for Sun 1st"
+        );
+        assert!(
+            !pattern.day_match(2025, 6, 3)?,
+            "Should NOT trigger on Tue 3rd for Sun 1st"
+        );
 
         // --- TEST END OF MONTH ---
-        let pattern_end = CronPattern::new("0 0 0 31W * *").with_seconds_optional().parse()?;
+        let pattern_end = CronPattern::new("0 0 0 31W * *")
+            .with_seconds_optional()
+            .parse()?;
 
         // Case 3: The 31st is a Sunday (Aug 2025).
         // Should trigger on Friday the 29th, not jump forward to September.
-        assert!(pattern_end.day_match(2025, 8, 29)?, "Should trigger on Fri 29th for Sun 31st");
-        assert!(!pattern_end.day_match(2025, 9, 1)?, "Should not trigger on next month");
+        assert!(
+            pattern_end.day_match(2025, 8, 29)?,
+            "Should trigger on Fri 29th for Sun 31st"
+        );
+        assert!(
+            !pattern_end.day_match(2025, 9, 1)?,
+            "Should not trigger on next month"
+        );
 
         Ok(())
     }
