@@ -76,8 +76,7 @@ use chrono::Local;
 fn main() {
 
     // Parse cron expression
-    let cron_all = Cron::new("18 * * * 5")
-      .parse()
+    let cron_all = Cron::from_str("18 * * * 5")
       .expect("Couldn't parse cron string");
 
     // Compare cron pattern with current local time
@@ -105,8 +104,7 @@ use chrono_tz::Tz;
 
 fn main() {
     // Parse cron expression
-    let cron = Cron::new("18 * * * 5")
-      .parse()
+    let cron = Cron::from_str("18 * * * 5")
       .expect("Couldn't parse cron string");
 
     // Choose a different time zone, for example America/New_York
@@ -126,27 +124,28 @@ fn main() {
 }
 ```
 
-This example demonstrates how to calculate the next 5 occurrences of New Year's Eve that fall on a Friday. We'll use a cron expression to match every Friday (`FRI`) in December (`12`) and use the `with_dom_and_dow` method to ensure both day of month and day of week conditions are met.
+This example demonstrates how to calculate the next 5 occurrences of New Year's Eve that fall on a Friday. We'll use a cron expression to match every Friday (`FRI`) in December (`12`) and configure `dom_and_dow` to ensure both day-of-month and day-of-week conditions are met (see [configuration](#configuration) for more details).
 
 ```rust
-use croner::Cron;
 use chrono::Local;
+use croner::parser::CronParser;
 
 fn main() {
     // Parse cron expression for Fridays in December
-    let cron = Cron::new("0 0 0 31 12 FRI")
-      // Include seconds in pattern
-      .with_seconds_optional()
-      // Ensure both day of month and day of week conditions are met
-      .with_dom_and_dow()
-      .parse()
-      .expect("Couldn't parse cron string");
+    let cron = CronParser::builder()
+        // Include seconds in pattern
+        .seconds(croner::parser::Seconds::Optional)
+        // Ensure both day of month and day of week conditions are met
+        .dom_and_dow(true)
+        .build()
+        .parse("0 0 0 31 12 FRI")
+        .expect("Couldn't parse cron string");
 
     let time = Local::now();
 
     println!("Finding the next 5 New Year's Eves on a Friday:");
     for time in cron.iter_from(time).take(5) {
-        println!("{}", time);
+        println!("{time}");
     }
 }
 ```
@@ -203,9 +202,9 @@ a few additions and changes as outlined below:
 > month." The # character can be used to specify the "nth" weekday of the month.
 > For example, 5#2 represents the second Friday of the month.
 
-> **Note:** The `W` feature is constrained within the given month. The search for 
+> **Note:** The `W` feature is constrained within the given month. The search for
 > the closest weekday will not cross into a previous or subsequent month. For
-> example, if the 1st of the month is a Saturday, 1W will trigger on Monday 
+> example, if the 1st of the month is a Saturday, 1W will trigger on Monday
 > the 3rd, not the last Friday of the previous month.
 
 It is also possible to use the following "nicknames" as pattern.
@@ -221,57 +220,76 @@ It is also possible to use the following "nicknames" as pattern.
 
 ### Configuration
 
-Croner offers several configuration methods to change how patterns are interpreted:
+Croner uses `CronParser` to parse the cron expression. Invoking
+`Cron::from_str("pattern")` is equivalent to
+`CronParser::new().parse("pattern")`. You can customise the parser by creating a
+parser builder using `CronParser::builder`.
 
-#### 1. `with_seconds_optional()`
+#### 1. Making seconds optional
 
-This method enables the inclusion of seconds in the cron pattern, but it's not mandatory. By using this method, you can create cron patterns that either include or omit the seconds field. This offers greater flexibility, allowing for more precise scheduling without imposing the strict requirement of defining seconds in every pattern.
-
-**Example Usage**:
-
-```rust
-let cron = Cron::new("*/10 * * * * *") // Every 10 seconds
-    .with_seconds_optional()
-    .parse()
-    .expect("Invalid cron pattern");
-```
-
-#### 2. `with_seconds_required()`
-
-In contrast to `with_seconds_optional()`, the `with_seconds_required()` method requires the seconds field in every cron pattern. This enforces a high level of precision in task scheduling, ensuring that every pattern explicitly specifies the second at which the task should run.
+This option enables the inclusion of seconds in the cron pattern, but it's not mandatory. By using this option, you can create cron patterns that either include or omit the seconds field. This offers greater flexibility, allowing for more precise scheduling without imposing the strict requirement of defining seconds in every pattern.
 
 **Example Usage**:
 
 ```rust
-let cron = Cron::new("5 */2 * * * *") // At 5 seconds past every 2 minutes
-    .with_seconds_required()
-    .parse()
+use croner::parser::{CronParser, Seconds};
+
+// Configure the parser to allow seconds.
+let parser = CronParser::builder().seconds(Seconds::Optional).build();
+
+let cron = parser
+    .parse("*/10 * * * * *") // Every 10 seconds
     .expect("Invalid cron pattern");
 ```
 
-#### 3. `with_dom_and_dow()`
+#### 2. Making seconds optional required
+
+In contrast to `Seconds::Optional`, the `Seconds::Required` variant requires the seconds field in every cron pattern. This enforces a high level of precision in task scheduling, ensuring that every pattern explicitly specifies the second at which the task should run.
+
+**Example Usage**:
+
+```rust
+use croner::parser::{CronParser, Seconds};
+
+// Configure the parser to require seconds.
+let parser = CronParser::builder().seconds(Seconds::Required).build();
+
+let cron = parser
+    .parse("5 */2 * * * *") // At 5 seconds past every 2 minutes
+    .expect("Invalid cron pattern");
+```
+
+#### 3. `dom_and_dow`
 
 This method enables the combination of Day of Month (DOM) and Day of Week (DOW) conditions in your cron expressions. It's particularly useful for creating schedules that require specificity in terms of both the day of the month and the day of the week, such as running a task when the first of the month is a Monday, or christmas day is on a friday.
 
 **Example Usage**:
 
 ```rust
-let cron = Cron::new("0 0 25 * FRI") // When christmas day is on a friday
-    .with_dom_and_dow()
-    .parse()
+use croner::parser::CronParser;
+
+// Configure the parser to enable DOM and DOW.
+let parser = CronParser::builder().dom_and_dow(true).build();
+
+let cron = parser
+    .parse("0 0 25 * FRI") // When christmas day is on a friday
     .expect("Invalid cron pattern");
 ```
 
-#### 4. `with_alternative_weekdays()` (Quartz mode)
+#### 4. `alternative_weekdays` (Quartz mode)
 
 This configuration method switches the weekday mode from the POSIX standard to the Quartz-style, commonly used in Java-based scheduling systems. It's useful for those who are accustomed to Quartz's way of specifying weekdays or for ensuring compatibility with existing Quartz-based schedules.
 
 **Example Usage**:
 
 ```rust
-let cron = Cron::new("0 0 12 * * 6") // Every Friday (denoted with 6 in Quartz mode) at noon
-    .with_alternative_weekdays()
-    .parse()
+use croner::parser::CronParser;
+
+// Configure the parser to use Quartz-style weekday mode.
+let parser = CronParser::builder().alternative_weekdays(true).build();
+
+let cron = parser
+    .parse("0 0 12 * * 6") // Every Friday (denoted with 6 in Quartz mode) at noon
     .expect("Invalid cron pattern");
 ```
 

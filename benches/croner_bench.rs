@@ -1,11 +1,12 @@
 use chrono::Local;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use croner::Cron;
+use croner::{parser::CronParser, Cron};
 
 fn parse_take_100(_n: u64) {
-    let cron: Cron = Cron::new("15 15 15 L 3 *")
-        .with_seconds_optional()
-        .parse()
+    let cron: Cron = CronParser::builder()
+        .seconds(croner::parser::Seconds::Optional)
+        .build()
+        .parse("15 15 15 L 3 *")
         .expect("Couldn't parse cron string");
     let time = Local::now();
     for _time in cron.clone().iter_after(time).take(100) {}

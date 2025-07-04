@@ -18,11 +18,13 @@
 //! The following example demonstrates how to use Croner to parse a cron expression and find the next and previous occurrences.
 //!
 //! ```rust
+//! use std::str::FromStr as _;
+//!
 //! use chrono::Utc;
 //! use croner::Cron;
 //!
 //! // Parse a cron expression to find occurrences at 00:00 on Friday
-//! let cron = Cron::new("0 0 * * FRI").parse().expect("Successful parsing");
+//! let cron = Cron::from_str("0 0 * * FRI").expect("Successful parsing");
 //! let now = Utc::now();
 //!
 //! // Get the next occurrence from the current time
@@ -44,7 +46,7 @@
 //! );
 //! ```
 //!
-//! In this example, `Cron::new("0 0 * * FRI")` creates a new Cron instance for the pattern that represents every Friday at midnight. The `find_next_occurrence` method calculates the next time this pattern will be true from the current moment.
+//! In this example, `Cron::from_str("0 0 * * FRI")` creates a new Cron instance for the pattern that represents every Friday at midnight. The `find_next_occurrence` method calculates the next time this pattern will be true from the current moment.
 //!
 //! The `false` argument in `find_next_occurrence` specifies that the current time is not included in the calculation, ensuring that only future occurrences are considered.
 //!
@@ -80,6 +82,7 @@
 //! For more information, refer to the full [README](https://github.com/hexagon/croner-rust).
 
 pub mod errors;
+pub mod parser;
 
 mod component;
 mod iterator;
@@ -101,6 +104,7 @@ pub enum TimeComponent {
 }
 use errors::CronError;
 pub use iterator::CronIterator;
+use parser::CronParser;
 use pattern::CronPattern;
 use std::str::FromStr;
 
@@ -132,20 +136,15 @@ pub struct Cron {
     pub pattern: CronPattern, // Parsed cron pattern
 }
 
+impl FromStr for Cron {
+    type Err = CronError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        CronParser::new().parse(s)
+    }
+}
+
 impl Cron {
-    // Constructor to create a new instance of Cron with default settings
-    pub fn new(cron_string: &str) -> Self {
-        Self {
-            pattern: CronPattern::new(cron_string),
-        }
-    }
-
-    // Tries to parse a given cron string into a Cron instance.
-    pub fn parse(&mut self) -> Result<Cron, CronError> {
-        self.pattern.parse()?;
-        Ok(self.clone())
-    }
-
     /// Evaluates if a given `DateTime` matches the cron pattern.
     ///
     /// The function checks each cron field (seconds, minutes, hours, day of month, month) against
@@ -171,11 +170,13 @@ impl Cron {
     /// # Examples
     ///
     /// ```
+    /// use std::str::FromStr as _;
+    ///
     /// use croner::Cron;
     /// use chrono::Utc;
     ///
     /// // Parse cron expression
-    /// let cron: Cron = Cron::new("* * * * *").parse().expect("Couldn't parse cron string");
+    /// let cron: Cron = Cron::from_str("* * * * *").expect("Couldn't parse cron string");
     ///
     /// // Compare to time now
     /// let time = Utc::now();
@@ -235,10 +236,10 @@ impl Cron {
     ///
     /// ```
     /// use chrono::Utc;
-    /// use croner::Cron;
+    /// use croner::{Cron, parser::{Seconds, CronParser}};
     ///
     /// // Parse cron expression
-    /// let cron: Cron = Cron::new("0 18 * * * 5").with_seconds_required().parse().expect("Success");
+    /// let cron: Cron = CronParser::builder().seconds(Seconds::Required).build().parse("0 18 * * * 5").expect("Success");
     ///
     /// // Get next match
     /// let time = Utc::now();
@@ -554,26 +555,6 @@ impl Cron {
         Ok(changed)
     }
 
-    pub fn with_dom_and_dow(&mut self) -> &mut Self {
-        self.pattern.with_dom_and_dow();
-        self
-    }
-
-    pub fn with_seconds_optional(&mut self) -> &mut Self {
-        self.pattern.with_seconds_optional();
-        self
-    }
-
-    pub fn with_seconds_required(&mut self) -> &mut Self {
-        self.pattern.with_seconds_required();
-        self
-    }
-
-    pub fn with_alternative_weekdays(&mut self) -> &mut Self {
-        self.pattern.with_alternative_weekdays();
-        self
-    }
-
     pub fn as_str(&self) -> &str {
         self.pattern.as_str()
     }
@@ -582,15 +563,6 @@ impl Cron {
 impl std::fmt::Display for Cron {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.pattern)
-    }
-}
-
-// Enables creating a Cron instance from a string slice, returning a CronError if parsing fails.
-impl FromStr for Cron {
-    type Err = CronError;
-
-    fn from_str(cron_string: &str) -> Result<Cron, CronError> {
-        Cron::new(cron_string).parse()
     }
 }
 
@@ -623,7 +595,7 @@ impl<'de> Deserialize<'de> for Cron {
             where
                 E: de::Error,
             {
-                Cron::new(value).parse().map_err(de::Error::custom)
+                Cron::from_str(value).map_err(de::Error::custom)
             }
         }
 
@@ -656,6 +628,8 @@ pub fn from_naive<Tz: TimeZone>(
 mod tests {
     use std::hash::{DefaultHasher, Hash, Hasher as _};
 
+    use crate::parser::Seconds;
+
     use super::*;
     use chrono::{Local, TimeZone};
     use rstest::rstest;
@@ -664,7 +638,7 @@ mod tests {
     #[test]
     fn test_is_time_matching() -> Result<(), CronError> {
         // This pattern is meant to match first second of 9 am on the first day of January.
-        let cron = Cron::new("0 9 1 1 *").parse()?;
+        let cron = Cron::from_str("0 9 1 1 *")?;
         let time_matching = Local.with_ymd_and_hms(2023, 1, 1, 9, 0, 0).unwrap();
         let time_not_matching = Local.with_ymd_and_hms(2023, 1, 1, 10, 0, 0).unwrap();
 
@@ -677,7 +651,7 @@ mod tests {
     #[test]
     fn test_last_day_of_february_non_leap_year() -> Result<(), CronError> {
         // This pattern is meant to match every second of 9 am on the last day of February in a non-leap year.
-        let cron = Cron::new("0 9 L 2 *").parse()?;
+        let cron = Cron::from_str("0 9 L 2 *")?;
 
         // February 28th, 2023 is the last day of February in a non-leap year.
         let time_matching = Local.with_ymd_and_hms(2023, 2, 28, 9, 0, 0).unwrap();
@@ -694,7 +668,7 @@ mod tests {
     #[test]
     fn test_last_day_of_february_leap_year() -> Result<(), CronError> {
         // This pattern is meant to match every second of 9 am on the last day of February in a leap year.
-        let cron = Cron::new("0 9 L 2 *").parse()?;
+        let cron = Cron::from_str("0 9 L 2 *")?;
 
         // February 29th, 2024 is the last day of February in a leap year.
         let time_matching = Local.with_ymd_and_hms(2024, 2, 29, 9, 0, 0).unwrap();
@@ -711,7 +685,7 @@ mod tests {
     #[test]
     fn test_last_friday_of_year() -> Result<(), CronError> {
         // This pattern is meant to match 0:00:00 last friday of current year
-        let cron = Cron::new("0 0 * * FRI#L").parse()?;
+        let cron = Cron::from_str("0 0 * * FRI#L")?;
 
         // February 29th, 2024 is the last day of February in a leap year.
         let time_matching = Local.with_ymd_and_hms(2023, 12, 29, 0, 0, 0).unwrap();
@@ -724,7 +698,7 @@ mod tests {
     #[test]
     fn test_last_friday_of_year_alternative_alpha_syntax() -> Result<(), CronError> {
         // This pattern is meant to match 0:00:00 last friday of current year
-        let cron = Cron::new("0 0 * * FRIl").parse()?;
+        let cron = Cron::from_str("0 0 * * FRIl")?;
 
         // February 29th, 2024 is the last day of February in a leap year.
         let time_matching = Local.with_ymd_and_hms(2023, 12, 29, 0, 0, 0).unwrap();
@@ -737,7 +711,7 @@ mod tests {
     #[test]
     fn test_last_friday_of_year_alternative_number_syntax() -> Result<(), CronError> {
         // This pattern is meant to match 0:00:00 last friday of current year
-        let cron = Cron::new("0 0 * * 5L").parse()?;
+        let cron = Cron::from_str("0 0 * * 5L")?;
 
         // February 29th, 2024 is the last day of February in a leap year.
         let time_matching = Local.with_ymd_and_hms(2023, 12, 29, 0, 0, 0).unwrap();
@@ -750,7 +724,10 @@ mod tests {
     #[test]
     fn test_find_next_occurrence() -> Result<(), CronError> {
         // This pattern is meant to match every minute at 30 seconds past the minute.
-        let cron = Cron::new("* * * * * *").with_seconds_optional().parse()?;
+        let cron = CronParser::builder()
+            .seconds(Seconds::Optional)
+            .build()
+            .parse("* * * * * *")?;
 
         // Set the start time to a known value.
         let start_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 29).unwrap();
@@ -766,7 +743,7 @@ mod tests {
 
     #[test]
     fn test_find_next_minute() -> Result<(), CronError> {
-        let cron = Cron::new("* * * * *").parse()?;
+        let cron = Cron::from_str("* * * * *")?;
 
         // Set the start time to a known value.
         let start_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 29).unwrap();
@@ -783,7 +760,10 @@ mod tests {
     #[test]
     fn test_wrap_month_and_year() -> Result<(), CronError> {
         // This pattern is meant to match every minute at 30 seconds past the minute.
-        let cron = Cron::new("0 0 15 * * *").with_seconds_optional().parse()?;
+        let cron = CronParser::builder()
+            .seconds(Seconds::Optional)
+            .build()
+            .parse("0 0 15 * * *")?;
 
         // Set the start time to a known value.
         let start_time = Local.with_ymd_and_hms(2023, 12, 31, 16, 0, 0).unwrap();
@@ -799,7 +779,10 @@ mod tests {
 
     #[test]
     fn test_weekday_pattern_correct_weekdays() -> Result<(), CronError> {
-        let schedule = Cron::new("0 0 0 * * 5,6").with_seconds_optional().parse()?;
+        let schedule = CronParser::builder()
+            .seconds(Seconds::Optional)
+            .build()
+            .parse("0 0 0 * * 5,6")?;
         let start_time = Local
             .with_ymd_and_hms(2022, 2, 17, 0, 0, 0)
             .single()
@@ -827,9 +810,10 @@ mod tests {
 
     #[test]
     fn test_weekday_pattern_combined_with_day_of_month() -> Result<(), CronError> {
-        let schedule = Cron::new("59 59 23 2 * 6")
-            .with_seconds_optional()
-            .parse()?;
+        let schedule = CronParser::builder()
+            .seconds(Seconds::Optional)
+            .build()
+            .parse("59 59 23 2 * 6")?;
         let start_time = Local
             .with_ymd_and_hms(2022, 1, 31, 0, 0, 0)
             .single()
@@ -864,7 +848,7 @@ mod tests {
 
     #[test]
     fn test_weekday_pattern_alone() -> Result<(), CronError> {
-        let schedule = Cron::new("15 9 * * mon").parse()?;
+        let schedule = Cron::from_str("15 9 * * mon")?;
         let start_time = Local
             .with_ymd_and_hms(2022, 2, 28, 23, 59, 0)
             .single()
@@ -895,7 +879,7 @@ mod tests {
     #[test]
     fn test_cron_expression_13w_wed() -> Result<(), CronError> {
         // Parse the cron expression
-        let cron = Cron::new("0 0 13W * WED").parse()?;
+        let cron = Cron::from_str("0 0 13W * WED")?;
 
         // Define the start date for the test
         let start_date = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
@@ -925,10 +909,11 @@ mod tests {
     #[test]
     fn test_cron_expression_31dec_fri() -> Result<(), CronError> {
         // Parse the cron expression
-        let cron = Cron::new("0 0 0 31 12 FRI")
-            .with_seconds_required()
-            .with_dom_and_dow()
-            .parse()?;
+        let cron = CronParser::builder()
+            .seconds(Seconds::Required)
+            .dom_and_dow(true)
+            .build()
+            .parse("0 0 0 31 12 FRI")?;
 
         // Define the start date for the test
         let start_date = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
@@ -970,7 +955,11 @@ mod tests {
             "0 0 0 5#L * *",
         ];
         for expr in invalid_expressions {
-            assert!(Cron::new(expr).with_seconds_optional().parse().is_err());
+            assert!(CronParser::builder()
+                .seconds(Seconds::Optional)
+                .build()
+                .parse(expr)
+                .is_err());
         }
     }
 
@@ -999,7 +988,7 @@ mod tests {
             "0 0 5,L * 7#2",
         ];
         for expr in valid_expressions {
-            assert!(Cron::new(expr).parse().is_ok());
+            assert!(Cron::from_str(expr).is_ok());
         }
     }
 
@@ -1007,7 +996,7 @@ mod tests {
     fn test_is_time_matching_different_time_zones() -> Result<(), CronError> {
         use chrono::FixedOffset;
 
-        let cron = Cron::new("0 12 * * *").parse()?;
+        let cron = Cron::from_str("0 12 * * *")?;
         let time_east_matching = FixedOffset::east_opt(3600)
             .expect("Success")
             .with_ymd_and_hms(2023, 1, 1, 12, 0, 0)
@@ -1025,9 +1014,10 @@ mod tests {
 
     #[test]
     fn test_find_next_occurrence_edge_case_inclusive() -> Result<(), CronError> {
-        let cron = Cron::new("59 59 23 * * *")
-            .with_seconds_required()
-            .parse()?;
+        let cron = CronParser::builder()
+            .seconds(Seconds::Required)
+            .build()
+            .parse("59 59 23 * * *")?;
         let start_time = Local.with_ymd_and_hms(2023, 3, 14, 23, 59, 59).unwrap();
         let next_occurrence = cron.find_next_occurrence(&start_time, true)?;
         let expected_time = Local.with_ymd_and_hms(2023, 3, 14, 23, 59, 59).unwrap();
@@ -1037,9 +1027,10 @@ mod tests {
 
     #[test]
     fn test_find_next_occurrence_edge_case_exclusive() -> Result<(), CronError> {
-        let cron = Cron::new("59 59 23 * * *")
-            .with_seconds_optional()
-            .parse()?;
+        let cron = CronParser::builder()
+            .seconds(Seconds::Optional)
+            .build()
+            .parse("59 59 23 * * *")?;
         let start_time = Local.with_ymd_and_hms(2023, 3, 14, 23, 59, 59).unwrap();
         let next_occurrence = cron.find_next_occurrence(&start_time, false)?;
         let expected_time = Local.with_ymd_and_hms(2023, 3, 15, 23, 59, 59).unwrap();
@@ -1049,7 +1040,7 @@ mod tests {
 
     #[test]
     fn test_cron_iterator_large_time_jumps() -> Result<(), CronError> {
-        let cron = Cron::new("0 0 * * *").parse()?;
+        let cron = Cron::from_str("0 0 * * *")?;
         let start_time = Local.with_ymd_and_hms(2020, 1, 1, 0, 0, 0).unwrap();
         let mut iterator = cron.iter_after(start_time);
         let next_run = iterator.nth(365 * 5 + 1); // Jump 5 years ahead
@@ -1060,7 +1051,7 @@ mod tests {
 
     #[test]
     fn test_handling_different_month_lengths() -> Result<(), CronError> {
-        let cron = Cron::new("0 0 L * *").parse()?; // Last day of the month
+        let cron = Cron::from_str("0 0 L * *")?; // Last day of the month
         let feb_non_leap_year = Local.with_ymd_and_hms(2023, 2, 1, 0, 0, 0).unwrap();
         let feb_leap_year = Local.with_ymd_and_hms(2024, 2, 1, 0, 0, 0).unwrap();
         let april = Local.with_ymd_and_hms(2023, 4, 1, 0, 0, 0).unwrap();
@@ -1083,9 +1074,10 @@ mod tests {
 
     #[test]
     fn test_cron_iterator_non_standard_intervals() -> Result<(), CronError> {
-        let cron = Cron::new("*/29 */13 * * * *")
-            .with_seconds_optional()
-            .parse()?;
+        let cron = CronParser::builder()
+            .seconds(Seconds::Optional)
+            .build()
+            .parse("*/29 */13 * * * *")?;
         let start_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap();
         let mut iterator = cron.iter_after(start_time);
         let first_run = iterator.next().unwrap();
@@ -1101,7 +1093,7 @@ mod tests {
 
     #[test]
     fn test_cron_iterator_non_standard_intervals_with_offset() -> Result<(), CronError> {
-        let cron = Cron::new("7/29 2/13 * * *").parse()?;
+        let cron = Cron::from_str("7/29 2/13 * * *")?;
         let start_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap();
         let mut iterator = cron.iter_after(start_time);
 
@@ -1124,7 +1116,7 @@ mod tests {
         use chrono::TimeZone;
 
         // Parse the cron expression with specified options
-        let cron = Cron::new("0 0 */31,1-7 */1 MON").parse()?;
+        let cron = Cron::from_str("0 0 */31,1-7 */1 MON")?;
 
         // Define the start date for the test
         let start_date = Local.with_ymd_and_hms(2023, 12, 24, 0, 0, 0).unwrap();
@@ -1168,10 +1160,11 @@ mod tests {
         use chrono::TimeZone;
 
         // Parse the cron expression with specified options
-        let cron = Cron::new("0 0 */31,1-7 */1 MON")
-            .with_dom_and_dow()
-            .with_seconds_optional() // Just to differ as much from the non dom-and-dow test
-            .parse()?;
+        let cron = CronParser::builder()
+            .seconds(Seconds::Optional) // Just to differ as much from the non dom-and-dow test
+            .dom_and_dow(true)
+            .build()
+            .parse("0 0 */31,1-7 */1 MON")?;
 
         // Define the start date for the test
         let start_date = Local.with_ymd_and_hms(2023, 12, 24, 0, 0, 0).unwrap();
@@ -1203,10 +1196,11 @@ mod tests {
         use chrono::TimeZone;
 
         // Parse the cron expression with specified options
-        let cron = Cron::new("0 0 29 2-3 FRI")
-            .with_dom_and_dow()
-            .with_seconds_optional()
-            .parse()?;
+        let cron = CronParser::builder()
+            .seconds(Seconds::Optional) // Just to differ as much from the non dom-and-dow test
+            .dom_and_dow(true)
+            .build()
+            .parse("0 0 29 2-3 FRI")?;
 
         // Define the start date for the test
         let start_date = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
@@ -1237,7 +1231,10 @@ mod tests {
         use chrono::TimeZone;
 
         // Parse the cron expression with specified options
-        let cron = Cron::new("0 0 0 * * 7#2").with_seconds_optional().parse()?;
+        let cron = CronParser::builder()
+            .seconds(Seconds::Optional)
+            .build()
+            .parse("0 0 0 * * 7#2")?;
 
         // Define the start date for the test
         let start_date = Local.with_ymd_and_hms(2024, 10, 1, 0, 0, 0).unwrap();
@@ -1265,7 +1262,7 @@ mod tests {
 
     #[test]
     fn test_specific_and_wildcard_entries() -> Result<(), CronError> {
-        let cron = Cron::new("15 */2 * 3,5 FRI").parse()?;
+        let cron = Cron::from_str("15 */2 * 3,5 FRI")?;
         let matching_time = Local.with_ymd_and_hms(2023, 3, 3, 2, 15, 0).unwrap();
         let non_matching_time = Local.with_ymd_and_hms(2023, 3, 3, 3, 15, 0).unwrap();
 
@@ -1277,7 +1274,7 @@ mod tests {
 
     #[test]
     fn test_month_weekday_edge_cases() -> Result<(), CronError> {
-        let cron = Cron::new("0 0 * 2-3 SUN").parse()?;
+        let cron = Cron::from_str("0 0 * 2-3 SUN")?;
 
         let matching_time = Local.with_ymd_and_hms(2023, 2, 5, 0, 0, 0).unwrap();
         let non_matching_time = Local.with_ymd_and_hms(2023, 2, 5, 0, 0, 1).unwrap();
@@ -1290,7 +1287,7 @@ mod tests {
 
     #[test]
     fn test_leap_year() -> Result<(), CronError> {
-        let cron = Cron::new("0 0 29 2 *").parse()?;
+        let cron = Cron::from_str("0 0 29 2 *")?;
         let leap_year_matching = Local.with_ymd_and_hms(2024, 2, 29, 0, 0, 0).unwrap();
 
         assert!(cron.is_time_matching(&leap_year_matching)?);
@@ -1300,7 +1297,7 @@ mod tests {
 
     #[test]
     fn test_tabs_for_separator() -> Result<(), CronError> {
-        let cron = Cron::new("0 0   29  2   *").parse()?;
+        let cron = Cron::from_str("0 0   29  2   *")?;
         let leap_year_matching = Local.with_ymd_and_hms(2024, 2, 29, 0, 0, 0).unwrap();
 
         assert!(cron.is_time_matching(&leap_year_matching)?);
@@ -1310,7 +1307,7 @@ mod tests {
 
     #[test]
     fn test_mixed_separators() -> Result<(), CronError> {
-        let cron = Cron::new("0  0    29  2      *").parse()?;
+        let cron = Cron::from_str("0  0    29  2      *")?;
         let leap_year_matching = Local.with_ymd_and_hms(2024, 2, 29, 0, 0, 0).unwrap();
 
         assert!(cron.is_time_matching(&leap_year_matching)?);
@@ -1320,7 +1317,7 @@ mod tests {
 
     #[test]
     fn test_mixed_leading_separators() -> Result<(), CronError> {
-        let cron = Cron::new("  0 0 29 2 *").parse()?;
+        let cron = Cron::from_str("  0 0 29 2 *")?;
         let leap_year_matching = Local.with_ymd_and_hms(2024, 2, 29, 0, 0, 0).unwrap();
 
         assert!(cron.is_time_matching(&leap_year_matching)?);
@@ -1330,7 +1327,7 @@ mod tests {
 
     #[test]
     fn test_mixed_tailing_separators() -> Result<(), CronError> {
-        let cron = Cron::new("0 0 29 2 *    ").parse()?;
+        let cron = Cron::from_str("0 0 29 2 *    ")?;
         let leap_year_matching = Local.with_ymd_and_hms(2024, 2, 29, 0, 0, 0).unwrap();
 
         assert!(cron.is_time_matching(&leap_year_matching)?);
@@ -1340,10 +1337,14 @@ mod tests {
 
     #[test]
     fn test_time_overflow() -> Result<(), CronError> {
-        let cron_match = Cron::new("59 59 23 31 12 *")
-            .with_seconds_optional()
-            .parse()?;
-        let cron_next = Cron::new("0 0 0 1 1 *").with_seconds_optional().parse()?;
+        let cron_match = CronParser::builder()
+            .seconds(Seconds::Optional)
+            .build()
+            .parse("59 59 23 31 12 *")?;
+        let cron_next = CronParser::builder()
+            .seconds(Seconds::Optional)
+            .build()
+            .parse("0 0 0 1 1 *")?;
         let time_matching = Local.with_ymd_and_hms(2023, 12, 31, 23, 59, 59).unwrap();
         let next_day = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
         let next_match = Local.with_ymd_and_hms(2024, 12, 31, 23, 59, 59).unwrap();
@@ -1361,7 +1362,7 @@ mod tests {
 
     #[test]
     fn test_yearly_recurrence() -> Result<(), CronError> {
-        let cron = Cron::new("0 0 1 1 *").parse()?;
+        let cron = Cron::from_str("0 0 1 1 *")?;
         let matching_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap();
         let non_matching_time = Local.with_ymd_and_hms(2023, 1, 2, 0, 0, 0).unwrap();
 
@@ -1389,7 +1390,7 @@ mod tests {
     // Optional Seconds Field (5 vs 6 fields)
     #[case("* * * * * *", "* * * * *", false)]
     #[case("0 12 * * *", "30 0 12 * * *", false)]
-    #[case("0 0 * * * *", "@hourly", false)]
+    #[case("0 0 * * * *", "@hourly", true)]
     // Field Specificity (Earlier vs. Later)
     #[case("5 * * * * *", "10 * * * * *", false)]
     #[case("15 * * * *", "45 * * * *", false)]
@@ -1443,25 +1444,29 @@ mod tests {
         #[case] pattern_2: &str,
         #[case] equal: bool,
     ) {
+        use crate::parser::Seconds;
+
         eprintln!("Parsing {pattern_1}");
-        let cron_1 = Cron::new(pattern_1).parse().unwrap_or_else(|err| {
+        let cron_1 = Cron::from_str(pattern_1).unwrap_or_else(|err| {
             eprintln!(
                 "Initial parse attempt failed ({err}). Trying again but with allowed seconds."
             );
-            Cron::new(pattern_1)
-                .with_seconds_required()
-                .parse()
+            CronParser::builder()
+                .seconds(Seconds::Required)
+                .build()
+                .parse(pattern_1)
                 .unwrap()
         });
 
         eprintln!("Parsing {pattern_2}");
-        let cron_2 = Cron::new(pattern_2).parse().unwrap_or_else(|err| {
+        let cron_2 = Cron::from_str(pattern_2).unwrap_or_else(|err| {
             eprintln!(
                 "Initial parse attempt failed ({err}). Trying again but with allowed seconds."
             );
-            Cron::new(pattern_2)
-                .with_seconds_required()
-                .parse()
+            CronParser::builder()
+                .seconds(Seconds::Required)
+                .build()
+                .parse(pattern_2)
                 .unwrap()
         });
 
@@ -1503,17 +1508,15 @@ mod tests {
     #[case("0 0 8-14 * MON", "0 0 * * MON#2")]
     #[should_panic(expected = "Patterns are not equal")]
     fn failed_equality(#[case] pattern_1: &str, #[case] pattern_2: &str) {
-        let cron_1 = Cron::new(pattern_1).parse().unwrap();
-        let cron_2 = Cron::new(pattern_2).parse().unwrap();
+        let cron_1 = Cron::from_str(pattern_1).unwrap();
+        let cron_2 = Cron::from_str(pattern_2).unwrap();
         assert!(cron_1 == cron_2, "Patterns are not equal");
     }
 
     #[cfg(feature = "serde")]
     #[test]
     fn test_serde_tokens() {
-        let cron = Cron::new("0 0 * * *")
-            .parse()
-            .expect("should be valid pattern");
+        let cron = Cron::from_str("0 0 * * *").expect("should be valid pattern");
         assert_tokens(&cron.to_string(), &[Token::Str("0 0 * * *")]);
     }
 
@@ -1526,9 +1529,7 @@ mod tests {
             ("*/15 9-17 * * MON-FRI", "*/15 9-17 * * 1-5"),
         ];
         for (shorthand, expected) in expressions.iter() {
-            let cron = Cron::new(shorthand)
-                .parse()
-                .expect("should be valid pattern");
+            let cron = Cron::from_str(shorthand).expect("should be valid pattern");
             assert_tokens(&cron.to_string(), &[Token::Str(expected)]);
         }
     }
@@ -1544,7 +1545,7 @@ mod tests {
 
     #[test]
     fn test_find_previous_occurrence() -> Result<(), CronError> {
-        let cron = Cron::new("* * * * *").parse()?;
+        let cron = Cron::from_str("* * * * *")?;
         let start_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 1, 30).unwrap();
         let prev_occurrence = cron.find_previous_occurrence(&start_time, false)?;
         let expected_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 1, 0).unwrap();
@@ -1554,7 +1555,7 @@ mod tests {
 
     #[test]
     fn test_find_previous_occurrence_inclusive() -> Result<(), CronError> {
-        let cron = Cron::new("* * * * *").parse()?;
+        let cron = Cron::from_str("* * * * *")?;
         let start_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 1, 0).unwrap();
         let prev_occurrence = cron.find_previous_occurrence(&start_time, true)?;
         assert_eq!(prev_occurrence, start_time);
@@ -1563,7 +1564,7 @@ mod tests {
 
     #[test]
     fn test_wrap_year_backwards() -> Result<(), CronError> {
-        let cron = Cron::new("0 0 1 1 *").parse()?; // Jan 1st, 00:00
+        let cron = Cron::from_str("0 0 1 1 *")?; // Jan 1st, 00:00
         let start_time = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 1).unwrap();
         let prev_occurrence = cron.find_previous_occurrence(&start_time, false)?;
         let expected_time = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
@@ -1579,7 +1580,7 @@ mod tests {
     #[test]
     fn test_find_occurrence_at_min_year_limit() -> Result<(), CronError> {
         // This pattern matches at midnight on January 1st every year.
-        let cron = Cron::new("0 0 1 1 *").parse()?;
+        let cron = Cron::from_str("0 0 1 1 *")?;
 
         // Start the search just after midnight on the first day of the minimum allowed year.
         let start_time = Local
@@ -1603,7 +1604,7 @@ mod tests {
     #[test]
     fn test_find_occurrence_at_max_year_limit() -> Result<(), CronError> {
         // This pattern matches at midnight on January 1st every year.
-        let cron = Cron::new("0 0 1 1 *").parse()?;
+        let cron = Cron::from_str("0 0 1 1 *")?;
 
         // Start the search late in the year just before the upper limit.
         let start_time = Local
@@ -1626,7 +1627,7 @@ mod tests {
     #[test]
     fn test_weekday_for_historical_date_1831() -> Result<(), CronError> {
         // This pattern should match at midnight every Sunday.
-        let cron = Cron::new("0 0 * * SUN").parse()?;
+        let cron = Cron::from_str("0 0 * * SUN")?;
 
         // June 5, 1831 was a Sunday.
         let matching_sunday = Local.with_ymd_and_hms(1831, 6, 5, 0, 0, 0).unwrap();

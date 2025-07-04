@@ -1,11 +1,12 @@
 use chrono::Local;
-use croner::Cron;
+use croner::parser::CronParser;
 
 fn main() {
     // Example: Parse cron expression
-    let cron = Cron::new("0 18 * * * FRI")
-        .with_seconds_required()
-        .parse()
+    let cron = CronParser::builder()
+        .seconds(croner::parser::Seconds::Required)
+        .build()
+        .parse("0 18 * * * FRI")
         .expect("Couldn't parse cron string");
 
     // Example: Compare cron pattern with current local time
