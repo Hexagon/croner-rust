@@ -170,7 +170,7 @@ a few additions and changes as outlined below:
 
 - Croner expressions have the following additional modifiers:
   - _?_: In the Rust version of croner, a questionmark in the day-of-month or 
-    day-of-week field behaves just as *. This allow for legacy cron patterns 
+    day-of-week field behaves just as `*`. This allow for legacy cron patterns 
     to be used.
   - _L_: The letter 'L' can be used in the day of the month field to indicate
     the last day of the month. When used in the day of the week field in
@@ -202,6 +202,11 @@ a few additions and changes as outlined below:
 > weekdays. For example, `5-6#L` means the last Friday and Saturday in the
 > month." The # character can be used to specify the "nth" weekday of the month.
 > For example, 5#2 represents the second Friday of the month.
+
+> **Note:** This feature is constrained within the given month. The search for 
+> the closest weekday will not cross into a previous or subsequent month. For
+> example, if the 1st of the month is a Saturday, 1W will trigger on Monday 
+> the 3rd, not the last Friday of the previous month.
 
 It is also possible to use the following "nicknames" as pattern.
 

@@ -286,10 +286,8 @@ impl CronPattern {
         let mut day_matches = self.days.is_bit_set(day as u8, ALL_BIT)?;
         let mut dow_matches = false;
 
-        if !day_matches && self.days.is_feature_enabled(LAST_BIT) {
-            if day == Self::last_day_of_month(year, month)? {
-                day_matches = true;
-            }
+        if !day_matches && self.days.is_feature_enabled(LAST_BIT) && day == Self::last_day_of_month(year, month)? {
+            day_matches = true;
         }
 
         if !day_matches && self.closest_weekday(year, month, day)? {
@@ -309,10 +307,8 @@ impl CronPattern {
             }
         }
 
-        if !dow_matches && self.days_of_week.is_bit_set(date.weekday().num_days_from_sunday() as u8, LAST_BIT)? {
-            if (date + chrono::Duration::days(7)).month() != date.month() {
-                dow_matches = true;
-            }
+        if !dow_matches && self.days_of_week.is_bit_set(date.weekday().num_days_from_sunday() as u8, LAST_BIT)? && (date + chrono::Duration::days(7)).month() != date.month() {
+            dow_matches = true;
         }
 
         dow_matches = dow_matches || self.days_of_week.is_bit_set(date.weekday().num_days_from_sunday() as u8, ALL_BIT)?;
@@ -334,21 +330,55 @@ impl CronPattern {
     }
 
     pub fn closest_weekday(&self, year: i32, month: u32, day: u32) -> Result<bool, CronError> {
-        let candidate_date = NaiveDate::from_ymd_opt(year, month, day).ok_or(CronError::InvalidDate)?;
-        let weekday = candidate_date.weekday();
-
-        if weekday != Weekday::Sat && weekday != Weekday::Sun {
-            if self.days.is_bit_set(day as u8, CLOSEST_WEEKDAY_BIT)? {
-                return Ok(true);
-            }
-            let prev = candidate_date - Duration::days(1);
-            let next = candidate_date + Duration::days(1);
-            if (prev.weekday() == Weekday::Sun && self.days.is_bit_set(prev.day() as u8, CLOSEST_WEEKDAY_BIT)?)
-                || (next.weekday() == Weekday::Sat && self.days.is_bit_set(next.day() as u8, CLOSEST_WEEKDAY_BIT)?)
-            {
-                return Ok(true);
+        // Iterate through all possible days to see if any have the 'W' flag.
+        for pattern_day_u8 in 1..=31 {
+            if self.days.is_bit_set(pattern_day_u8, CLOSEST_WEEKDAY_BIT)? {
+                // A 'W' day exists in the pattern. Check if it resolves to the function's date argument.
+                let pattern_day = pattern_day_u8 as u32;
+    
+                // Ensure the 'W' day is a valid calendar date for the given month/year.
+                if let Some(pattern_date) = NaiveDate::from_ymd_opt(year, month, pattern_day) {
+                    let weekday = pattern_date.weekday();
+    
+                    // Determine the actual trigger date based on the 'W' rule.
+                    let target_date = match weekday {
+                        // If the pattern day is a weekday, it triggers on that day.
+                        Weekday::Mon | Weekday::Tue | Weekday::Wed | Weekday::Thu | Weekday::Fri => {
+                            pattern_date
+                        }
+                        // If it's a Saturday, find the nearest weekday within the month.
+                        Weekday::Sat => {
+                            // The nearest weekday is Friday, but check if it's in the same month.
+                            let adjusted_date = pattern_date - Duration::days(1);
+                            if adjusted_date.month() == month {
+                                adjusted_date // It's Friday of the same month.
+                            } else {
+                                // Crossed boundary (e.g., 1st was Sat), so move forward to Monday.
+                                pattern_date + Duration::days(2)
+                            }
+                        }
+                        // If it's a Sunday, find the nearest weekday within the month.
+                        Weekday::Sun => {
+                            // The nearest weekday is Monday, but check if it's in the same month.
+                            let adjusted_date = pattern_date + Duration::days(1);
+                            if adjusted_date.month() == month {
+                                adjusted_date // It's Monday of the same month.
+                            } else {
+                                // Crossed boundary (e.g., 31st was Sun), so move back to Friday.
+                                pattern_date - Duration::days(2)
+                            }
+                        }
+                    };
+    
+                    // Check if the calculated target day is the day we're currently testing.
+                    if target_date.day() == day && target_date.month() == month {
+                        return Ok(true);
+                    }
+                }
             }
         }
+    
+        // No 'W' pattern matched the current day.
         Ok(false)
     }
 
@@ -962,4 +992,31 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_closest_weekday_month_boundary() -> Result<(), CronError> {
+        // --- TEST START OF MONTH ---
+        let pattern = CronPattern::new("0 0 0 1W * *").with_seconds_optional().parse()?;
+
+        // Case 1: The 1st is a Saturday (Nov 2025).
+        // Should trigger on Monday the 3rd, not jump back to October.
+        assert!(!pattern.day_match(2025, 10, 31)?, "Should not trigger on previous month");
+        assert!(pattern.day_match(2025, 11, 3)?, "Should trigger on Mon 3rd for Sat 1st");
+        assert!(!pattern.day_match(2025, 11, 1)?, "Should not trigger on Sat 1st itself");
+
+
+        // Case 2: The 1st is a Sunday (June 2025).
+        // Should trigger on Monday the 2nd.
+        assert!(pattern.day_match(2025, 6, 2)?, "Should trigger on Mon 2nd for Sun 1st");
+        assert!(!pattern.day_match(2025, 6, 3)?, "Should NOT trigger on Tue 3rd for Sun 1st");
+
+        // --- TEST END OF MONTH ---
+        let pattern_end = CronPattern::new("0 0 0 31W * *").with_seconds_optional().parse()?;
+
+        // Case 3: The 31st is a Sunday (Aug 2025).
+        // Should trigger on Friday the 29th, not jump forward to September.
+        assert!(pattern_end.day_match(2025, 8, 29)?, "Should trigger on Fri 29th for Sun 31st");
+        assert!(!pattern_end.day_match(2025, 9, 1)?, "Should not trigger on next month");
+
+        Ok(())
+    }
 }
