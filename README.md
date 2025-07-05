@@ -28,24 +28,24 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 
 Croner combines the features of cron and saffron, while following the POSIX/Vixie "standards" for the relevant parts. See this table:
 
-Feature              | Croner      | Cron      | Saffron |
----------------------|-------------|-----------|---------|
-Time Zones | X         |    X    |     | 
-Ranges (15-25)| X         |    X    |   X   | 
-Ranges with stepping (15-25/2)| X         |    X    |   X   |    X   |
-`L` - Last day of month | X         |         |   X   |
-`5#L` - Last occurrence of weekday |    X     |   X    |       |
-`5L` - Last occurrence of weekday |    X     |    ?   |   X    |
-`#` - Nth occurrence of weekday |    X     |      |   X    |
-`W` - Closest weekday |    X     |        |  X     |
-"Standards"-compliant weekdays (1 is monday) |   X    |      |       |
-Five part patterns (minute granularity) |  X   |         |    X   |
-Six part patterns (second granularity)|  X   |    X    |       |
-Weekday/Month text representations |  X   |    X    |   X   |
-Aliases (`@hourly` etc.) |  X           |     X      |          |
-chrono `DateTime` compatibility |    X     |     X   |   X    |
-DOM-and-DOW option |    X     |           |         |
-Generate human readable string |    X     |           |    X    |
+| Feature              | Croner      | Cron      | Saffron |
+|----------------------|-------------|-----------|---------|
+| Time Zones | X         |    X    |     |
+| Ranges (15-25)| X         |    X    |   X   |
+| Ranges with stepping (15-25/2)| X         |    X    |   X   |
+| `L` - Last day of month | X         |         |   X   |
+| `5#L` - Last occurrence of weekday |    X     |   X    |       |
+| `5L` - Last occurrence of weekday |    X     |    ?   |   X    |
+| `#` - Nth occurrence of weekday |    X     |      |   X    |
+| `W` - Closest weekday |    X     |        |  X     |
+| "Standards"-compliant weekdays (1 is monday) |   X    |      |       |
+| Five part patterns (minute granularity) |  X   |         |    X   |
+| Six part patterns (second granularity)|  X   |    X    |       |
+| Weekday/Month text representations |  X   |    X    |   X   |
+| Aliases (`@hourly` etc.) |  X           |     X      |          |
+| chrono `DateTime` compatibility |    X     |     X   |   X    |
+| DOM-and-DOW option |    X     |           |         |
+| Generate human readable string |    X     |           |    X    |
 
 > **Note**
 > Tests carried out at 2023-12-02 using `cron@0.12.0` and `saffron@.0.1.0`
@@ -78,8 +78,7 @@ use chrono::Local;
 fn main() {
 
     // Parse cron expression
-    let cron_all = Cron::new("18 * * * 5")
-      .parse()
+    let cron_all = Cron::from_str("18 * * * 5")
       .expect("Couldn't parse cron string");
 
     // Compare cron pattern with current local time
@@ -108,8 +107,7 @@ use chrono_tz::Tz;
 
 fn main() {
     // Parse cron expression
-    let cron = Cron::new("18 * * * 5")
-      .parse()
+    let cron = Cron::from_str("18 * * * 5")
       .expect("Couldn't parse cron string");
 
     // Choose a different time zone, for example America/New_York
@@ -129,27 +127,28 @@ fn main() {
 }
 ```
 
-This example demonstrates how to calculate the next 5 occurrences of New Year's Eve that fall on a Friday. We'll use a cron expression to match every Friday (`FRI`) in December (`12`) and use the `with_dom_and_dow` method to ensure both day of month and day of week conditions are met.
+This example demonstrates how to calculate the next 5 occurrences of New Year's Eve that fall on a Friday. We'll use a cron expression to match every Friday (`FRI`) in December (`12`) and configure `dom_and_dow` to ensure both day-of-month and day-of-week conditions are met (see [configuration](#configuration) for more details).
 
 ```rust
-use croner::Cron;
 use chrono::Local;
+use croner::parser::CronParser;
 
 fn main() {
     // Parse cron expression for Fridays in December
-    let cron = Cron::new("0 0 0 31 12 FRI")
-      // Include seconds in pattern
-      .with_seconds_optional()
-      // Ensure both day of month and day of week conditions are met
-      .with_dom_and_dow()
-      .parse()
-      .expect("Couldn't parse cron string");
+    let cron = CronParser::builder()
+        // Include seconds in pattern
+        .seconds(croner::parser::Seconds::Optional)
+        // Ensure both day of month and day of week conditions are met
+        .dom_and_dow(true)
+        .build()
+        .parse("0 0 0 31 12 FRI")
+        .expect("Couldn't parse cron string");
 
     let time = Local::now();
 
     println!("Finding the next 5 New Year's Eves on a Friday:");
     for time in cron.iter_from(time).take(5) {
-        println!("{}", time);
+        println!("{time}");
     }
 }
 ```
@@ -172,8 +171,8 @@ a few additions and changes as outlined below:
 ```
 
 - Croner expressions have the following additional modifiers:
-  - _?_: In the Rust version of croner, a questionmark in the day-of-month or 
-    day-of-week field behaves just as *. This allow for legacy cron patterns 
+  - _?_: In the Rust version of croner, a questionmark in the day-of-month or
+    day-of-week field behaves just as `*`. This allow for legacy cron patterns
     to be used.
   - _L_: The letter 'L' can be used in the day of the month field to indicate
     the last day of the month. When used in the day of the week field in
@@ -206,6 +205,11 @@ a few additions and changes as outlined below:
 > month." The # character can be used to specify the "nth" weekday of the month.
 > For example, 5#2 represents the second Friday of the month.
 
+> **Note:** The `W` feature is constrained within the given month. The search for
+> the closest weekday will not cross into a previous or subsequent month. For
+> example, if the 1st of the month is a Saturday, 1W will trigger on Monday
+> the 3rd, not the last Friday of the previous month.
+
 It is also possible to use the following "nicknames" as pattern.
 
 | Nickname   | Description                        |
@@ -214,58 +218,81 @@ It is also possible to use the following "nicknames" as pattern.
 | \@annually | Run once a year, ie. "0 0 1 1 *".  |
 | \@monthly  | Run once a month, ie. "0 0 1 * *". |
 | \@weekly   | Run once a week, ie. "0 0 * * 0".  |
-| \@daily    | Run once a day, ie. "0 0 * * *".   |
+| \@daily    | Run once a day, ie.  "0 0 * * *".  |
 | \@hourly   | Run once an hour, ie. "0 * * * *". |
 
 ### Configuration
 
-Croner offers several configuration methods to change how patterns are interpreted:
+Croner uses `CronParser` to parse the cron expression. Invoking
+`Cron::from_str("pattern")` is equivalent to
+`CronParser::new().parse("pattern")`. You can customise the parser by creating a
+parser builder using `CronParser::builder`.
 
-#### 1. `with_seconds_optional()`
+#### 1. Making seconds optional
 
-This method enables the inclusion of seconds in the cron pattern, but it's not mandatory. By using this method, you can create cron patterns that either include or omit the seconds field. This offers greater flexibility, allowing for more precise scheduling without imposing the strict requirement of defining seconds in every pattern.
+This option enables the inclusion of seconds in the cron pattern, but it's not mandatory. By using this option, you can create cron patterns that either include or omit the seconds field. This offers greater flexibility, allowing for more precise scheduling without imposing the strict requirement of defining seconds in every pattern.
 
 **Example Usage**:
+
 ```rust
-let cron = Cron::new("*/10 * * * * *") // Every 10 seconds
-    .with_seconds_optional()
-    .parse()
+use croner::parser::{CronParser, Seconds};
+
+// Configure the parser to allow seconds.
+let parser = CronParser::builder().seconds(Seconds::Optional).build();
+
+let cron = parser
+    .parse("*/10 * * * * *") // Every 10 seconds
     .expect("Invalid cron pattern");
 ```
 
-#### 2. `with_seconds_required()`
+#### 2. Making seconds optional required
 
-In contrast to `with_seconds_optional()`, the `with_seconds_required()` method requires the seconds field in every cron pattern. This enforces a high level of precision in task scheduling, ensuring that every pattern explicitly specifies the second at which the task should run.
+In contrast to `Seconds::Optional`, the `Seconds::Required` variant requires the seconds field in every cron pattern. This enforces a high level of precision in task scheduling, ensuring that every pattern explicitly specifies the second at which the task should run.
 
 **Example Usage**:
+
 ```rust
-let cron = Cron::new("5 */2 * * * *") // At 5 seconds past every 2 minutes
-    .with_seconds_required()
-    .parse()
+use croner::parser::{CronParser, Seconds};
+
+// Configure the parser to require seconds.
+let parser = CronParser::builder().seconds(Seconds::Required).build();
+
+let cron = parser
+    .parse("5 */2 * * * *") // At 5 seconds past every 2 minutes
     .expect("Invalid cron pattern");
 ```
 
-#### 3. `with_dom_and_dow()`
+#### 3. `dom_and_dow`
 
 This method enables the combination of Day of Month (DOM) and Day of Week (DOW) conditions in your cron expressions. It's particularly useful for creating schedules that require specificity in terms of both the day of the month and the day of the week, such as running a task when the first of the month is a Monday, or christmas day is on a friday.
 
 **Example Usage**:
+
 ```rust
-let cron = Cron::new("0 0 25 * FRI") // When christmas day is on a friday
-    .with_dom_and_dow()
-    .parse()
+use croner::parser::CronParser;
+
+// Configure the parser to enable DOM and DOW.
+let parser = CronParser::builder().dom_and_dow(true).build();
+
+let cron = parser
+    .parse("0 0 25 * FRI") // When christmas day is on a friday
     .expect("Invalid cron pattern");
 ```
 
-#### 4. `with_alternative_weekdays()` (Quartz mode)
+#### 4. `alternative_weekdays` (Quartz mode)
 
 This configuration method switches the weekday mode from the POSIX standard to the Quartz-style, commonly used in Java-based scheduling systems. It's useful for those who are accustomed to Quartz's way of specifying weekdays or for ensuring compatibility with existing Quartz-based schedules.
 
 **Example Usage**:
+
 ```rust
-let cron = Cron::new("0 0 12 * * 6") // Every Friday (denoted with 6 in Quartz mode) at noon
-    .with_alternative_weekdays()
-    .parse()
+use croner::parser::CronParser;
+
+// Configure the parser to use Quartz-style weekday mode.
+let parser = CronParser::builder().alternative_weekdays(true).build();
+
+let cron = parser
+    .parse("0 0 12 * * 6") // Every Friday (denoted with 6 in Quartz mode) at noon
     .expect("Invalid cron pattern");
 ```
 
@@ -273,6 +300,14 @@ let cron = Cron::new("0 0 12 * * 6") // Every Friday (denoted with 6 in Quartz m
 
 For detailed usage and API documentation, visit
 [Croner on docs.rs](https://docs.rs/croner/).
+
+**A Note on Historical Dates, the Proleptic Gregorian Calendar and future dates**
+
+Croner relies on the `chrono` crate for all date and time calculations. It's important to understand that `chrono` uses a **proleptic Gregorian calendar**.
+
+A practical consequence of this is that `croner` will not show the "missing days" from historical calendar reforms. For example, during the Gregorian calendar reform in October 1582, the days from the 5th to the 14th were skipped in many countries. `croner`, following `chrono`'s proleptic calendar, will iterate through these non-existent dates (e.g., Oct 5, Oct 6, etc.) as if they were real.
+
+To ensure stability and practical usability, `croner` operates within a defined date range. The earliest date supported is the beginning of **year 1 AD/CE**, a choice made to avoid the complexities of pre-CE calendar systems. The latest supported date is capped at the beginning of the **year 5000**, which serves as a safeguard to prevent infinite loops when searching for schedules that may be too far in the future or can never occur.
 
 ## Development
 
