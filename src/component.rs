@@ -38,6 +38,8 @@ pub struct CronComponent {
     bitfields: Vec<u8>,   // Vector of u8 to act as multiple bitfields
     pub min: u8,          // Minimum value this component can take
     pub max: u8,          // Maximum value this component can take
+    pub step: u8,         // Steps to skip in this component
+    pub from_wildcard: bool, // Wildcard used
     features: u8,         // Single u8 bitfield to indicate supported special bits, like LAST_BIT
     enabled_features: u8, // Bitfield to hold component-wide special bits like LAST_BIT
     input_offset: u8, // Offset for numerical representation of weekdays. normally 0=SUN,1=MON etc, setting this to 1 makes 1=SUN...
@@ -82,9 +84,25 @@ impl CronComponent {
 
             // Offset for numerical representation of weekdays. normally 0=SUN,1=MON etc, setting this to 1 makes 1=SUN...
             input_offset,
+
+            step: 1, // Used by .describe()
+
+            from_wildcard: false, // Used by .describe()
         }
     }
 
+    // Method primarily used by .describe() to evaluate if all bits are set
+    pub fn is_all_set(&self) -> bool {
+        // A component is "all set" if it's a '*' with no step.
+        // We check if all bits in its range are set for the ALL_BIT flag.
+        for i in self.min..=self.max {
+            if !self.is_bit_set(i, ALL_BIT).unwrap_or(false) {
+                return false;
+            }
+        }
+        true
+    }
+    
     // Set a bit at a given position (0 to 59)
     pub fn set_bit(&mut self, mut pos: u8, bit: u8) -> Result<(), CronError> {
         if pos < self.input_offset {
@@ -223,6 +241,7 @@ impl CronComponent {
     /// // Sets the hour component to trigger at every 3rd hour
     pub fn parse(&mut self, field: &str) -> Result<(), CronError> {
         if field == "*" {
+            self.from_wildcard = true;
             for value in self.min..=self.max {
                 self.set_bit(value + self.input_offset, ALL_BIT)?;
             }
@@ -397,6 +416,9 @@ impl CronComponent {
         let step = step_str
             .parse::<u8>()
             .map_err(|_| CronError::ComponentError("Invalid step.".to_string()))?;
+
+        self.step = step;
+
         if step == 0 {
             return Err(CronError::ComponentError(
                 "Step cannot be zero.".to_string(),
@@ -404,6 +426,7 @@ impl CronComponent {
         }
 
         let (start, end) = if range_part == "*" {
+            self.from_wildcard = true;
             (self.min, self.max)
         } else if range_part.contains('-') {
             let bounds: Vec<&str> = range_part.split('-').collect();

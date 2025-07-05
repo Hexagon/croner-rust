@@ -9,6 +9,7 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 
 - Parse and evaluate [cron](https://en.wikipedia.org/wiki/Cron#CRON_expression)
   expressions to calculate upcoming execution times.
+- Generates human-readable descriptions of cron patterns.
 - Follows POSIX/Vixie-cron standards, while extending it with additional specifiers such as `L`
   for the last day and weekday of the month, `#` for the nth weekday of the
   month, `W` for closest weekday to a day of month.
@@ -44,6 +45,7 @@ Croner combines the features of cron and saffron, while following the POSIX/Vixi
 | Aliases (`@hourly` etc.) |  X           |     X      |          |
 | chrono `DateTime` compatibility |    X     |     X   |   X    |
 | DOM-and-DOW option |    X     |           |         |
+| Generate human readable string |    X     |           |    X    |
 
 > **Note**
 > Tests carried out at 2023-12-02 using `cron@0.12.0` and `saffron@.0.1.0`
@@ -87,6 +89,7 @@ fn main() {
     let next = cron_all.find_next_occurrence(&time, false).unwrap();
 
     // Output results
+    println!("Description: {}", cron.describe());
     println!("Time is: {}", time);
     println!("Pattern \"{}\" does {} time {}", cron_all.pattern.to_string(), if matches_all { "match" } else { "not match" }, time );
     println!("Pattern \"{}\" will match next time at {}", cron_all.pattern.to_string(), next);
@@ -314,7 +317,7 @@ To start developing in the Croner project:
 2. Navigate into the project directory.
 3. Build the project using `cargo build`.
 4. Run tests with `cargo test`.
-5. Run demo with `cargo run --example pattern_demo`
+5. Run demo with `cargo run --example simple_demo`
 
 ## Contributing
 
