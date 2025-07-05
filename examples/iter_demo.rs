@@ -1,11 +1,12 @@
 use chrono::Utc;
-use croner::Cron;
+use croner::parser::CronParser;
 
 fn main() {
     // Parse cron expression
-    let cron = Cron::new("* * * * * *")
-        .with_seconds_optional()
-        .parse()
+    let cron = CronParser::builder()
+        .seconds(croner::parser::Seconds::Optional)
+        .build()
+        .parse("* * * * * *")
         .expect("Couldn't parse cron string");
 
     // Compare to UTC time now

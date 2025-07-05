@@ -25,7 +25,12 @@ where
     /// * `start_time` - The `DateTime` to start iterating from.
     /// * `inclusive` - Whether the `start_time` should be included in the results if it matches.
     /// * `direction` - The direction to iterate in (Forward or Backward).
-    pub fn new(cron: Cron, start_time: DateTime<Tz>, inclusive: bool, direction: Direction) -> Self {
+    pub fn new(
+        cron: Cron,
+        start_time: DateTime<Tz>,
+        inclusive: bool,
+        direction: Direction,
+    ) -> Self {
         CronIterator {
             cron,
             current_time: start_time,
