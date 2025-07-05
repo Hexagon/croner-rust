@@ -43,9 +43,9 @@ impl Language for English {
     fn dom_and_dow_if_also(&self, dow: &str) -> String { format!("(if it is also {})", dow) }
     fn dom_and_dow_if_also_one_of(&self, dow: &str) -> String { format!("(if it is also one of: {})", dow) }
 
-    fn list_conjunction_and(&self) -> &'static str { " and " }
-    fn list_conjunction_or(&self) -> &'static str { " or " }
-    fn list_conjunction_and_comma(&self) -> &'static str { ", and " }
+    fn list_conjunction_and(&self) -> &'static str { "and" }
+    fn list_conjunction_or(&self) -> &'static str { "or" }
+    fn list_conjunction_and_comma(&self) -> &'static str { ", and" }
     
     fn day_of_week_names(&self) -> [&'static str; 7] { ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"] }
     fn month_names(&self) -> [&'static str; 12] { ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] }

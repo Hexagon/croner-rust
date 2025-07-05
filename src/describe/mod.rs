@@ -21,7 +21,7 @@ pub trait Language {
     fn at_time(&self, time: &str) -> String;
     fn at_time_and_every_x_seconds(&self, time: &str, step: u8) -> String;
     fn at_time_at_second(&self, time: &str, second: &str) -> String;
-    
+
     fn at_phrase(&self, phrase: &str) -> String;
     fn on_phrase(&self, phrase: &str) -> String;
     fn in_phrase(&self, phrase: &str) -> String;
@@ -43,7 +43,7 @@ pub trait Language {
     fn list_conjunction_and(&self) -> &'static str;
     fn list_conjunction_or(&self) -> &'static str;
     fn list_conjunction_and_comma(&self) -> &'static str;
-    
+
     fn day_of_week_names(&self) -> [&'static str; 7];
     fn month_names(&self) -> [&'static str; 12];
 }
@@ -77,34 +77,56 @@ pub fn describe<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     description
 }
 
+/// Helper function to determine if a component is fully set (like a wildcard `*`).
+fn is_all_set(component: &CronComponent) -> bool {
+    // We can't just check for a wildcard flag anymore.
+    // A component is "all set" if every possible value is included.
+    if component.step != 1 {
+        return false;
+    }
+    let total_values = (component.max - component.min + 1) as usize;
+    let set_values = (component.min..=component.max)
+        .filter(|&i| component.is_bit_set(i, ALL_BIT).unwrap_or(false))
+        .count();
+    total_values == set_values
+}
+
 fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
-    let has_seconds = pattern.with_seconds_optional || pattern.with_seconds_required;
+
     let sec_vals = get_set_values(&pattern.seconds, ALL_BIT);
     let min_vals = get_set_values(&pattern.minutes, ALL_BIT);
     let hour_vals = get_set_values(&pattern.hours, ALL_BIT);
 
-    let is_default_seconds = !has_seconds || (pattern.seconds.step == 1 && sec_vals.len() == 1 && sec_vals[0] == 0);
-    let is_every_second = has_seconds && pattern.seconds.is_all_set();
+    let is_default_seconds = pattern.seconds.step == 1 && sec_vals.len() == 1 && sec_vals[0] == 0;
+    let is_every_second = is_all_set(&pattern.seconds);
+
+    // Heuristic to detect `*/step` patterns, replacing `from_wildcard`.
+    let is_stepped_from_start =
+        |step: u8, vals: &[u8], min: u8| step > 1 && !vals.is_empty() && vals[0] == min;
 
     // Handle simplest cases first
-    if is_every_second && pattern.minutes.is_all_set() && pattern.hours.is_all_set() {
+    if is_every_second && is_all_set(&pattern.minutes) && is_all_set(&pattern.hours) {
         return lang.every_second_phrase().to_string();
     }
-    if is_default_seconds && pattern.minutes.is_all_set() && pattern.hours.is_all_set() {
+    if is_default_seconds && is_all_set(&pattern.minutes) && is_all_set(&pattern.hours) {
         return lang.every_minute().to_string();
     }
-    if is_default_seconds && pattern.minutes.from_wildcard && pattern.minutes.step > 1 && pattern.hours.is_all_set() {
+    if is_default_seconds
+        && is_stepped_from_start(pattern.minutes.step, &min_vals, pattern.minutes.min)
+        && is_all_set(&pattern.hours)
+    {
         return lang.at_phrase(&lang.every_x_minutes(pattern.minutes.step));
     }
 
     // Handle specific HH:MM time
-    if !is_every_second && pattern.hours.step == 1 && hour_vals.len() == 1 && pattern.minutes.step == 1 && min_vals.len() == 1 {
-        let hour = hour_vals[0];
-        let minute = min_vals[0];
-        let time_str = format!("{:02}:{:02}", hour, minute);
-        
-        if has_seconds && !is_default_seconds {
-            if pattern.seconds.step > 1 && pattern.seconds.from_wildcard {
+    if !is_every_second
+        && pattern.hours.step == 1 && hour_vals.len() == 1
+        && pattern.minutes.step == 1 && min_vals.len() == 1
+    {
+        let time_str = format!("{:02}:{:02}", hour_vals[0], min_vals[0]);
+
+        if !is_default_seconds {
+            if is_stepped_from_start(pattern.seconds.step, &sec_vals, pattern.seconds.min) {
                 return lang.at_time_and_every_x_seconds(&time_str, pattern.seconds.step);
             }
             if sec_vals.len() == 1 {
@@ -117,48 +139,46 @@ fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
 
     // Handle all other complex combinations
     let mut parts = vec![];
-    
+
     if is_every_second {
         parts.push(lang.every_second_phrase().to_string());
-    } else if has_seconds && !is_default_seconds {
-        // Correctly handle ranged steps vs. wildcard steps
-        if pattern.seconds.step > 1 && pattern.seconds.from_wildcard {
+    } else if !is_default_seconds {
+        if is_stepped_from_start(pattern.seconds.step, &sec_vals, pattern.seconds.min) {
             parts.push(lang.every_x_seconds(pattern.seconds.step));
         } else {
             parts.push(lang.second_phrase(&format_number_list(&sec_vals, lang)));
         }
     }
-    
-    if pattern.minutes.from_wildcard && pattern.minutes.step > 1 {
+
+    if is_stepped_from_start(pattern.minutes.step, &min_vals, pattern.minutes.min) {
         parts.push(lang.every_x_minutes(pattern.minutes.step));
-    } else if !pattern.minutes.is_all_set() {
+    } else if !is_all_set(&pattern.minutes) {
         let min_desc = lang.minute_phrase(&format_number_list(&min_vals, lang));
-        if pattern.hours.is_all_set() && pattern.hours.step == 1 {
+        if is_all_set(&pattern.hours) && pattern.hours.step == 1 {
             parts.push(lang.minute_past_every_hour_phrase(&min_desc));
         } else {
             parts.push(min_desc);
         }
     }
 
-    if !pattern.hours.is_all_set() {
-        if pattern.hours.step > 1 {
+    if !is_all_set(&pattern.hours) {
+        if is_stepped_from_start(pattern.hours.step, &hour_vals, pattern.hours.min) {
             parts.push(lang.every_x_hours(pattern.hours.step));
         } else {
-             parts.push(lang.hour_phrase(&format_number_list(&hour_vals, lang)));
+            parts.push(lang.hour_phrase(&format_number_list(&hour_vals, lang)));
         }
     }
 
     if parts.is_empty() {
         return lang.every_minute().to_string();
     }
-    
+
     if parts.len() > 1 && parts[0] == lang.every_second_phrase() {
         return parts.join(", ");
     }
-    
+
     lang.at_phrase(&parts.join(", "))
 }
-
 
 fn get_set_values(component: &CronComponent, bit: u8) -> Vec<u8> {
     (component.min..=component.max)
@@ -170,11 +190,11 @@ fn format_text_list<L: Language>(items: Vec<String>, lang: &L) -> String {
     match items.len() {
         0 => String::new(),
         1 => items[0].clone(),
-        2 => format!("{}{}{}", items[0], lang.list_conjunction_and(), items[1]),
+        2 => format!("{} {} {}", items[0], lang.list_conjunction_and(), items[1]),
         _ => {
             if let Some(last) = items.last() {
                 let front = &items[..items.len() - 1];
-                format!("{}{}{}", front.join(", "), lang.list_conjunction_and_comma(), last)
+                format!("{}, {} {}", front.join(", "), lang.list_conjunction_and(), last)
             } else {
                 String::new()
             }
@@ -183,7 +203,9 @@ fn format_text_list<L: Language>(items: Vec<String>, lang: &L) -> String {
 }
 
 fn format_number_list<L: Language>(values: &[u8], lang: &L) -> String {
-    if values.is_empty() { return String::new(); }
+    if values.is_empty() {
+        return String::new();
+    }
     let mut sorted_values = values.to_vec();
     sorted_values.sort_unstable();
 
@@ -195,10 +217,12 @@ fn format_number_list<L: Language>(values: &[u8], lang: &L) -> String {
         while j + 1 < sorted_values.len() && sorted_values[j + 1] == sorted_values[j] + 1 {
             j += 1;
         }
-        if j > i {
+        if j > i + 1 { // Only create a range for 3 or more consecutive numbers
             items.push(format!("{}-{}", start, sorted_values[j]));
         } else {
-            items.push(start.to_string());
+            for k in i..=j {
+                items.push(sorted_values[k].to_string());
+            }
         }
         i = j + 1;
     }
@@ -212,11 +236,11 @@ fn describe_day<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     if pattern.star_dom && pattern.star_dow {
         return "".to_string();
     }
-    
+
     if !pattern.star_dom && pattern.star_dow {
         return lang.on_phrase(&dom_desc);
     }
-    
+
     let dow_desc = format_text_list(dow_parts.clone(), lang);
     if pattern.star_dom && !pattern.star_dow {
         return lang.on_phrase(&dow_desc);
@@ -230,7 +254,7 @@ fn describe_day<L: Language>(pattern: &CronPattern, lang: &L) -> String {
         };
         format!("{} {}", lang.on_phrase(&dom_desc), final_phrase)
     } else {
-        format!("{}{}{}", lang.on_phrase(&dom_desc), lang.list_conjunction_or(), dow_desc)
+        format!("{} {} {}", lang.on_phrase(&dom_desc), lang.list_conjunction_or(), dow_desc)
     }
 }
 
@@ -249,18 +273,20 @@ fn describe_dom<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     if !weekday_values.is_empty() {
         parts.push(lang.the_weekday_nearest_day(&format_number_list(&weekday_values, lang)));
     }
-    
+
     format_text_list(parts, lang)
 }
 
 fn describe_dow_parts<L: Language>(pattern: &CronPattern, lang: &L) -> Vec<String> {
     let mut parts = vec![];
     let dow_names_map = lang.day_of_week_names();
-    let dow_names = if pattern.with_alternative_weekdays {
-        &["", dow_names_map[0], dow_names_map[1], dow_names_map[2], dow_names_map[3], dow_names_map[4], dow_names_map[5], dow_names_map[6]]
-    } else {
-        &[dow_names_map[0], dow_names_map[1], dow_names_map[2], dow_names_map[3], dow_names_map[4], dow_names_map[5], dow_names_map[6], dow_names_map[0]]
-    };
+
+    // The `with_alternative_weekdays` flag is gone. Parser normalizes DOW.
+    // This mapping handles the 0-7 range where 7 is Sunday.
+    let dow_names = &[
+        dow_names_map[0], dow_names_map[1], dow_names_map[2], dow_names_map[3],
+        dow_names_map[4], dow_names_map[5], dow_names_map[6], dow_names_map[0],
+    ];
 
     let last_values = get_set_values(&pattern.days_of_week, LAST_BIT);
     if !last_values.is_empty() {
@@ -278,67 +304,75 @@ fn describe_dow_parts<L: Language>(pattern: &CronPattern, lang: &L) -> Vec<Strin
 
     let regular_values = get_set_values(&pattern.days_of_week, ALL_BIT);
     if !regular_values.is_empty() {
-        let is_continuous_range = if regular_values.len() > 2 {
-            regular_values.windows(2).all(|w| w[1] == w[0] + 1)
-        } else { false };
-
         let list = regular_values.iter().map(|&v| dow_names[v as usize].to_string()).collect::<Vec<_>>();
-        if is_continuous_range {
-            parts.push(list.join(","))
-        } else {
-            parts.push(format_text_list(list, lang));
-        }
+        parts.push(format_text_list(list, lang));
     }
     parts
 }
 
 fn describe_month<L: Language>(pattern: &CronPattern, lang: &L) -> String {
-    if pattern.months.is_all_set() { return "".to_string(); }
-    let month_names = lang.month_names();
-    
-    if pattern.months.step > 1 {
-        return lang.in_phrase(&format!("every {}rd month", pattern.months.step));
+    if is_all_set(&pattern.months) {
+        return "".to_string();
     }
-    
+    let month_names = lang.month_names();
+
+    if pattern.months.step > 1 {
+        return lang.in_phrase(&format!("every {} months", pattern.months.step));
+    }
+
     let values = get_set_values(&pattern.months, ALL_BIT);
-    let list = values.iter().map(|&v| month_names[v as usize -1].to_string()).collect::<Vec<_>>();
+    let list = values
+        .iter()
+        .map(|&v| month_names[v as usize - 1].to_string())
+        .collect::<Vec<_>>();
     lang.in_phrase(&format_text_list(list, lang))
 }
+
 
 #[cfg(test)]
 mod tests {
     use super::lang::english::English;
+    use crate::parser::{CronParser, Seconds};
     use super::Language;
-    use crate::pattern::CronPattern;
 
-    fn get_description_lang<L: Language + Default>(pattern_str: &str, lang: L) -> String {
-        let mut p = CronPattern::new(pattern_str);
-        if pattern_str.split_whitespace().count() == 6 {
-            p.with_seconds_optional();
-        }
-        p.parse().unwrap();
-        super::describe(&p, &lang)
+    // Updated helper to use the new parser API
+    fn get_description_lang_config<L: Language + Default>(
+        pattern_str: &str,
+        lang: L,
+        seconds: Seconds,
+        dom_and_dow: bool,
+    ) -> String {
+        let cron = CronParser::builder()
+            .seconds(seconds)
+            .dom_and_dow(dom_and_dow)
+            .build()
+            .parse(pattern_str)
+            .expect("Failed to parse pattern for test");
+
+        // The user wants to test the describe function in this module
+        super::describe(&cron.pattern, &lang)
     }
 
+    // Simplified helper for common cases
     fn get_description(pattern_str: &str) -> String {
-        get_description_lang(pattern_str, English::default())
+        let seconds_opt = if pattern_str.split_whitespace().count() == 6 {
+            Seconds::Required
+        } else {
+            Seconds::Optional
+        };
+        get_description_lang_config(pattern_str, English::default(), seconds_opt, false)
     }
 
     #[test]
     fn test_time_descriptions() {
         assert_eq!(get_description("* * * * *"), "Every minute.");
         assert_eq!(get_description("*/15 * * * *"), "At every 15 minutes.");
-        assert_eq!(
-            get_description("0 * * * *"),
-            "At minute 0 past every hour."
-        );
+        assert_eq!(get_description("0 * * * *"), "At minute 0 past every hour.");
         assert_eq!(get_description("0 14 * * *"), "At 14:00.");
-        
         assert_eq!(
             get_description("2,4,6 * * * *"),
-            "At minute 2, 4, and 6 past every hour." 
+            "At minute 2, 4, and 6 past every hour."
         );
-    
         assert_eq!(
             get_description("0 0-6 * * *"),
             "At minute 0, of hour 0-6."
@@ -351,18 +385,10 @@ mod tests {
 
     #[test]
     fn test_seconds_descriptions() {
-        let mut p1 = CronPattern::new("*/10 * * * * *");
-        p1.with_seconds_optional();
-        assert_eq!(p1.parse().unwrap().describe(), "At every 10 seconds.");
-
-        let mut p2 = CronPattern::new("30 0 14 * * *");
-        p2.with_seconds_optional();
-        assert_eq!(p2.parse().unwrap().describe(), "At 14:00:30.");
-
-        let mut p3 = CronPattern::new("10-20 0 14 * * *");
-        p3.with_seconds_optional();
+        assert_eq!(get_description("*/10 * * * * *"), "At every 10 seconds.");
+        assert_eq!(get_description("30 0 14 * * *"), "At 14:00:30.");
         assert_eq!(
-            p3.parse().unwrap().describe(),
+            get_description("10-20 0 14 * * *"),
             "At 14:00, at second 10-20."
         );
     }
@@ -370,9 +396,15 @@ mod tests {
     #[test]
     fn test_day_descriptions() {
         assert_eq!(get_description("0 12 * * MON"), "At 12:00, on Monday.");
-        assert_eq!(get_description("0 12 * * 1-5"), "At 12:00, on Monday,Tuesday,Wednesday,Thursday,Friday.");
+        assert_eq!(
+            get_description("0 12 * * 1-5"),
+            "At 12:00, on Monday, Tuesday, Wednesday, Thursday, and Friday."
+        );
         assert_eq!(get_description("0 12 15 * *"), "At 12:00, on day 15.");
-        assert_eq!(get_description("0 12 L * *"), "At 12:00, on the last day of the month.");
+        assert_eq!(
+            get_description("0 12 L * *"),
+            "At 12:00, on the last day of the month."
+        );
         assert_eq!(
             get_description("0 12 1,15 * *"),
             "At 12:00, on day 1 and 15."
@@ -381,10 +413,7 @@ mod tests {
 
     #[test]
     fn test_month_descriptions() {
-        assert_eq!(
-            get_description("* * * JAN *"),
-            "Every minute, in January."
-        );
+        assert_eq!(get_description("* * * JAN *"), "Every minute, in January.");
         assert_eq!(
             get_description("* * * 1,3,5 *"),
             "Every minute, in January, March, and May."
@@ -406,31 +435,32 @@ mod tests {
             "Every minute, on the weekday nearest day 15."
         );
     }
-    
+
     #[test]
     fn test_dom_and_dow_logic() {
         // Default behavior (OR)
-        let pattern_or = CronPattern::new("0 0 15 * FRI").parse().unwrap();
-        assert_eq!(pattern_or.describe(), "At 00:00, on day 15 or Friday.");
+        let or_desc = get_description("0 0 15 * FRI");
+        assert_eq!(or_desc, "At 00:00, on day 15 or Friday.");
 
         // AND behavior
-        let mut pattern_and = CronPattern::new("0 0 15 * FRI");
-        pattern_and.with_dom_and_dow();
-        let parsed_and = pattern_and.parse().unwrap();
-        assert_eq!(parsed_and.describe(), "At 00:00, on day 15 (if it is also Friday).");
+        let and_desc =
+            get_description_lang_config("0 0 15 * FRI", English::default(), Seconds::Optional, true);
+        assert_eq!(
+            and_desc,
+            "At 00:00, on day 15 (if it is also Friday)."
+        );
     }
 
     #[test]
     fn test_complex_combinations() {
-         assert_eq!(
+        assert_eq!(
             get_description("30 18 15,L MAR *"),
             "At 18:30, on day 15 and the last day of the month, in March."
         );
-
-        let mut p = CronPattern::new("30 18 15,L MAR FRI");
-        p.with_dom_and_dow();
+        
+        let and_desc = get_description_lang_config("30 18 15,L MAR FRI", English::default(), Seconds::Optional, true);
         assert_eq!(
-            p.parse().unwrap().describe(),
+            and_desc,
             "At 18:30, on day 15 and the last day of the month (if it is also Friday), in March."
         );
     }
@@ -453,10 +483,9 @@ mod tests {
 
     #[test]
     fn test_complex_dom_and_dow() {
-        let mut p = CronPattern::new("0 0 1 * FRI#L,MON#1");
-        p.with_dom_and_dow();
-        assert_eq!(
-            p.parse().unwrap().describe(),
+         let desc = get_description_lang_config("0 0 1 * FRI#L,MON#1", English::default(), Seconds::Optional, true);
+         assert_eq!(
+            desc,
             "At 00:00, on day 1 (if it is also one of: the last Friday of the month and the 1st Monday of the month)."
         );
     }

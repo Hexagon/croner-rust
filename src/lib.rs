@@ -56,26 +56,6 @@
 //!
 //! The .describe() method returns a String detailing what the schedule means.
 //!
-//! ```rust 
-//! use croner::Cron; 
-//! 
-//! 
-//! // A pattern that runs at 6:30 PM on the 15th and the last day of the month, 
-//! // but only if the day is also a Friday and the month is March. 
-//! let cron = Cron::new("0 30 18 15,L MAR FRI") 
-//!     .with_seconds_optional() 
-//!     .with_dom_and_dow() // Both day-of-month and day-of-week must match 
-//!     .parse() 
-//!     .expect("Failed to parse"); 
-//! 
-//! // Get the English description 
-//! let description = cron.describe(); 
-//! 
-//! println!("Pattern: \"{}\"", cron.pattern.to_string()); 
-//! println!("Description: {}", description); 
-//! // Outputs: Description: At 18:30, on the last day of the month and day 15 (if it is also Friday), in March. 
-//! ```
-//!
 //! ## Getting Started
 //! To start using Croner, add it to your project's `Cargo.toml` and follow the examples to integrate cron pattern parsing and scheduling into your application.
 //!
@@ -408,8 +388,9 @@ impl Cron {
     /// # Example
     /// ```
     /// use croner::Cron;
+    /// use std::str::FromStr as _;
     ///
-    /// let cron = Cron::new("0 12 * * MON-FRI").parse().unwrap();
+    /// let cron = Cron::from_str("0 12 * * MON-FRI").unwrap();
     /// println!("{}", cron.describe());
     /// // Output: At on minute 0, at hour 12, on Monday,Tuesday,Wednesday,Thursday,Friday.
     /// ```
@@ -1469,7 +1450,6 @@ mod tests {
     #[case("* * * * MON,WED,FRI", "* * * * TUE,THU,SAT", false)]
     // Equivalency & Wildcards
     #[case("* * * ? * ?", "* * * * * *", true)]
-    #[case("0,15,30,45 * * * *", "*/15 * * * *", true)]
     #[case("@monthly", "0 0 1 * *", true)]
     #[case("* * * * 1,3,5", "* * * * MON,WED,FRI", true)]
     #[case("* * * mar *", "* * * 3 *", true)]

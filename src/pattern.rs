@@ -288,9 +288,6 @@ impl CronPattern {
     ///
     /// * `lang` - An object that implements the `Language` trait.
     pub fn describe_lang<L: crate::describe::Language>(&self, lang: L) -> String {
-        if !self.is_parsed {
-            return "Cron pattern is not parsed.".to_string();
-        }
         crate::describe::describe(self, &lang)
     }
 
