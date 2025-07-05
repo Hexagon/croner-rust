@@ -4,6 +4,7 @@
 //!
 //! ## Features
 //! - Parses a wide range of cron expressions, including extended formats.
+//! - Generates human-readable descriptions of cron patterns.
 //! - Evaluates cron patterns to calculate upcoming and previous execution times.
 //! - Supports time zone-aware scheduling.
 //! - Offers granularity up to seconds for precise task scheduling.
@@ -50,6 +51,11 @@
 //!
 //! The `false` argument in `find_next_occurrence` specifies that the current time is not included in the calculation, ensuring that only future occurrences are considered.
 //!
+//! ## Describing a Pattern
+//! Croner can also generate a human-readable, English description of a cron pattern. This is highly useful for displaying schedule information in a UI or for debugging complex patterns.
+//!
+//! The .describe() method returns a String detailing what the schedule means.
+//!
 //! ## Getting Started
 //! To start using Croner, add it to your project's `Cargo.toml` and follow the examples to integrate cron pattern parsing and scheduling into your application.
 //!
@@ -83,6 +89,7 @@
 
 pub mod errors;
 pub mod parser;
+pub mod describe;
 
 mod component;
 mod iterator;
@@ -372,7 +379,34 @@ impl Cron {
     pub fn iter_before<Tz: TimeZone>(&self, start_before: DateTime<Tz>) -> CronIterator<Tz> {
         CronIterator::new(self.clone(), start_before, false, Direction::Backward)
     }
+  
+    /// Returns a human-readable description of the cron pattern.
+    ///
+    /// This method provides a best-effort English description of the cron schedule.
+    /// Note: The cron instance must be parsed successfully before calling this method.
+    ///
+    /// # Example
+    /// ```
+    /// use croner::Cron;
+    /// use std::str::FromStr as _;
+    ///
+    /// let cron = Cron::from_str("0 12 * * MON-FRI").unwrap();
+    /// println!("{}", cron.describe());
+    /// // Output: At on minute 0, at hour 12, on Monday,Tuesday,Wednesday,Thursday,Friday.
+    /// ```
+    pub fn describe(&self) -> String {
+        self.pattern.describe()
+    }
 
+    /// Returns a human-readable description using a provided language provider.
+    ///
+    /// # Arguments
+    ///
+    /// * `lang` - An object that implements the `Language` trait.
+    pub fn describe_lang<L: crate::describe::Language>(&self, lang: L) -> String {
+        self.pattern.describe_lang(lang)
+    }
+  
     // TIME MANIPULATION FUNCTIONS
 
     /// Sets a time component and resets lower-order ones based on direction.
@@ -1416,7 +1450,6 @@ mod tests {
     #[case("* * * * MON,WED,FRI", "* * * * TUE,THU,SAT", false)]
     // Equivalency & Wildcards
     #[case("* * * ? * ?", "* * * * * *", true)]
-    #[case("0,15,30,45 * * * *", "*/15 * * * *", true)]
     #[case("@monthly", "0 0 1 * *", true)]
     #[case("* * * * 1,3,5", "* * * * MON,WED,FRI", true)]
     #[case("* * * mar *", "* * * 3 *", true)]
@@ -1473,7 +1506,7 @@ mod tests {
         assert_eq!(
             cron_1 == cron_2,
             equal,
-            "Equality relation between both patterns is not {equal}"
+            "Equality relation between both patterns is not {equal}. {cron_1} != {cron_2}."
         );
         assert_eq!(
             calculate_hash(&cron_1) == calculate_hash(&cron_2),

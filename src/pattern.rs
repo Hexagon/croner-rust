@@ -273,6 +273,25 @@ impl CronPattern {
         Ok(None)
     }
 
+    /// Returns a human-readable description of the cron pattern.
+    ///
+    /// This method provides a best-effort English description of the cron schedule.
+    /// Note: The pattern must be parsed successfully before calling this method.
+    /// Returns a human-readable description of the cron pattern in English.
+    pub fn describe(&self) -> String {
+        self.describe_lang(crate::describe::English::default())
+    }
+
+    /// Returns a human-readable description using a provided language provider.
+    ///
+    /// # Arguments
+    ///
+    /// * `lang` - An object that implements the `Language` trait.
+    pub fn describe_lang<L: crate::describe::Language>(&self, lang: L) -> String {
+        crate::describe::describe(self, &lang)
+    }
+
+    // Get a reference to the original pattern
     pub fn as_str(&self) -> &str {
         &self.pattern
     }
