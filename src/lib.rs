@@ -1714,7 +1714,7 @@ mod tests {
         let next_occurrence = cron.find_next_occurrence(&start_time, false).unwrap();
         let expected_time = Local.with_ymd_and_hms(2080, 1, 1, 0, 0, 0).unwrap();
         
-        assert_eq!(next_occurrence, expected_time, "Iteratorn ska hoppa fram till starten av årtalsintervallet.");
+        assert_eq!(next_occurrence, expected_time, "Iterator should jump forward to the correct year.");
     }
 
     #[test]
@@ -1726,6 +1726,6 @@ mod tests {
         let prev_occurrence = cron.find_previous_occurrence(&start_time, false).unwrap();
         let expected_time = Local.with_ymd_and_hms(2035, 1, 1, 0, 0, 0).unwrap();
 
-        assert_eq!(prev_occurrence, expected_time, "Iteratorn ska hoppa bakåt till slutet av årtalsintervallet.");
+        assert_eq!(prev_occurrence, expected_time, "Iteratorn should jump backwards to the correct year.");
     }
 }
