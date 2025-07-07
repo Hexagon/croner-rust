@@ -108,6 +108,7 @@ pub enum TimeComponent {
     Hour,
     Day,
     Month,
+    Year
 }
 use errors::CronError;
 pub use iterator::CronIterator;
@@ -277,7 +278,6 @@ impl Cron {
     }
 
     /// The main generic search function.
-    /// The main generic search function.
     fn find_occurrence<Tz: TimeZone>(
         &self,
         start_time: &DateTime<Tz>,
@@ -286,7 +286,7 @@ impl Cron {
     ) -> Result<DateTime<Tz>, CronError> {
         let mut naive_time = start_time.naive_local();
         let timezone = start_time.timezone();
-
+    
         if !inclusive {
             let adjustment = match direction {
                 Direction::Forward => Duration::seconds(1),
@@ -296,9 +296,14 @@ impl Cron {
                 .checked_add_signed(adjustment)
                 .ok_or(CronError::InvalidTime)?;
         }
-
+    
         loop {
             let mut updated = false;
+            updated |= self.find_matching_date_component(
+                &mut naive_time,
+                direction,
+                TimeComponent::Year,
+            )?;
             updated |= self.find_matching_date_component(
                 &mut naive_time,
                 direction,
@@ -321,11 +326,11 @@ impl Cron {
                 direction,
                 TimeComponent::Second,
             )?;
-
+    
             if updated {
                 continue;
             }
-
+    
             let (tz_datetime, was_adjusted) = from_naive(naive_time, &timezone)?;
             if self.is_time_matching(&tz_datetime)? || was_adjusted {
                 return Ok(tz_datetime);
@@ -471,6 +476,14 @@ impl Cron {
         match direction {
             Direction::Forward => {
                 let duration = match component {
+                    TimeComponent::Year => {
+                        let next_year = current_time.year() + 1;
+                        *current_time = NaiveDate::from_ymd_opt(next_year, 1, 1)
+                            .ok_or(CronError::InvalidDate)?
+                            .and_hms_opt(0, 0, 0)
+                            .ok_or(CronError::InvalidTime)?;
+                        return Ok(());
+                    }
                     TimeComponent::Minute => Duration::minutes(1),
                     TimeComponent::Hour => Duration::hours(1),
                     TimeComponent::Day => Duration::days(1),
@@ -504,6 +517,14 @@ impl Cron {
             }
             Direction::Backward => {
                 let duration = match component {
+                    TimeComponent::Year => { // Tillagd logik för år
+                        let prev_year = current_time.year() - 1;
+                        *current_time = NaiveDate::from_ymd_opt(prev_year, 12, 31)
+                            .ok_or(CronError::InvalidDate)?
+                            .and_hms_opt(23, 59, 59)
+                            .ok_or(CronError::InvalidTime)?;
+                        return Ok(());
+                    }
                     TimeComponent::Minute => Duration::minutes(1),
                     TimeComponent::Hour => Duration::hours(1),
                     TimeComponent::Day => Duration::days(1),
@@ -543,6 +564,7 @@ impl Cron {
         let mut changed = false;
         // Loop until the component matches the pattern
         while !(match component {
+            TimeComponent::Year => self.pattern.year_match(current_time.year()), // Tillagd
             TimeComponent::Month => self.pattern.month_match(current_time.month()),
             TimeComponent::Day => self.pattern.day_match(
                 current_time.year(),
@@ -1680,5 +1702,30 @@ mod tests {
         );
 
         Ok(())
+    }
+
+
+    #[test]
+    fn test_find_next_occurrence_with_year_range_outside_start() {
+        let cron = Cron::from_str("0 0 0 1 1 * 2080-2085").unwrap();
+        
+        let start_time = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+
+        let next_occurrence = cron.find_next_occurrence(&start_time, false).unwrap();
+        let expected_time = Local.with_ymd_and_hms(2080, 1, 1, 0, 0, 0).unwrap();
+        
+        assert_eq!(next_occurrence, expected_time, "Iterator should jump forward to the correct year.");
+    }
+
+    #[test]
+    fn test_find_previous_occurrence_with_year_range_outside_start() {
+        let cron = Cron::from_str("0 0 0 1 1 * 2030-2035").unwrap();
+
+        let start_time = Local.with_ymd_and_hms(2050, 1, 1, 0, 0, 0).unwrap();
+
+        let prev_occurrence = cron.find_previous_occurrence(&start_time, false).unwrap();
+        let expected_time = Local.with_ymd_and_hms(2035, 1, 1, 0, 0, 0).unwrap();
+
+        assert_eq!(prev_occurrence, expected_time, "Iteratorn should jump backwards to the correct year.");
     }
 }
