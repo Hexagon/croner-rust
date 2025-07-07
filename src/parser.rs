@@ -147,6 +147,8 @@ impl CronParser {
             if self.year.is_optional() && !(6..=7).contains(&num_parts) {
                  return Err(CronError::InvalidPattern("Pattern must have 6 or 7 fields when seconds are required and years are optional.".to_string()));
             }
+        } else if self.year.is_required() && num_parts != 7 {
+            return Err(CronError::InvalidPattern("Pattern must have 7 fields when years are required.".to_string()));
         } else if !(5..=7).contains(&num_parts) {
              return Err(CronError::InvalidPattern("Pattern must have between 5 and 7 fields.".to_string()));
         }
@@ -716,6 +718,20 @@ mod tests {
         assert!(parser.parse("0 0 0 1 1 * 2025").is_ok());
         // 6 fields should fail
         assert!(parser.parse("0 0 0 1 1 *").is_err());
+    }
+
+    #[test]
+    fn test_optional_seconds_and_required_year_fails_on_six_parts() {
+        // This parser configuration should only accept 7-part patterns.
+        let parser = CronParser::builder()
+            .seconds(Seconds::Optional)
+            .year(Year::Required)
+            .build();
+
+        // A 6-part pattern should fail because the year is missing but required.
+        let result = parser.parse("* * * * * *");
+        
+        assert!(matches!(result, Err(CronError::InvalidPattern(_))), "Should fail when year is required but not provided.");
     }
     
 }
