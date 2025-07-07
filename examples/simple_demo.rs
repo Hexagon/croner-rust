@@ -5,7 +5,7 @@ use croner::describe::lang::swedish::Swedish; // For demonstrating translation
 fn main() {
     // Example: Parse cron expression
     let cron = CronParser::builder()
-        .seconds(croner::parser::Seconds::Required)
+        .seconds(croner::parser::Seconds::Required) // Example of configuration - make seconds required
         .build()
         .parse("0 18 * * * FRI")
         .expect("Couldn't parse cron string");
@@ -22,7 +22,7 @@ fn main() {
     println!("Description: {}", description);
     
     // Example: Get and print the human-readable description in Swedish
-    let swedish_description = cron.describe_lang(Swedish::default()); // 2. Call describe_lang() with Swedish
+    let swedish_description = cron.describe_lang(Swedish); // 2. Call describe_lang() with Swedish
     println!("Swedish Description: {}", swedish_description);
     
     // Example: Output results

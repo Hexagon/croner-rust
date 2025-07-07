@@ -1,5 +1,3 @@
-// src/describe/mod.rs
-
 pub mod lang;
 pub use lang::english::English;
 
@@ -13,13 +11,13 @@ use crate::pattern::CronPattern;
 pub trait Language {
     fn every_minute(&self) -> &'static str;
     fn every_second_phrase(&self) -> &'static str;
-    fn every_x_minutes(&self, step: u8) -> String;
-    fn every_x_seconds(&self, step: u8) -> String;
-    fn every_x_hours(&self, step: u8) -> String;
-    fn every_minute_of_every_x_hours(&self, step: u8) -> String;
+    fn every_x_minutes(&self, step: u16) -> String; // Changed to u16
+    fn every_x_seconds(&self, step: u16) -> String; // Changed to u16
+    fn every_x_hours(&self, step: u16) -> String;   // Changed to u16
+    fn every_minute_of_every_x_hours(&self, step: u16) -> String; // Changed to u16
 
     fn at_time(&self, time: &str) -> String;
-    fn at_time_and_every_x_seconds(&self, time: &str, step: u8) -> String;
+    fn at_time_and_every_x_seconds(&self, time: &str, step: u16) -> String; // Changed to u16
     fn at_time_at_second(&self, time: &str, second: &str) -> String;
 
     fn at_phrase(&self, phrase: &str) -> String;
@@ -30,6 +28,7 @@ pub trait Language {
     fn minute_phrase(&self, s: &str) -> String;
     fn minute_past_every_hour_phrase(&self, s: &str) -> String;
     fn hour_phrase(&self, s: &str) -> String;
+    fn year_phrase(&self, s: &str) -> String; // New for year
 
     fn day_phrase(&self, s: &str) -> String;
     fn the_last_day_of_the_month(&self) -> &'static str;
@@ -53,6 +52,7 @@ pub fn describe<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     let time_desc = describe_time(pattern, lang);
     let day_desc = describe_day(pattern, lang);
     let month_desc = describe_month(pattern, lang);
+    let year_desc = describe_year(pattern, lang); // Add year description
 
     let mut parts = vec![];
     if !time_desc.is_empty() {
@@ -63,6 +63,9 @@ pub fn describe<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     }
     if !month_desc.is_empty() {
         parts.push(month_desc);
+    }
+    if !year_desc.is_empty() {
+        parts.push(year_desc);
     }
 
     let mut description = parts.join(", ");
@@ -85,8 +88,12 @@ fn is_all_set(component: &CronComponent) -> bool {
         return false;
     }
     let total_values = (component.max - component.min + 1) as usize;
+    // Handle large ranges efficiently
+    if total_values > 10000 { // Heuristic for very large ranges like year
+        return component.from_wildcard;
+    }
     let set_values = (component.min..=component.max)
-        .filter(|&i| component.is_bit_set(i, ALL_BIT).unwrap_or(false))
+        .filter(|i| component.is_bit_set(*i, ALL_BIT).unwrap_or(false)) // Corrected
         .count();
     total_values == set_values
 }
@@ -102,7 +109,7 @@ fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
 
     // Heuristic to detect `*/step` patterns, replacing `from_wildcard`.
     let is_stepped_from_start =
-        |step: u8, vals: &[u8], min: u8| step > 1 && !vals.is_empty() && vals[0] == min;
+        |step: u16, vals: &[u16], min: u16| step > 1 && !vals.is_empty() && vals[0] == min;
 
     // Handle simplest cases first
     if is_every_second && is_all_set(&pattern.minutes) && is_all_set(&pattern.hours) {
@@ -180,9 +187,9 @@ fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     lang.at_phrase(&parts.join(", "))
 }
 
-fn get_set_values(component: &CronComponent, bit: u8) -> Vec<u8> {
+fn get_set_values(component: &CronComponent, bit: u8) -> Vec<u16> {
     (component.min..=component.max)
-        .filter(|&i| component.is_bit_set(i, bit).unwrap_or(false))
+        .filter(|i| component.is_bit_set(*i, bit).unwrap_or(false)) // Corrected
         .collect()
 }
 
@@ -202,7 +209,7 @@ fn format_text_list<L: Language>(items: Vec<String>, lang: &L) -> String {
     }
 }
 
-fn format_number_list<L: Language>(values: &[u8], lang: &L) -> String {
+fn format_number_list<L: Language>(values: &[u16], lang: &L) -> String {
     if values.is_empty() {
         return String::new();
     }
@@ -220,8 +227,8 @@ fn format_number_list<L: Language>(values: &[u8], lang: &L) -> String {
         if j > i + 1 { // Only create a range for 3 or more consecutive numbers
             items.push(format!("{}-{}", start, sorted_values[j]));
         } else {
-            for k in i..=j {
-                items.push(sorted_values[k].to_string());
+            for k in sorted_values.iter().take(j + 1).skip(i) {
+                items.push(k.to_string());
             }
         }
         i = j + 1;
@@ -290,21 +297,21 @@ fn describe_dow_parts<L: Language>(pattern: &CronPattern, lang: &L) -> Vec<Strin
 
     let last_values = get_set_values(&pattern.days_of_week, LAST_BIT);
     if !last_values.is_empty() {
-        let days = last_values.iter().map(|&v| dow_names[v as usize].to_string()).collect::<Vec<_>>();
+        let days = last_values.iter().map(|v| dow_names[*v as usize].to_string()).collect::<Vec<_>>(); // Corrected
         parts.push(lang.the_last_weekday_of_the_month(&format_text_list(days, lang)));
     }
 
     for (i, nth_bit) in [NTH_1ST_BIT, NTH_2ND_BIT, NTH_3RD_BIT, NTH_4TH_BIT, NTH_5TH_BIT].iter().enumerate() {
         let values = get_set_values(&pattern.days_of_week, *nth_bit);
         if !values.is_empty() {
-            let days = values.iter().map(|&v| dow_names[v as usize].to_string()).collect::<Vec<_>>();
+            let days = values.iter().map(|v| dow_names[*v as usize].to_string()).collect::<Vec<_>>(); // Corrected
             parts.push(lang.the_nth_weekday_of_the_month((i + 1) as u8, &format_text_list(days, lang)));
         }
     }
 
     let regular_values = get_set_values(&pattern.days_of_week, ALL_BIT);
     if !regular_values.is_empty() {
-        let list = regular_values.iter().map(|&v| dow_names[v as usize].to_string()).collect::<Vec<_>>();
+        let list = regular_values.iter().map(|v| dow_names[*v as usize].to_string()).collect::<Vec<_>>(); // Corrected
         parts.push(format_text_list(list, lang));
     }
     parts
@@ -323,16 +330,29 @@ fn describe_month<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     let values = get_set_values(&pattern.months, ALL_BIT);
     let list = values
         .iter()
-        .map(|&v| month_names[v as usize - 1].to_string())
+        .map(|v| month_names[*v as usize - 1].to_string()) // Corrected
         .collect::<Vec<_>>();
     lang.in_phrase(&format_text_list(list, lang))
+}
+
+fn describe_year<L: Language>(pattern: &CronPattern, lang: &L) -> String {
+    if is_all_set(&pattern.years) {
+        return "".to_string();
+    }
+
+    if pattern.years.step > 1 {
+        return lang.in_phrase(&lang.year_phrase(&format!("every {}", pattern.years.step)));
+    }
+    
+    let values = get_set_values(&pattern.years, ALL_BIT);
+    lang.in_phrase(&lang.year_phrase(&format_number_list(&values, lang)))
 }
 
 
 #[cfg(test)]
 mod tests {
     use super::lang::english::English;
-    use crate::parser::{CronParser, Seconds};
+    use crate::parser::{CronParser, Seconds, Year};
     use super::Language;
 
     // Updated helper to use the new parser API
@@ -340,10 +360,12 @@ mod tests {
         pattern_str: &str,
         lang: L,
         seconds: Seconds,
+        year: Year,
         dom_and_dow: bool,
     ) -> String {
         let cron = CronParser::builder()
             .seconds(seconds)
+            .year(year)
             .dom_and_dow(dom_and_dow)
             .build()
             .parse(pattern_str)
@@ -353,14 +375,17 @@ mod tests {
         super::describe(&cron.pattern, &lang)
     }
 
-    // Simplified helper for common cases
+    // Simplified helper for common cases.
+    // It uses a permissive parser config that can handle any pattern
+    // since the parser normalizes the pattern before describe is called.
     fn get_description(pattern_str: &str) -> String {
-        let seconds_opt = if pattern_str.split_whitespace().count() == 6 {
-            Seconds::Required
-        } else {
-            Seconds::Optional
-        };
-        get_description_lang_config(pattern_str, English::default(), seconds_opt, false)
+        get_description_lang_config(
+            pattern_str,
+            English,
+            Seconds::Optional, // Be permissive
+            Year::Optional,      // Be permissive
+            false,
+        )
     }
 
     #[test]
@@ -390,6 +415,18 @@ mod tests {
         assert_eq!(
             get_description("10-20 0 14 * * *"),
             "At 14:00, at second 10-20."
+        );
+    }
+    
+    #[test]
+    fn test_year_descriptions() {
+        assert_eq!(
+            get_description("0 0 0 1 1 * 2025"),
+            "At 00:00, on day 1, in January, in year 2025."
+        );
+         assert_eq!(
+            get_description("0 0 0 1 1 * 2025-2030"),
+            "At 00:00, on day 1, in January, in year 2025-2030."
         );
     }
 
@@ -444,7 +481,7 @@ mod tests {
 
         // AND behavior
         let and_desc =
-            get_description_lang_config("0 0 15 * FRI", English::default(), Seconds::Optional, true);
+            get_description_lang_config("0 0 15 * FRI", English, Seconds::Optional, Year::Optional, true);
         assert_eq!(
             and_desc,
             "At 00:00, on day 15 (if it is also Friday)."
@@ -458,7 +495,7 @@ mod tests {
             "At 18:30, on day 15 and the last day of the month, in March."
         );
         
-        let and_desc = get_description_lang_config("30 18 15,L MAR FRI", English::default(), Seconds::Optional, true);
+        let and_desc = get_description_lang_config("30 18 15,L MAR FRI", English, Seconds::Optional, Year::Optional, true);
         assert_eq!(
             and_desc,
             "At 18:30, on day 15 and the last day of the month (if it is also Friday), in March."
@@ -483,7 +520,7 @@ mod tests {
 
     #[test]
     fn test_complex_dom_and_dow() {
-         let desc = get_description_lang_config("0 0 1 * FRI#L,MON#1", English::default(), Seconds::Optional, true);
+         let desc = get_description_lang_config("0 0 1 * FRI#L,MON#1", English, Seconds::Optional, Year::Optional, true);
          assert_eq!(
             desc,
             "At 00:00, on day 1 (if it is also one of: the last Friday of the month and the 1st Monday of the month)."

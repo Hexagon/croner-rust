@@ -36,13 +36,13 @@ pub const LAST_BIT: u8 = 1 << 6;
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CronComponent {
     bitfields: Vec<u8>,   // Vector of u8 to act as multiple bitfields
-    pub min: u8,          // Minimum value this component can take
-    pub max: u8,          // Maximum value this component can take
-    pub step: u8,         // Steps to skip in this component
+    pub min: u16,         // Minimum value this component can take
+    pub max: u16,         // Maximum value this component can take
+    pub step: u16,        // Steps to skip in this component
     pub from_wildcard: bool, // Wildcard used
     features: u8,         // Single u8 bitfield to indicate supported special bits, like LAST_BIT
     enabled_features: u8, // Bitfield to hold component-wide special bits like LAST_BIT
-    input_offset: u8, // Offset for numerical representation of weekdays. normally 0=SUN,1=MON etc, setting this to 1 makes 1=SUN...
+    input_offset: u16,    // Offset for numerical representation
 }
 
 impl CronComponent {
@@ -60,11 +60,13 @@ impl CronComponent {
     /// # Returns
     ///
     /// Returns a new instance of `CronComponent`.
-    pub fn new(min: u8, max: u8, features: u8, input_offset: u8) -> Self {
+    pub fn new(min: u16, max: u16, features: u8, input_offset: u16) -> Self {
+        // Handle the case where max might make usize overflow if not checked
+        let bitfields_size = if max > 0 { max as usize + 1 } else { 0 };
         Self {
             // Vector of u8 to act as multiple bitfields.
             // - Initialized with NONE_BIT for each element.
-            bitfields: vec![NONE_BIT; (max + 1) as usize],
+            bitfields: vec![NONE_BIT; bitfields_size],
 
             // Minimum value this component can take.
             // - Example: 0 for the minute-field
@@ -103,8 +105,8 @@ impl CronComponent {
         true
     }
     
-    // Set a bit at a given position (0 to 59)
-    pub fn set_bit(&mut self, mut pos: u8, bit: u8) -> Result<(), CronError> {
+    // Set a bit at a given position (e.g., 0 to 9999 for year)
+    pub fn set_bit(&mut self, mut pos: u16, bit: u8) -> Result<(), CronError> {
         if pos < self.input_offset {
             return Err(CronError::ComponentError(format!(
                 "Position {} is less than the input offset {}.",
@@ -136,7 +138,7 @@ impl CronComponent {
     }
 
     // Unset a specific bit at a given position
-    pub fn unset_bit(&mut self, mut pos: u8, bit: u8) -> Result<(), CronError> {
+    pub fn unset_bit(&mut self, mut pos: u16, bit: u8) -> Result<(), CronError> {
         if pos < self.input_offset {
             return Err(CronError::ComponentError(format!(
                 "Position {} is less than the input offset {}.",
@@ -168,7 +170,7 @@ impl CronComponent {
     }
 
     // Check if a specific bit at a given position is set
-    pub fn is_bit_set(&self, pos: u8, bit: u8) -> Result<bool, CronError> {
+    pub fn is_bit_set(&self, pos: u16, bit: u8) -> Result<bool, CronError> {
         if pos < self.min || pos > self.max {
             Err(CronError::ComponentError(format!(
                 "Position {} is out of bounds for the current range ({}-{}).",
@@ -334,7 +336,7 @@ impl CronComponent {
             let day_str = &value[..day_pos];
 
             // Parse the day from the slice
-            let day = day_str.parse::<u8>().map_err(|_| {
+            let day = day_str.parse::<u16>().map_err(|_| {
                 CronError::ComponentError("Invalid day for closest weekday.".to_string())
             })?;
 
@@ -366,10 +368,10 @@ impl CronComponent {
         }
 
         let start = parts[0]
-            .parse::<u8>()
+            .parse::<u16>()
             .map_err(|_| CronError::ComponentError("Invalid start of range.".to_string()))?;
         let end = parts[1]
-            .parse::<u8>()
+            .parse::<u16>()
             .map_err(|_| CronError::ComponentError("Invalid end of range.".to_string()))?;
 
         if start > end || start < self.min || end > self.max {
@@ -388,7 +390,7 @@ impl CronComponent {
         let bit_to_set = CronComponent::get_nth_bit(value)?;
         let value_clean = CronComponent::strip_nth_part(value);
         let num = value_clean
-            .parse::<u8>()
+            .parse::<u16>()
             .map_err(|_| CronError::ComponentError("Invalid number.".to_string()))?;
         if num < self.min || num > self.max {
             return Err(CronError::ComponentError(
@@ -414,7 +416,7 @@ impl CronComponent {
         let range_part = parts[0];
         let step_str = parts[1];
         let step = step_str
-            .parse::<u8>()
+            .parse::<u16>()
             .map_err(|_| CronError::ComponentError("Invalid step.".to_string()))?;
 
         self.step = step;
@@ -437,15 +439,15 @@ impl CronComponent {
             }
             (
                 bounds[0]
-                    .parse::<u8>()
+                    .parse::<u16>()
                     .map_err(|_| CronError::ComponentError("Invalid range start.".to_string()))?,
                 bounds[1]
-                    .parse::<u8>()
+                    .parse::<u16>()
                     .map_err(|_| CronError::ComponentError("Invalid range end.".to_string()))?,
             )
         } else {
             let single_start = range_part
-                .parse::<u8>()
+                .parse::<u16>()
                 .map_err(|_| CronError::ComponentError("Invalid start.".to_string()))?;
             // If only one number is provided, set the range to go from the start value to the max value.
             (single_start, self.max)
