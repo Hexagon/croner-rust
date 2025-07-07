@@ -316,7 +316,7 @@ To start developing in the Croner project:
 1. Clone the repository.
 2. Navigate into the project directory.
 3. Build the project using `cargo build`.
-4. Run tests with `cargo test`.
+4. Run tests with `cargo test --all-features`.
 5. Run demo with `cargo run --example simple_demo`
 
 ## Contributing

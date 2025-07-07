@@ -1573,7 +1573,7 @@ mod tests {
     fn test_invalid_serde_tokens() {
         assert_de_tokens_error::<Cron>(
             &[Token::Str("Invalid cron pattern")],
-            "Invalid pattern: Pattern must consist of five or six fields (minute, hour, day, month, day of week, and optional second)."
+            "Invalid pattern: Pattern must have between 5 and 7 fields."
         );
     }
 
