@@ -47,7 +47,7 @@ Croner combines the features of cron and saffron, while following the POSIX/Vixi
 | DOM-and-DOW option |    X     |           |         |
 | Generate human readable string |    X     |           |    X    |
 
-> **Note**
+> [!NOTE]
 > Tests carried out at 2023-12-02 using `cron@0.12.0` and `saffron@.0.1.0`
 
 ## Getting Started
@@ -199,13 +199,15 @@ a few additions and changes as outlined below:
 | Month        | Yes      | 1-12 or JAN-DEC | * , - /                    |                                                                                                                 |
 | Day of Week  | Yes      | 0-7 or SUN-MON  | * , - / ? # L              | 0 to 6 are Sunday to Saturday<br>7 is Sunday, the same as 0<br># is used to specify nth occurrence of a weekday |
 
-> **Note** Weekday and month names are case-insensitive. Both `MON` and `mon`
+> [!NOTE]
+> Weekday and month names are case-insensitive. Both `MON` and `mon`
 > work. When using `L` in the Day of Week field, it affects all specified
 > weekdays. For example, `5-6#L` means the last Friday and Saturday in the
 > month." The # character can be used to specify the "nth" weekday of the month.
 > For example, 5#2 represents the second Friday of the month.
 
-> **Note:** The `W` feature is constrained within the given month. The search for
+> [!NOTE]
+> The `W` feature is constrained within the given month. The search for
 > the closest weekday will not cross into a previous or subsequent month. For
 > example, if the 1st of the month is a Saturday, 1W will trigger on Monday
 > the 3rd, not the last Friday of the previous month.
