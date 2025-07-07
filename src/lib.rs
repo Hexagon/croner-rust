@@ -476,7 +476,7 @@ impl Cron {
         match direction {
             Direction::Forward => {
                 let duration = match component {
-                    TimeComponent::Year => { // Tillagd logik för år
+                    TimeComponent::Year => {
                         let next_year = current_time.year() + 1;
                         *current_time = NaiveDate::from_ymd_opt(next_year, 1, 1)
                             .ok_or(CronError::InvalidDate)?
