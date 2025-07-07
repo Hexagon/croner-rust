@@ -277,7 +277,6 @@ impl Cron {
     }
 
     /// The main generic search function.
-    /// The main generic search function.
     fn find_occurrence<Tz: TimeZone>(
         &self,
         start_time: &DateTime<Tz>,
@@ -298,6 +297,39 @@ impl Cron {
         }
 
         loop {
+            let mut year_adjusted = false;
+            while !self.pattern.year_match(naive_time.year())? {
+                match direction {
+                    Direction::Forward => {
+                        let next_year = naive_time.year() + 1;
+                        if next_year > YEAR_UPPER_LIMIT {
+                            return Err(CronError::TimeSearchLimitExceeded);
+                        }
+                        // Hoppa till början av nästa år för att börja sökningen därifrån
+                        naive_time = NaiveDate::from_ymd_opt(next_year, 1, 1)
+                            .ok_or(CronError::InvalidDate)?
+                            .and_hms_opt(0, 0, 0)
+                            .ok_or(CronError::InvalidTime)?;
+                    }
+                    Direction::Backward => {
+                        let prev_year = naive_time.year() - 1;
+                        if prev_year < YEAR_LOWER_LIMIT {
+                            return Err(CronError::TimeSearchLimitExceeded);
+                        }
+                        // Hoppa till slutet av föregående år
+                        naive_time = NaiveDate::from_ymd_opt(prev_year, 12, 31)
+                            .ok_or(CronError::InvalidDate)?
+                            .and_hms_opt(23, 59, 59)
+                            .ok_or(CronError::InvalidTime)?;
+                    }
+                }
+                year_adjusted = true;
+            }
+
+            if year_adjusted {
+                continue;
+            }
+
             let mut updated = false;
             updated |= self.find_matching_date_component(
                 &mut naive_time,
@@ -1680,5 +1712,30 @@ mod tests {
         );
 
         Ok(())
+    }
+
+
+    #[test]
+    fn test_find_next_occurrence_with_year_range_outside_start() {
+        let cron = Cron::from_str("0 0 0 1 1 * 2080-2085").unwrap();
+        
+        let start_time = Local.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
+
+        let next_occurrence = cron.find_next_occurrence(&start_time, false).unwrap();
+        let expected_time = Local.with_ymd_and_hms(2080, 1, 1, 0, 0, 0).unwrap();
+        
+        assert_eq!(next_occurrence, expected_time, "Iteratorn ska hoppa fram till starten av årtalsintervallet.");
+    }
+
+    #[test]
+    fn test_find_previous_occurrence_with_year_range_outside_start() {
+        let cron = Cron::from_str("0 0 0 1 1 * 2030-2035").unwrap();
+
+        let start_time = Local.with_ymd_and_hms(2050, 1, 1, 0, 0, 0).unwrap();
+
+        let prev_occurrence = cron.find_previous_occurrence(&start_time, false).unwrap();
+        let expected_time = Local.with_ymd_and_hms(2035, 1, 1, 0, 0, 0).unwrap();
+
+        assert_eq!(prev_occurrence, expected_time, "Iteratorn ska hoppa bakåt till slutet av årtalsintervallet.");
     }
 }
