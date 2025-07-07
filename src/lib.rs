@@ -108,6 +108,7 @@ pub enum TimeComponent {
     Hour,
     Day,
     Month,
+    Year
 }
 use errors::CronError;
 pub use iterator::CronIterator;
@@ -285,7 +286,7 @@ impl Cron {
     ) -> Result<DateTime<Tz>, CronError> {
         let mut naive_time = start_time.naive_local();
         let timezone = start_time.timezone();
-
+    
         if !inclusive {
             let adjustment = match direction {
                 Direction::Forward => Duration::seconds(1),
@@ -295,42 +296,14 @@ impl Cron {
                 .checked_add_signed(adjustment)
                 .ok_or(CronError::InvalidTime)?;
         }
-
+    
         loop {
-            let mut year_adjusted = false;
-            while !self.pattern.year_match(naive_time.year())? {
-                match direction {
-                    Direction::Forward => {
-                        let next_year = naive_time.year() + 1;
-                        if next_year > YEAR_UPPER_LIMIT {
-                            return Err(CronError::TimeSearchLimitExceeded);
-                        }
-                        // Hoppa till början av nästa år för att börja sökningen därifrån
-                        naive_time = NaiveDate::from_ymd_opt(next_year, 1, 1)
-                            .ok_or(CronError::InvalidDate)?
-                            .and_hms_opt(0, 0, 0)
-                            .ok_or(CronError::InvalidTime)?;
-                    }
-                    Direction::Backward => {
-                        let prev_year = naive_time.year() - 1;
-                        if prev_year < YEAR_LOWER_LIMIT {
-                            return Err(CronError::TimeSearchLimitExceeded);
-                        }
-                        // Hoppa till slutet av föregående år
-                        naive_time = NaiveDate::from_ymd_opt(prev_year, 12, 31)
-                            .ok_or(CronError::InvalidDate)?
-                            .and_hms_opt(23, 59, 59)
-                            .ok_or(CronError::InvalidTime)?;
-                    }
-                }
-                year_adjusted = true;
-            }
-
-            if year_adjusted {
-                continue;
-            }
-
             let mut updated = false;
+            updated |= self.find_matching_date_component(
+                &mut naive_time,
+                direction,
+                TimeComponent::Year,
+            )?;
             updated |= self.find_matching_date_component(
                 &mut naive_time,
                 direction,
@@ -353,11 +326,11 @@ impl Cron {
                 direction,
                 TimeComponent::Second,
             )?;
-
+    
             if updated {
                 continue;
             }
-
+    
             let (tz_datetime, was_adjusted) = from_naive(naive_time, &timezone)?;
             if self.is_time_matching(&tz_datetime)? || was_adjusted {
                 return Ok(tz_datetime);
@@ -503,6 +476,14 @@ impl Cron {
         match direction {
             Direction::Forward => {
                 let duration = match component {
+                    TimeComponent::Year => { // Tillagd logik för år
+                        let next_year = current_time.year() + 1;
+                        *current_time = NaiveDate::from_ymd_opt(next_year, 1, 1)
+                            .ok_or(CronError::InvalidDate)?
+                            .and_hms_opt(0, 0, 0)
+                            .ok_or(CronError::InvalidTime)?;
+                        return Ok(());
+                    }
                     TimeComponent::Minute => Duration::minutes(1),
                     TimeComponent::Hour => Duration::hours(1),
                     TimeComponent::Day => Duration::days(1),
@@ -536,6 +517,14 @@ impl Cron {
             }
             Direction::Backward => {
                 let duration = match component {
+                    TimeComponent::Year => { // Tillagd logik för år
+                        let prev_year = current_time.year() - 1;
+                        *current_time = NaiveDate::from_ymd_opt(prev_year, 12, 31)
+                            .ok_or(CronError::InvalidDate)?
+                            .and_hms_opt(23, 59, 59)
+                            .ok_or(CronError::InvalidTime)?;
+                        return Ok(());
+                    }
                     TimeComponent::Minute => Duration::minutes(1),
                     TimeComponent::Hour => Duration::hours(1),
                     TimeComponent::Day => Duration::days(1),
@@ -575,6 +564,7 @@ impl Cron {
         let mut changed = false;
         // Loop until the component matches the pattern
         while !(match component {
+            TimeComponent::Year => self.pattern.year_match(current_time.year()), // Tillagd
             TimeComponent::Month => self.pattern.month_match(current_time.month()),
             TimeComponent::Day => self.pattern.day_match(
                 current_time.year(),
