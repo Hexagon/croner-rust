@@ -128,13 +128,13 @@ use serde::{
 /// Safeguard to prevent infinite loops when searching for future
 /// occurrences of a cron pattern that may never match. It ensures that the search
 /// function will eventually terminate and return an error instead of running indefinitely.
-const YEAR_UPPER_LIMIT: i32 = 5000;
+pub const YEAR_UPPER_LIMIT: i32 = 5000;
 
 /// Sets the lower year limit to 1 AD/CE.
 /// This is a pragmatic choice to avoid the complexities of year 0 (1 BCE) and pre-CE
 /// dates, which involve different calendar systems and are outside the scope of a
 /// modern scheduling library.
-const YEAR_LOWER_LIMIT: i32 = 1;
+pub const YEAR_LOWER_LIMIT: i32 = 1;
 
 // The Cron struct represents a cron schedule and provides methods to parse cron strings,
 // check if a datetime matches the cron pattern, and find the next occurrence.
@@ -206,7 +206,8 @@ impl Cron {
             && self
                 .pattern
                 .day_match(naive_time.year(), naive_time.month(), naive_time.day())?
-            && self.pattern.month_match(naive_time.month())?)
+            && self.pattern.month_match(naive_time.month())?
+            && self.pattern.year_match(naive_time.year())?) // Add year match check
     }
 
     /// Finds the next occurrence of a scheduled time that matches the cron pattern.
@@ -980,7 +981,7 @@ mod tests {
             "* * *",
             "invalid",
             "123",
-            "0 0 * * * * *",
+            "0 0 * * * * * *",
             "* * * *",
             "* 60 * * * *",
             "-1 59 * * * *",
@@ -1572,7 +1573,7 @@ mod tests {
     fn test_invalid_serde_tokens() {
         assert_de_tokens_error::<Cron>(
             &[Token::Str("Invalid cron pattern")],
-            "Invalid pattern: Pattern must consist of five or six fields (minute, hour, day, month, day of week, and optional second)."
+            "Invalid pattern: Pattern must have between 5 and 7 fields."
         );
     }
 

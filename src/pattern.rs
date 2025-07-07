@@ -6,21 +6,21 @@ use crate::component::{
     NTH_3RD_BIT, NTH_4TH_BIT, NTH_5TH_BIT, NTH_ALL,
 };
 use crate::errors::CronError;
-use crate::{Direction, TimeComponent};
+use crate::{Direction, TimeComponent, YEAR_LOWER_LIMIT, YEAR_UPPER_LIMIT};
 use chrono::{Datelike, Duration, NaiveDate, Weekday};
 
 // This struct is used for representing and validating cron pattern strings.
-// It supports parsing cron patterns with optional seconds field and provides functionality to check pattern matching against specific datetime.
 #[derive(Debug, Clone, Eq)]
 pub struct CronPattern {
     pub(crate) pattern: String, // The original pattern
-    //
+
     pub seconds: CronComponent,      // -
     pub minutes: CronComponent,      // --
     pub hours: CronComponent,        // --- Each individual part of the cron expression
     pub days: CronComponent,         // --- represented by a bitmask, min and max value
-    pub months: CronComponent,       // --
-    pub days_of_week: CronComponent, // -
+    pub months: CronComponent,       // ---
+    pub days_of_week: CronComponent, // --
+    pub years: CronComponent,        // -
 
     pub(crate) star_dom: bool,
     pub(crate) star_dow: bool,
@@ -28,7 +28,7 @@ pub struct CronPattern {
     pub(crate) dom_and_dow: bool,
 }
 
-// Implementation block for CronPattern struct, providing methods for creating and parsing cron pattern strings.
+// Implementation block for CronPattern struct
 impl CronPattern {
     pub fn new(pattern: &str) -> Self {
         Self {
@@ -36,14 +36,25 @@ impl CronPattern {
             seconds: CronComponent::new(0, 59, NONE_BIT, 0),
             minutes: CronComponent::new(0, 59, NONE_BIT, 0),
             hours: CronComponent::new(0, 23, NONE_BIT, 0),
-            days: CronComponent::new(1, 31, LAST_BIT | CLOSEST_WEEKDAY_BIT, 0), // Special bit LAST_BIT is available
+            days: CronComponent::new(1, 31, LAST_BIT | CLOSEST_WEEKDAY_BIT, 0),
             months: CronComponent::new(1, 12, NONE_BIT, 0),
-            days_of_week: CronComponent::new(0, 7, LAST_BIT | NTH_ALL, 0), // Actually 0-7 in pattern, 7 is converted to 0 in POSIX mode
+            days_of_week: CronComponent::new(0, 7, LAST_BIT | NTH_ALL, 0),
+            years: CronComponent::new(YEAR_LOWER_LIMIT as u16, YEAR_UPPER_LIMIT as u16, NONE_BIT, 0), // Use u16 for year range
             star_dom: false,
             star_dow: false,
             dom_and_dow: false,
         }
     }
+    
+    // Checks if a given year matches the year part of the cron pattern.
+    pub fn year_match(&self, year: i32) -> Result<bool, CronError> {
+        if !(YEAR_LOWER_LIMIT..=YEAR_UPPER_LIMIT).contains(&year) {
+            // This case should ideally be prevented by search limits, but serves as a safeguard.
+            return Ok(false);
+        }
+        self.years.is_bit_set(year as u16, ALL_BIT) // Use u16 cast
+    }
+
 
     // Determines the nth weekday of the month
     fn is_nth_weekday_of_month(date: chrono::NaiveDate, nth: u8, weekday: Weekday) -> bool {
@@ -68,7 +79,7 @@ impl CronPattern {
         }
 
         let date = NaiveDate::from_ymd_opt(year, month, day).ok_or(CronError::InvalidDate)?;
-        let mut day_matches = self.days.is_bit_set(day as u8, ALL_BIT)?;
+        let mut day_matches = self.days.is_bit_set(day as u16, ALL_BIT)?; // Use u16
         let mut dow_matches = false;
 
         if !day_matches
@@ -93,7 +104,7 @@ impl CronPattern {
             };
             if self
                 .days_of_week
-                .is_bit_set(date.weekday().num_days_from_sunday() as u8, nth_bit)?
+                .is_bit_set(date.weekday().num_days_from_sunday() as u16, nth_bit)? // Use u16
                 && Self::is_nth_weekday_of_month(date, nth, date.weekday())
             {
                 dow_matches = true;
@@ -104,7 +115,7 @@ impl CronPattern {
         if !dow_matches
             && self
                 .days_of_week
-                .is_bit_set(date.weekday().num_days_from_sunday() as u8, LAST_BIT)?
+                .is_bit_set(date.weekday().num_days_from_sunday() as u16, LAST_BIT)? // Use u16
             && (date + chrono::Duration::days(7)).month() != date.month()
         {
             dow_matches = true;
@@ -113,7 +124,7 @@ impl CronPattern {
         dow_matches = dow_matches
             || self
                 .days_of_week
-                .is_bit_set(date.weekday().num_days_from_sunday() as u8, ALL_BIT)?;
+                .is_bit_set(date.weekday().num_days_from_sunday() as u16, ALL_BIT)?; // Use u16
 
         if (day_matches && self.star_dow) || (dow_matches && self.star_dom) {
             Ok(true)
@@ -147,10 +158,10 @@ impl CronPattern {
 
     pub fn closest_weekday(&self, year: i32, month: u32, day: u32) -> Result<bool, CronError> {
         // Iterate through all possible days to see if any have the 'W' flag.
-        for pattern_day_u8 in 1..=31 {
-            if self.days.is_bit_set(pattern_day_u8, CLOSEST_WEEKDAY_BIT)? {
+        for pattern_day_u16 in 1..=31 {
+            if self.days.is_bit_set(pattern_day_u16, CLOSEST_WEEKDAY_BIT)? {
                 // A 'W' day exists in the pattern. Check if it resolves to the function's date argument.
-                let pattern_day = pattern_day_u8 as u32;
+                let pattern_day = pattern_day_u16 as u32;
 
                 // Ensure the 'W' day is a valid calendar date for the given month/year.
                 if let Some(pattern_date) = NaiveDate::from_ymd_opt(year, month, pattern_day) {
@@ -204,28 +215,28 @@ impl CronPattern {
         if !(1..=12).contains(&month) {
             return Err(CronError::InvalidDate);
         }
-        self.months.is_bit_set(month as u8, ALL_BIT)
+        self.months.is_bit_set(month as u16, ALL_BIT)
     }
 
     pub fn hour_match(&self, hour: u32) -> Result<bool, CronError> {
         if hour > 23 {
             return Err(CronError::InvalidTime);
         }
-        self.hours.is_bit_set(hour as u8, ALL_BIT)
+        self.hours.is_bit_set(hour as u16, ALL_BIT)
     }
 
     pub fn minute_match(&self, minute: u32) -> Result<bool, CronError> {
         if minute > 59 {
             return Err(CronError::InvalidTime);
         }
-        self.minutes.is_bit_set(minute as u8, ALL_BIT)
+        self.minutes.is_bit_set(minute as u16, ALL_BIT)
     }
 
     pub fn second_match(&self, second: u32) -> Result<bool, CronError> {
         if second > 59 {
             return Err(CronError::InvalidTime);
         }
-        self.seconds.is_bit_set(second as u8, ALL_BIT)
+        self.seconds.is_bit_set(second as u16, ALL_BIT)
     }
 
     /// Finds the next or previous matching value for a given time component based on direction.
@@ -246,8 +257,8 @@ impl CronPattern {
             }
         };
 
-        let value_u8 = value as u8;
-        if value_u8 > component.max {
+        let value_u16 = value as u16;
+        if value_u16 > component.max {
             return Err(CronError::ComponentError(format!(
                 "Input value {} is out of bounds for the component (max: {}).",
                 value, component.max
@@ -256,14 +267,14 @@ impl CronPattern {
 
         match direction {
             Direction::Forward => {
-                for next_value in value_u8..=component.max {
+                for next_value in value_u16..=component.max {
                     if component.is_bit_set(next_value, ALL_BIT)? {
                         return Ok(Some(next_value as u32));
                     }
                 }
             }
             Direction::Backward => {
-                for prev_value in (component.min..=value_u8).rev() {
+                for prev_value in (component.min..=value_u16).rev() {
                     if component.is_bit_set(prev_value, ALL_BIT)? {
                         return Ok(Some(prev_value as u32));
                     }
@@ -279,7 +290,7 @@ impl CronPattern {
     /// Note: The pattern must be parsed successfully before calling this method.
     /// Returns a human-readable description of the cron pattern in English.
     pub fn describe(&self) -> String {
-        self.describe_lang(crate::describe::English::default())
+        self.describe_lang(crate::describe::English)
     }
 
     /// Returns a human-readable description using a provided language provider.
@@ -305,7 +316,7 @@ impl std::fmt::Display for CronPattern {
 
 impl PartialEq for CronPattern {
     /// Checks for functional equality between two CronPattern instances.
-    ///
+     ///
     /// Two patterns are considered equal if they have been parsed and their
     /// resulting schedule components and behavioral options are identical.
     /// The original pattern string is ignored in this comparison.
@@ -319,6 +330,7 @@ impl PartialEq for CronPattern {
             && self.days == other.days
             && self.months == other.months
             && self.days_of_week == other.days_of_week
+            && self.years == other.years
             && self.star_dom == other.star_dom
             && self.star_dow == other.star_dow
             && self.dom_and_dow == other.dom_and_dow
@@ -346,12 +358,13 @@ impl Ord for CronPattern {
         // Compare the time components in logical order, from most to least
         // significant.
         self.seconds
-            .cmp(&other.seconds)
-            .then_with(|| self.minutes.cmp(&other.minutes))
-            .then_with(|| self.hours.cmp(&other.hours))
-            .then_with(|| self.days.cmp(&other.days))
-            .then_with(|| self.months.cmp(&other.months))
-            .then_with(|| self.days_of_week.cmp(&other.days_of_week))
+        .cmp(&other.seconds)
+        .then_with(|| self.minutes.cmp(&other.minutes))
+        .then_with(|| self.hours.cmp(&other.hours))
+        .then_with(|| self.days.cmp(&other.days))
+        .then_with(|| self.months.cmp(&other.months))
+        .then_with(|| self.days_of_week.cmp(&other.days_of_week))
+        .then_with(|| self.years.cmp(&other.years))
             // Finally, compare the boolean flags to ensure a stable order
             // for patterns that are otherwise identical.
             .then_with(|| self.star_dom.cmp(&other.star_dom))
@@ -359,6 +372,7 @@ impl Ord for CronPattern {
             .then_with(|| self.dom_and_dow.cmp(&other.dom_and_dow))
     }
 }
+
 impl std::hash::Hash for CronPattern {
     /// Hashes the functionally significant fields of the CronPattern.
     ///
@@ -372,6 +386,7 @@ impl std::hash::Hash for CronPattern {
         self.days.hash(state);
         self.months.hash(state);
         self.days_of_week.hash(state);
+        self.years.hash(state);
         self.star_dom.hash(state);
         self.star_dow.hash(state);
         self.dom_and_dow.hash(state);

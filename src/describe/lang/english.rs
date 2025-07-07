@@ -6,13 +6,13 @@ pub struct English;
 impl Language for English {
     fn every_minute(&self) -> &'static str { "Every minute" }
     fn every_second_phrase(&self) -> &'static str { "Every second" }
-    fn every_x_minutes(&self, s: u8) -> String { format!("every {} minutes", s) }
-    fn every_x_seconds(&self, s: u8) -> String { format!("every {} seconds", s) }
-    fn every_x_hours(&self, s: u8) -> String { format!("of every {} hours", s) }
-    fn every_minute_of_every_x_hours(&self, s: u8) -> String { format!("Every minute, of every {} hours", s) }
+    fn every_x_minutes(&self, s: u16) -> String { format!("every {} minutes", s) }
+    fn every_x_seconds(&self, s: u16) -> String { format!("every {} seconds", s) }
+    fn every_x_hours(&self, s: u16) -> String { format!("of every {} hours", s) }
+    fn every_minute_of_every_x_hours(&self, s: u16) -> String { format!("Every minute, of every {} hours", s) }
     
     fn at_time(&self, time: &str) -> String { format!("At {}", time) }
-    fn at_time_and_every_x_seconds(&self, time: &str, step: u8) -> String { format!("At {}, every {} seconds", time, step) }
+    fn at_time_and_every_x_seconds(&self, time: &str, step: u16) -> String { format!("At {}, every {} seconds", time, step) }
     fn at_time_at_second(&self, time: &str, second: &str) -> String { format!("At {}, at second {}", time, second) }
     
     fn at_phrase(&self, phrase: &str) -> String { format!("At {}", phrase) }
@@ -23,6 +23,7 @@ impl Language for English {
     fn minute_phrase(&self, s: &str) -> String { format!("minute {}", s) }
     fn minute_past_every_hour_phrase(&self, s: &str) -> String { format!("{} past every hour", s) }
     fn hour_phrase(&self, s: &str) -> String { format!("of hour {}", s) }
+    fn year_phrase(&self, s: &str) -> String { format!("year {}", s) }
 
     fn day_phrase(&self, s: &str) -> String { format!("day {}", s) }
     fn the_last_day_of_the_month(&self) -> &'static str { "the last day of the month" }
