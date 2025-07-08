@@ -143,10 +143,9 @@ mod ocps_1_4_tests {
     }
 
     #[test]
-    #[ignore] // Ignored until '!' (AND) modifier is implemented
     fn test_and_modifier() {
         // Should ONLY match if the 1st of the month is a Monday.
-        let cron = custom_parse("0 12 1 * !MON", false).unwrap();
+        let cron = custom_parse("0 12 1 * +MON", false).unwrap();
 
         // September 1st, 2025 is a Monday.
         let first_is_monday = Local.with_ymd_and_hms(2025, 9, 1, 12, 0, 0).unwrap();
@@ -170,4 +169,12 @@ mod ocps_1_4_tests {
         assert!(!cron.is_time_matching(&first_is_not_monday).unwrap());
         assert!(!cron.is_time_matching(&a_monday_not_first).unwrap(), "Should not match a Monday that is not the 1st in AND mode.");
     }
+
+    #[test]
+    fn test_plus_modifier_invalid_field() {
+        // Using '+' in the day-of-month field should result in an error.
+        let result = custom_parse("0 0 +1 * *", false);
+        assert!(matches!(result, Err(croner::errors::CronError::IllegalCharacters(_))));
+    }
+
 }

@@ -161,6 +161,17 @@ impl CronParser {
         if owned_parts.get(5).is_some_and(|p| p.contains('?')) {
             owned_parts[5] = owned_parts[5].replace('?', "*");
         }
+
+        // Check for the '+' (AND) modifier in the day-of-week field.
+        // This must be done before illegal character validation.
+        let mut dom_and_dow_from_pattern = false;
+        if let Some(dow_part) = owned_parts.get_mut(5) {
+            if dow_part.starts_with('+') {
+                dom_and_dow_from_pattern = true;
+                // Remove the '+' so the rest of the field can be parsed normally.
+                *dow_part = dow_part[1..].to_string();
+            }
+        }
         parts = owned_parts.iter().map(|s| s.as_str()).collect();
 
         // Throw at illegal characters
@@ -223,7 +234,7 @@ impl CronParser {
                 years,
                 star_dom,
                 star_dow,
-                dom_and_dow: self.dom_and_dow,
+                dom_and_dow: self.dom_and_dow || dom_and_dow_from_pattern,
             },
         })
     }
