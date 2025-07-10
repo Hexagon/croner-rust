@@ -38,13 +38,14 @@ Croner combines the features of cron and saffron, while following the POSIX/Vixi
 | `5L` - Last occurrence of weekday |    X     |    ?   |   X    |
 | `#` - Nth occurrence of weekday |    X     |      |   X    |
 | `W` - Closest weekday |    X     |        |  X     |
+| `+` - dom-AND-dow through pattern |    X     |        |      |
 | "Standards"-compliant weekdays (1 is monday) |   X    |      |       |
 | Five part patterns (minute granularity) |  X   |         |    X   |
 | Six part patterns (second granularity)|  X   |    X    |       |
 | Weekday/Month text representations |  X   |    X    |   X   |
 | Aliases (`@hourly` etc.) |  X           |     X      |          |
 | chrono `DateTime` compatibility |    X     |     X   |   X    |
-| DOM-and-DOW option |    X     |           |         |
+| Option to force DOM-and-DOW |    X     |           |         |
 | Generate human readable string |    X     |           |    X    |
 
 > [!NOTE]
@@ -189,6 +190,10 @@ a few additions and changes as outlined below:
     (Saturday or Sunday), the pattern will match the closest weekday before or
     after that date. For instance, if the 15th is a Saturday, 15W will match the
     14th (Friday), and if the 15th is a Sunday, it will match the 16th (Monday).
+  - _+_: The plus sign can be used as a prefix to the day-of-week field to create 
+    a logical AND between the day-of-month and day-of-week fields. By default, 
+    the relationship is a logical OR. For example, `0 0 1 * +MON` will run only
+    if the 1st of the month is also a Monday.
 
 | Field        | Required | Allowed values  | Allowed special characters | Remarks                                                                                                         |
 | ------------ | -------- | --------------- | -------------------------- | --------------------------------------------------------------------------------------------------------------- |
@@ -197,7 +202,7 @@ a few additions and changes as outlined below:
 | Hours        | Yes      | 0-23            | * , - /                    |                                                                                                                 |
 | Day of Month | Yes      | 1-31            | * , - / ? L W              |                                                                                                                 |
 | Month        | Yes      | 1-12 or JAN-DEC | * , - /                    |                                                                                                                 |
-| Day of Week  | Yes      | 0-7 or SUN-MON  | * , - / ? # L              | 0 to 6 are Sunday to Saturday<br>7 is Sunday, the same as 0<br># is used to specify nth occurrence of a weekday |
+| Day of Week  | Yes      | 0-7 or SUN-MON  | * , - / ? # L +            | 0 to 6 are Sunday to Saturday<br>7 is Sunday, the same as 0<br># is used to specify nth occurrence of a weekday |
 
 > [!NOTE]
 > Weekday and month names are case-insensitive. Both `MON` and `mon`
@@ -266,7 +271,10 @@ let cron = parser
 
 #### 3. `dom_and_dow`
 
-This method enables the combination of Day of Month (DOM) and Day of Week (DOW) conditions in your cron expressions. It's particularly useful for creating schedules that require specificity in terms of both the day of the month and the day of the week, such as running a task when the first of the month is a Monday, or christmas day is on a friday.
+This method forces the combination of Day of Month (DOM) and Day of Week (DOW) conditions in your cron expressions. It's particularly useful for creating schedules that require specificity in terms of both the day of the month and the day of the week, such as running a task when the first of the month is a Monday, or christmas day is on a friday. Certain libraries use this mode by default.
+
+> [!NOTE]
+> While this method provides a way to globally enforce AND logic, the recommended approach is to use the `+` modifier directly in the cron pattern (e.g., `0 0 1 * +MON`). This pattern-level configuration gives you more granular control and is enabled by default.
 
 **Example Usage**:
 
