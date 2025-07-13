@@ -111,7 +111,7 @@ where
                 }
                 Err(CronError::TimeSearchLimitExceeded) => return None,
                 Err(e) => {
-                    eprintln!("CronIterator encountered an error: {:?}", e);
+                    eprintln!("CronIterator encountered an error: {e:?}");
                     return None;
                 }
             }

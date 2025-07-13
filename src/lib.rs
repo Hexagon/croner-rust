@@ -1975,14 +1975,14 @@ mod tests {
             assert_eq!(
                 occurrences[(2 * m) as usize], // <-- CAST TO usize HERE
                 ambiguous_m_00.earliest().unwrap(),
-                "Minute {}: CEST occurrence mismatch", m
+                "Minute {m}: CEST occurrence mismatch"
             );
 
             // Assert CET occurrence (latest)
             assert_eq!(
                 occurrences[(2 * m + 1) as usize], // <-- CAST TO usize HERE
                 ambiguous_m_00.latest().unwrap(),
-                "Minute {}: CET occurrence mismatch", m
+                "Minute {m}: CET occurrence mismatch"
             );
         }
 
