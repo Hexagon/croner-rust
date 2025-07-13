@@ -164,10 +164,10 @@ impl FromStr for Cron {
 impl Cron {
     /// Evaluates if a given `DateTime` matches the cron pattern.
     ///
-    /// The function checks each cron field (seconds, minutes, hours, day of month, month) against
-    /// the provided `DateTime` to determine if it aligns with the cron pattern. Each field is
-    /// checked for a match, and all fields must match for the entire pattern to be considered
-    /// a match.
+    /// The function checks each cron field (seconds, minutes, hours, day of month, month and 
+    /// year) against the provided `DateTime` to determine if it aligns with the cron pattern. 
+    /// Each field is checked for a match, and all fields must match for the entire pattern 
+    /// to be considered a match.
     ///
     /// # Parameters
     ///
@@ -365,8 +365,7 @@ impl Cron {
                     let second_occurrence_dt = timezone.from_local_datetime(&naive_time).latest().unwrap();
 
                     if job_type == JobType::FixedTime {
-                        // Fixed-Time Job: Only interested in the first occurrence that matches.
-                        // We return it and expect the iterator to skip the rest of this naive time's ambiguity.
+                        // Fixed-Time Job: Execute only once, at its first occurrence (earliest in the ambiguous pair).
                         if self.is_time_matching(&first_occurrence_dt)? {
                             return Ok((first_occurrence_dt, None)); // Return only the first, no second for fixed jobs.
                         }
@@ -404,27 +403,60 @@ impl Cron {
                     }
                 }
                 chrono::LocalResult::None => {
-                    // DST Gap (Spring Forward) - logic unchanged, as it correctly skips
+                    // DST Gap (Spring Forward)
                     if job_type == JobType::FixedTime {
+                        // For fixed-time jobs that fall into a gap, we want them to "snap" to the first valid time after the gap.
+                        // Find the very first valid NaiveDateTime after the current `naive_time`
+                        // that can be successfully converted to a DateTime<Tz>.
                         let mut temp_naive = naive_time;
                         let mut gap_adjust_count = 0;
-                        const MAX_GAP_SEARCH_SECONDS: u32 = 3600 * 2;
+                        const MAX_GAP_SEARCH_SECONDS: u32 = 3600 * 2; // Max 2 hours for a typical gap
+
+                        let resolved_dt_after_gap: DateTime<Tz>;
+
                         loop {
                             temp_naive = temp_naive.checked_add_signed(match direction {
                                 Direction::Forward => Duration::seconds(1),
                                 Direction::Backward => Duration::seconds(-1),
                             }).ok_or(CronError::InvalidTime)?;
                             gap_adjust_count += 1;
-                            if matches!(from_naive(temp_naive, &timezone), chrono::LocalResult::Single(_) | chrono::LocalResult::Ambiguous(_, _)) {
-                                naive_time = temp_naive;
+                            
+                            // Try to resolve this `temp_naive` into a real DateTime.
+                            let local_result = from_naive(temp_naive, &timezone);
+
+                            if let chrono::LocalResult::Single(dt) = local_result {
+                                resolved_dt_after_gap = dt;
+                                break;
+                            } else if let chrono::LocalResult::Ambiguous(dt1, _) = local_result {
+                                // If it resolves to ambiguous (unlikely right at a gap boundary for Single), take the earliest.
+                                resolved_dt_after_gap = dt1; 
                                 break;
                             }
+                            // Keep looping if still None or search limit exceeded
                             if gap_adjust_count > MAX_GAP_SEARCH_SECONDS {
                                 return Err(CronError::TimeSearchLimitExceeded);
                             }
                         }
-                        continue;
-                    } else {
+
+                        // `resolved_dt_after_gap` is now the first valid wall-clock time after the gap.
+                        // For a fixed-time job that fell into the gap, this is the time it should run.
+                        // We must ensure that its date components (year, month, day, day of week) still match the pattern.
+                        // We do NOT check the original fixed hour/minute/second from the pattern, as they were "missing".
+                        if self.pattern.day_match(resolved_dt_after_gap.year(), resolved_dt_after_gap.month(), resolved_dt_after_gap.day())? &&
+                           self.pattern.month_match(resolved_dt_after_gap.month())? &&
+                           self.pattern.year_match(resolved_dt_after_gap.year())? {
+                            // No need to update naive_time here
+                            return Ok((resolved_dt_after_gap, None)); 
+                        } else {
+                            // If even the date components of this post-gap time do not match the pattern,
+                            // then the fixed job's *date* itself was not the one containing the gap.
+                            // In this case, we simply advance `naive_time` past the gap
+                            // and let the main loop continue searching for the next matching date.
+                            naive_time = temp_naive;
+                            continue;
+                        }
+                    } else { // Interval/Wildcard Job in DST Gap
+                        // Existing logic: simply advance by one second/minute
                         naive_time = naive_time.checked_add_signed(match direction {
                             Direction::Forward => Duration::seconds(1),
                             Direction::Backward => Duration::seconds(-1),
@@ -1755,7 +1787,7 @@ mod tests {
             .unwrap();
         assert_eq!(prev_occurrence, expected_time);
 
-        // With the core logic fixed, searching past the limit will now correctly return TimeSearchLimitExceeded.
+        // Searching past the limit will return TimeSearchLimitExceeded.
         let result = cron.find_previous_occurrence(&expected_time, false);
         assert!(matches!(result, Err(CronError::TimeSearchLimitExceeded)));
 
@@ -1843,18 +1875,14 @@ mod tests {
 
         // Fixed-Time Job: Scheduled for 02:30:00, which falls in the gap.
         // According to spec: Should execute at the first valid second/minute immediately following the gap (03:00:00).
-        // Current implementation's behavior: It skips the non-existent time and finds the next occurrence of 02:30:00 on the following day.
         let cron = Cron::from_str("0 30 2 * * *")?; // 02:30:00
         let start_time = timezone.with_ymd_and_hms(2025, 3, 30, 1, 59, 59).unwrap(); // Just before the gap
 
         let next_occurrence = cron.find_next_occurrence(&start_time, false)?;
         
-        // This expected time reflects the current implementation's behavior (skipping to next day),
-        // not the spec's "execute immediately after gap" for fixed-time jobs.
-        // Implementing the "execute immediately after gap" rule for fixed-time jobs in DST gaps
-        // would require a more complex modification to the `find_occurrence` logic.
-        let expected_time = timezone.with_ymd_and_hms(2025, 3, 31, 2, 30, 0).unwrap(); 
-
+        // The hour 02:00-02:59:59 does not exist.
+        // According to spec: Should execute at the first valid second/minute immediately following the gap (03:00:00).
+        let expected_time = timezone.with_ymd_and_hms(2025, 3, 30, 3, 0, 0).unwrap();
         assert_eq!(next_occurrence, expected_time, "Fixed-time job in DST gap should execute on the next valid occurrence of its pattern.");
         Ok(())
     }
