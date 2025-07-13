@@ -294,6 +294,13 @@ impl CronComponent {
         Ok(())
     }
 
+    /// Returns a vector of u16 values for all bits set in the component for a given bitflag.
+    pub fn get_set_values(&self, bit: u8) -> Vec<u16> {
+        (self.min..=self.max)
+            .filter(|i| self.is_bit_set(*i, bit).unwrap_or(false))
+            .collect()
+    }
+
     fn get_nth_bit(value: &str) -> Result<u8, CronError> {
         // If value ends with 'L', we set the LAST_BIT and exit early
         if value.ends_with('L') {

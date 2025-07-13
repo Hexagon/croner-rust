@@ -311,14 +311,27 @@ let cron = parser
 For detailed usage and API documentation, visit
 [Croner on docs.rs](https://docs.rs/croner/).
 
-**A Note on Historical Dates, the Proleptic Gregorian Calendar and future dates**
+## Time and Calendar System
 
-Croner relies on the `chrono` crate for all date and time calculations. It's important to understand that `chrono` uses a **proleptic Gregorian calendar**.
+Croner uses the `chrono` crate, which operates on a **proleptic Gregorian calendar**. This means it treats all dates, historical or future, as if the Gregorian calendar has always been in effect. Consequently, it does not account for historical calendar reforms (e.g., skipped days during the 1582 Gregorian adoption) and will iterate through all dates uniformly.
+For stability and practical use, Croner supports dates from **year 1 AD/CE** up to the beginning of **year 5000**, preventing searches that are too far into the past or future.
 
-A practical consequence of this is that `croner` will not show the "missing days" from historical calendar reforms. For example, during the Gregorian calendar reform in October 1582, the days from the 5th to the 14th were skipped in many countries. `croner`, following `chrono`'s proleptic calendar, will iterate through these non-existent dates (e.g., Oct 5, Oct 6, etc.) as if they were real.
+### Daylight Saving Time (DST) Handling
 
-To ensure stability and practical usability, `croner` operates within a defined date range. The earliest date supported is the beginning of **year 1 AD/CE**, a choice made to avoid the complexities of pre-CE calendar systems. The latest supported date is capped at the beginning of the **year 5000**, which serves as a safeguard to prevent infinite loops when searching for schedules that may be too far in the future or can never occur.
+Croner-rust provides robust and predictable handling of Daylight Saving Time (DST) transitions, aligning with the Open Cron Pattern Specification (OCPS) and Vixie-cron's time-tested behavior. Jobs are categorized based on their time-unit field specifications:
 
+* **Fixed-Time Jobs**: Jobs with specific numerical values for seconds, minutes, and hours (e.g., `0 30 2 * * *`).
+* **Interval/Wildcard Jobs**: Jobs using wildcards (`*`) or step values (`*/N`) in their seconds, minutes, or hours fields (e.g., `*/5 * * * * *`).
+
+During DST transitions, Croner-rust behaves as follows:
+
+* **DST Gap (Spring Forward)**: When a scheduled time falls into a non-existent interval (e.g., 2:00 AM jumps to 3:00 AM):
+    * Fixed-Time Jobs: Will execute at the first valid second/minute immediately following the gap on the same calendar day.
+    * Interval/Wildcard Jobs: Occurrences within the gap are skipped. Subsequent executions resume at the next regularly scheduled interval relative to the new wall clock time.
+* **DST Overlap (Fall Back)**: When a scheduled time interval occurs twice (e.g., 2:00 AM falls back to 1:00 AM):
+    * Fixed-Time Jobs: Will execute only once, at its first occurrence in wall clock time.
+    * Interval/Wildcard Jobs: Will execute for each occurrence that matches its pattern in wall clock time within the duplicated hour.
+    
 ## Development
 
 To start developing in the Croner project:
