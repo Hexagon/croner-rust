@@ -14,7 +14,7 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
   for the last day and weekday of the month, `#` for the nth weekday of the
   month, `W` for closest weekday to a day of month.
 - Evaluate cron expressions across different time zones.
-- Supports optional second granularity `.with_seconds_optional` or `.with_seconds_required`
+- Supports optional second-, and year granularity
 - Supports optional alternative weekday mode to use Quartz-style weekdays instead of POSIX using `with_alternative_weekdays`
 - Allows for flexible combination of DOM and DOW conditions, enabling patterns to match specific days of the week in specific weeks of the month or the closest weekday to a specific day.
 - Compatible with `chrono` and (optionally) `chrono-tz`.
@@ -64,7 +64,7 @@ Add `croner` to your `Cargo.toml` dependencies:
 
 ```toml
 [dependencies]
-croner = "2.2.0" # Adjust the version as necessary
+croner = "3.0.0" # Adjust the version as necessary
 ```
 
 ### Usage
