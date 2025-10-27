@@ -144,6 +144,28 @@ fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
         return lang.at_time(&time_str);
     }
 
+    // Special case: "* 0 * * *" -> "Every minute past hour 0"
+    // When minutes are all set (wildcard) and hours are specific (not all set)
+    if is_default_seconds && is_all_set(&pattern.minutes) && !is_all_set(&pattern.hours) {
+        let hour_desc = if is_stepped_from_start(pattern.hours.step, &hour_vals, pattern.hours.min) {
+            lang.every_x_hours(pattern.hours.step)
+        } else {
+            format!("hour {}", format_number_list(&hour_vals, lang))
+        };
+        return format!("{} past {}", lang.every_minute(), hour_desc);
+    }
+
+    // Special case: "* * 0 * * *" -> "Every second past hour 0"
+    // When seconds and minutes are all set (wildcard) and hours are specific (not all set)
+    if is_every_second && is_all_set(&pattern.minutes) && !is_all_set(&pattern.hours) {
+        let hour_desc = if is_stepped_from_start(pattern.hours.step, &hour_vals, pattern.hours.min) {
+            lang.every_x_hours(pattern.hours.step)
+        } else {
+            format!("hour {}", format_number_list(&hour_vals, lang))
+        };
+        return format!("{} past {}", lang.every_second_phrase(), hour_desc);
+    }
+
     // Handle all other complex combinations
     let mut parts = vec![];
 
@@ -406,6 +428,15 @@ mod tests {
             get_description("0 */2 * * *"),
             "At minute 0, of every 2 hours."
         );
+        // Test for issue #35: "* 0 * * *" should describe properly
+        assert_eq!(
+            get_description("* 0 * * *"),
+            "Every minute past hour 0."
+        );
+        assert_eq!(
+            get_description("* 0,12 * * *"),
+            "Every minute past hour 0 and 12."
+        );
     }
 
     #[test]
@@ -415,6 +446,15 @@ mod tests {
         assert_eq!(
             get_description("10-20 0 14 * * *"),
             "At 14:00, at second 10-20."
+        );
+        // Test for similar issue as #35 with seconds
+        assert_eq!(
+            get_description("* * 0 * * *"),
+            "Every second past hour 0."
+        );
+        assert_eq!(
+            get_description("* * 5 * * *"),
+            "Every second past hour 5."
         );
     }
     
@@ -525,5 +565,78 @@ mod tests {
             desc,
             "At 00:00, on day 1 (if it is also one of: the last Friday of the month and the 1st Monday of the month)."
         );
+    }
+
+    // Issue #35: Incorrect descriptor
+    // https://github.com/Hexagon/croner-rust/issues/35
+    // Pattern "* 0 * * *" was producing "At of hour 0." instead of "Every minute past hour 0."
+    
+    #[test]
+    fn test_issue_35_wildcard_minutes_specific_hours() {
+        // Original bug: "* 0 * * *" produced "At of hour 0."
+        assert_eq!(
+            get_description("* 0 * * *"),
+            "Every minute past hour 0."
+        );
+        assert_eq!(
+            get_description("* 5 * * *"),
+            "Every minute past hour 5."
+        );
+        assert_eq!(
+            get_description("* 0-5 * * *"),
+            "Every minute past hour 0-5."
+        );
+    }
+
+    #[test]
+    fn test_issue_35_seconds_variant() {
+        // Similar issue with seconds: "* * 0 * * *" was producing "Every second, of hour 0."
+        assert_eq!(
+            get_description("* * 0 * * *"),
+            "Every second past hour 0."
+        );
+        assert_eq!(
+            get_description("* * 5 * * *"),
+            "Every second past hour 5."
+        );
+        assert_eq!(
+            get_description("* * 0,12 * * *"),
+            "Every second past hour 0 and 12."
+        );
+    }
+
+    #[test]
+    fn test_issue_35_with_other_fields() {
+        // Test combinations with days, months, weekdays
+        assert_eq!(
+            get_description("* 0 * 1 *"),
+            "Every minute past hour 0, in January."
+        );
+        assert_eq!(
+            get_description("* 0 * * MON"),
+            "Every minute past hour 0, on Monday."
+        );
+    }
+
+    #[test]
+    fn test_no_grammatical_errors() {
+        // Ensure no grammatical errors like "At of", "At ,", etc.
+        let patterns = vec![
+            "* 0 * * *",
+            "* * 0 * * *",
+            "0 * 0 * * *",
+            "* 0 * 1 *",
+            "* 0 * * MON",
+        ];
+
+        for pattern in patterns {
+            let desc = get_description(pattern);
+            assert!(
+                !desc.contains("At of") && !desc.contains("At ,") && !desc.starts_with("At ."),
+                "Pattern '{}' produced grammatically incorrect description: '{}'",
+                pattern,
+                desc
+            );
+        }
     }
 }

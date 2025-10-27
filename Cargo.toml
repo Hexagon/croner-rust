@@ -1,6 +1,6 @@
 [package]
 name = "croner"
-version = "3.0.0"
+version = "3.0.1"
 edition = "2021"
 license = "MIT"
 description = "Fully-featured, lightweight, and efficient Rust library designed for parsing and evaluating cron patterns"
@@ -16,15 +16,15 @@ name = "croner"
 path = "src/lib.rs"
 
 [dependencies]
-chrono = "0.4.38"
+chrono = "0.4.42"
 derive_builder = "0.20.2"
 serde = { version = "1.0", optional = true }
-strum = { version = "0.27.1", features = ["derive"] }
+strum = { version = "0.27.2", features = ["derive"] }
 
 [dev-dependencies]
-chrono-tz = "0.10.0"
-criterion = "0.5.1"
-rstest = "0.25.0"
+chrono-tz = "0.10.4"
+criterion = "0.7.0"
+rstest = "0.26.1"
 serde_test = "1.0"
 
 [features]
