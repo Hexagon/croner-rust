@@ -100,9 +100,9 @@ fn is_all_set(component: &CronComponent) -> bool {
 
 fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
 
-    let sec_vals = get_set_values(&pattern.seconds, ALL_BIT);
-    let min_vals = get_set_values(&pattern.minutes, ALL_BIT);
-    let hour_vals = get_set_values(&pattern.hours, ALL_BIT);
+    let sec_vals = pattern.seconds.get_set_values(ALL_BIT);
+    let min_vals = pattern.minutes.get_set_values(ALL_BIT);
+    let hour_vals = pattern.hours.get_set_values(ALL_BIT);
 
     let is_default_seconds = pattern.seconds.step == 1 && sec_vals.len() == 1 && sec_vals[0] == 0;
     let is_every_second = is_all_set(&pattern.seconds);
@@ -209,12 +209,6 @@ fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     lang.at_phrase(&parts.join(", "))
 }
 
-fn get_set_values(component: &CronComponent, bit: u8) -> Vec<u16> {
-    (component.min..=component.max)
-        .filter(|i| component.is_bit_set(*i, bit).unwrap_or(false)) // Corrected
-        .collect()
-}
-
 fn format_text_list<L: Language>(items: Vec<String>, lang: &L) -> String {
     match items.len() {
         0 => String::new(),
@@ -290,7 +284,7 @@ fn describe_day<L: Language>(pattern: &CronPattern, lang: &L) -> String {
 fn describe_dom<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     let mut parts = vec![];
 
-    let regular_days = get_set_values(&pattern.days, ALL_BIT);
+    let regular_days = pattern.days.get_set_values(ALL_BIT);
     if !regular_days.is_empty() {
         parts.push(lang.day_phrase(&format_number_list(&regular_days, lang)));
     }
@@ -298,7 +292,7 @@ fn describe_dom<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     if pattern.days.is_feature_enabled(LAST_BIT) {
         parts.push(lang.the_last_day_of_the_month().to_string());
     }
-    let weekday_values = get_set_values(&pattern.days, CLOSEST_WEEKDAY_BIT);
+    let weekday_values = pattern.days.get_set_values(CLOSEST_WEEKDAY_BIT);
     if !weekday_values.is_empty() {
         parts.push(lang.the_weekday_nearest_day(&format_number_list(&weekday_values, lang)));
     }
@@ -317,21 +311,21 @@ fn describe_dow_parts<L: Language>(pattern: &CronPattern, lang: &L) -> Vec<Strin
         dow_names_map[4], dow_names_map[5], dow_names_map[6], dow_names_map[0],
     ];
 
-    let last_values = get_set_values(&pattern.days_of_week, LAST_BIT);
+    let last_values = pattern.days_of_week.get_set_values(LAST_BIT);
     if !last_values.is_empty() {
         let days = last_values.iter().map(|v| dow_names[*v as usize].to_string()).collect::<Vec<_>>(); // Corrected
         parts.push(lang.the_last_weekday_of_the_month(&format_text_list(days, lang)));
     }
 
     for (i, nth_bit) in [NTH_1ST_BIT, NTH_2ND_BIT, NTH_3RD_BIT, NTH_4TH_BIT, NTH_5TH_BIT].iter().enumerate() {
-        let values = get_set_values(&pattern.days_of_week, *nth_bit);
+        let values = pattern.days_of_week.get_set_values(*nth_bit);
         if !values.is_empty() {
             let days = values.iter().map(|v| dow_names[*v as usize].to_string()).collect::<Vec<_>>(); // Corrected
             parts.push(lang.the_nth_weekday_of_the_month((i + 1) as u8, &format_text_list(days, lang)));
         }
     }
 
-    let regular_values = get_set_values(&pattern.days_of_week, ALL_BIT);
+    let regular_values = pattern.days_of_week.get_set_values(ALL_BIT);
     if !regular_values.is_empty() {
         let list = regular_values.iter().map(|v| dow_names[*v as usize].to_string()).collect::<Vec<_>>(); // Corrected
         parts.push(format_text_list(list, lang));
@@ -349,7 +343,7 @@ fn describe_month<L: Language>(pattern: &CronPattern, lang: &L) -> String {
         return lang.in_phrase(&format!("every {} months", pattern.months.step));
     }
 
-    let values = get_set_values(&pattern.months, ALL_BIT);
+    let values = pattern.months.get_set_values(ALL_BIT);
     let list = values
         .iter()
         .map(|v| month_names[*v as usize - 1].to_string()) // Corrected
@@ -366,7 +360,7 @@ fn describe_year<L: Language>(pattern: &CronPattern, lang: &L) -> String {
         return lang.in_phrase(&lang.year_phrase(&format!("every {}", pattern.years.step)));
     }
     
-    let values = get_set_values(&pattern.years, ALL_BIT);
+    let values = pattern.years.get_set_values(ALL_BIT);
     lang.in_phrase(&lang.year_phrase(&format_number_list(&values, lang)))
 }
 
