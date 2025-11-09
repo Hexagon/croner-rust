@@ -90,7 +90,7 @@ fn main() {
     let next = cron_all.find_next_occurrence(&time, false).unwrap();
 
     // Output results
-    println!("Description: {}", cron.describe());
+    println!("Description: {}", cron_all.describe());
     println!("Time is: {}", time);
     println!("Pattern \"{}\" does {} time {}", cron_all.pattern.to_string(), if matches_all { "match" } else { "not match" }, time );
     println!("Pattern \"{}\" will match next time at {}", cron_all.pattern.to_string(), next);

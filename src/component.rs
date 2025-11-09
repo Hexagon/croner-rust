@@ -92,18 +92,6 @@ impl CronComponent {
             from_wildcard: false, // Used by .describe()
         }
     }
-
-    // Method primarily used by .describe() to evaluate if all bits are set
-    pub fn is_all_set(&self) -> bool {
-        // A component is "all set" if it's a '*' with no step.
-        // We check if all bits in its range are set for the ALL_BIT flag.
-        for i in self.min..=self.max {
-            if !self.is_bit_set(i, ALL_BIT).unwrap_or(false) {
-                return false;
-            }
-        }
-        true
-    }
     
     // Set a bit at a given position (e.g., 0 to 9999 for year)
     pub fn set_bit(&mut self, mut pos: u16, bit: u8) -> Result<(), CronError> {
