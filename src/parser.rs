@@ -111,7 +111,12 @@ impl CronParser {
 
         // Handle @nicknames
         if pattern.contains('@') {
-            pattern = Self::handle_nicknames(&pattern, self.seconds.is_required(), self.year.is_required()).to_string();
+            pattern = Self::handle_nicknames(
+                &pattern,
+                self.seconds.is_required(),
+                self.year.is_required(),
+            )
+            .to_string();
         }
 
         // Handle day-of-week and month aliases (MON... and JAN...)
@@ -126,31 +131,41 @@ impl CronParser {
         if num_parts == 5 {
             parts.insert(0, "0");
         } else if self.seconds.is_disallowed() {
-            return Err(CronError::InvalidPattern("Pattern must have 5 fields when seconds are disallowed.".to_string()));
+            return Err(CronError::InvalidPattern(
+                "Pattern must have 5 fields when seconds are disallowed.".to_string(),
+            ));
         }
-        
+
         // Default year to "*" if omitted in an optional context
         if parts.len() == 6 {
             parts.push("*");
-        } else if self.year.is_disallowed()  {
-            return Err(CronError::InvalidPattern("Pattern must have 5 or 6 fields when years are disallowed.".to_string()));
+        } else if self.year.is_disallowed() {
+            return Err(CronError::InvalidPattern(
+                "Pattern must have 5 or 6 fields when years are disallowed.".to_string(),
+            ));
         }
 
         // Validate pattern length based on configuration
         if self.seconds.is_required() {
             if self.year.is_required() && num_parts != 7 {
-                return Err(CronError::InvalidPattern("Pattern must have 7 fields when seconds and years are required.".to_string()));
+                return Err(CronError::InvalidPattern(
+                    "Pattern must have 7 fields when seconds and years are required.".to_string(),
+                ));
             }
             if self.year.is_disallowed() && num_parts != 6 {
                 return Err(CronError::InvalidPattern("Pattern must have 6 fields when seconds are required and years are disallowed.".to_string()));
             }
             if self.year.is_optional() && !(6..=7).contains(&num_parts) {
-                 return Err(CronError::InvalidPattern("Pattern must have 6 or 7 fields when seconds are required and years are optional.".to_string()));
+                return Err(CronError::InvalidPattern("Pattern must have 6 or 7 fields when seconds are required and years are optional.".to_string()));
             }
         } else if self.year.is_required() && num_parts != 7 {
-            return Err(CronError::InvalidPattern("Pattern must have 7 fields when years are required.".to_string()));
+            return Err(CronError::InvalidPattern(
+                "Pattern must have 7 fields when years are required.".to_string(),
+            ));
         } else if !(5..=7).contains(&num_parts) {
-             return Err(CronError::InvalidPattern("Pattern must have between 5 and 7 fields.".to_string()));
+            return Err(CronError::InvalidPattern(
+                "Pattern must have between 5 and 7 fields.".to_string(),
+            ));
         }
 
         // Replace ? with * in day-of-month and day-of-week
@@ -184,7 +199,7 @@ impl CronParser {
         // Parse the individual components
         let mut seconds = CronComponent::new(0, 59, NONE_BIT, 0);
         seconds.parse(parts[0])?;
-        
+
         let mut minutes = CronComponent::new(0, 59, NONE_BIT, 0);
         minutes.parse(parts[1])?;
 
@@ -194,7 +209,7 @@ impl CronParser {
         days.parse(parts[3])?;
         let mut months = CronComponent::new(1, 12, NONE_BIT, 0);
         months.parse(parts[4])?;
-        
+
         let mut days_of_week = if self.alternative_weekdays {
             CronComponent::new(0, 7, LAST_BIT | NTH_ALL, 1)
         } else {
@@ -202,7 +217,12 @@ impl CronParser {
         };
         days_of_week.parse(parts[5])?;
 
-        let mut years = CronComponent::new(YEAR_LOWER_LIMIT as u16, YEAR_UPPER_LIMIT as u16, NONE_BIT, 0); // Placeholder, real limits are i32
+        let mut years = CronComponent::new(
+            YEAR_LOWER_LIMIT as u16,
+            YEAR_UPPER_LIMIT as u16,
+            NONE_BIT,
+            0,
+        ); // Placeholder, real limits are i32
         years.parse(parts[6])?;
 
         // Handle conversion of 7 to 0 for day_of_week if necessary
@@ -238,7 +258,7 @@ impl CronParser {
             },
         })
     }
-    
+
     // Validates that the cron pattern only contains legal characters for each field.
     fn throw_at_illegal_characters(&self, parts: &[&str]) -> Result<(), CronError> {
         let base_allowed_characters = [
@@ -250,8 +270,16 @@ impl CronParser {
         for (i, part) in parts.iter().enumerate() {
             // Decide which set of allowed characters to use
             let allowed = match i {
-                3 => [base_allowed_characters.as_ref(), day_of_month_additional_characters.as_ref()].concat(),
-                5 => [base_allowed_characters.as_ref(), day_of_week_additional_characters.as_ref()].concat(),
+                3 => [
+                    base_allowed_characters.as_ref(),
+                    day_of_month_additional_characters.as_ref(),
+                ]
+                .concat(),
+                5 => [
+                    base_allowed_characters.as_ref(),
+                    day_of_week_additional_characters.as_ref(),
+                ]
+                .concat(),
                 // All other fields, including year (index 6) use base characters
                 _ => base_allowed_characters.to_vec(),
             };
@@ -280,7 +308,7 @@ impl CronParser {
             p if eq_ignore_case(p, "@hourly") => "0 * * * *",
             _ => pattern,
         };
-        
+
         let mut final_pattern = String::new();
         if with_seconds {
             final_pattern.push_str("0 ");
@@ -292,7 +320,6 @@ impl CronParser {
 
         final_pattern
     }
-
 
     // Converts day-of-week nicknames into their equivalent standard cron pattern.
     fn replace_alpha_weekdays(pattern: &str, alternative_weekdays: bool) -> String {
@@ -379,7 +406,6 @@ mod tests {
     use std::str::FromStr as _;
 
     use super::*;
-
 
     #[test]
     fn test_cron_pattern_new() {
@@ -486,23 +512,50 @@ mod tests {
 
     #[test]
     fn test_cron_pattern_handle_nicknames() {
-        assert_eq!(CronParser::handle_nicknames("@yearly", false, false), "0 0 1 1 *");
-        assert_eq!(CronParser::handle_nicknames("@monthly", false, false), "0 0 1 * *");
-        assert_eq!(CronParser::handle_nicknames("@weekly", false, false), "0 0 * * 0");
-        assert_eq!(CronParser::handle_nicknames("@daily", false, false), "0 0 * * *");
-        assert_eq!(CronParser::handle_nicknames("@hourly", false, false), "0 * * * *");
+        assert_eq!(
+            CronParser::handle_nicknames("@yearly", false, false),
+            "0 0 1 1 *"
+        );
+        assert_eq!(
+            CronParser::handle_nicknames("@monthly", false, false),
+            "0 0 1 * *"
+        );
+        assert_eq!(
+            CronParser::handle_nicknames("@weekly", false, false),
+            "0 0 * * 0"
+        );
+        assert_eq!(
+            CronParser::handle_nicknames("@daily", false, false),
+            "0 0 * * *"
+        );
+        assert_eq!(
+            CronParser::handle_nicknames("@hourly", false, false),
+            "0 * * * *"
+        );
     }
 
     #[test]
     fn test_cron_pattern_handle_nicknames_with_seconds_required() {
-        assert_eq!(CronParser::handle_nicknames("@yearly", true, false), "0 0 0 1 1 *");
+        assert_eq!(
+            CronParser::handle_nicknames("@yearly", true, false),
+            "0 0 0 1 1 *"
+        );
         assert_eq!(
             CronParser::handle_nicknames("@monthly", true, false),
             "0 0 0 1 * *"
         );
-        assert_eq!(CronParser::handle_nicknames("@weekly", true, false), "0 0 0 * * 0");
-        assert_eq!(CronParser::handle_nicknames("@daily", true, false), "0 0 0 * * *");
-        assert_eq!(CronParser::handle_nicknames("@hourly", true, false), "0 0 * * * *");
+        assert_eq!(
+            CronParser::handle_nicknames("@weekly", true, false),
+            "0 0 0 * * 0"
+        );
+        assert_eq!(
+            CronParser::handle_nicknames("@daily", true, false),
+            "0 0 0 * * *"
+        );
+        assert_eq!(
+            CronParser::handle_nicknames("@hourly", true, false),
+            "0 0 * * * *"
+        );
     }
 
     #[test]
@@ -524,9 +577,7 @@ mod tests {
     #[test]
     fn test_with_seconds_false() {
         // Explicitly create a parser that disallows seconds
-        let parser = CronParser::builder()
-            .seconds(Seconds::Disallowed)
-            .build();
+        let parser = CronParser::builder().seconds(Seconds::Disallowed).build();
 
         // Test with a 6-part pattern when seconds are not allowed
         let error = parser.parse("* * * * * *").unwrap_err();
@@ -741,8 +792,10 @@ mod tests {
 
         // A 6-part pattern should fail because the year is missing but required.
         let result = parser.parse("* * * * * *");
-        
-        assert!(matches!(result, Err(CronError::InvalidPattern(_))), "Should fail when year is required but not provided.");
+
+        assert!(
+            matches!(result, Err(CronError::InvalidPattern(_))),
+            "Should fail when year is required but not provided."
+        );
     }
-    
 }

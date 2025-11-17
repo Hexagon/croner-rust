@@ -1,6 +1,6 @@
 use chrono::Local;
-use croner::parser::CronParser;
-use croner::describe::lang::swedish::Swedish; // For demonstrating translation
+use croner::describe::lang::swedish::Swedish;
+use croner::parser::CronParser; // For demonstrating translation
 
 fn main() {
     // Example: Parse cron expression
@@ -20,11 +20,11 @@ fn main() {
     // Example: Get and print the human-readable description
     let description = cron.describe();
     println!("Description: {description}");
-    
+
     // Example: Get and print the human-readable description in Swedish
     let swedish_description = cron.describe_lang(Swedish); // 2. Call describe_lang() with Swedish
     println!("Swedish Description: {swedish_description}");
-    
+
     // Example: Output results
     println!("Current time is: {time}");
     println!(
