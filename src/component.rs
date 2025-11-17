@@ -35,14 +35,14 @@ pub const LAST_BIT: u8 = 1 << 6;
 /// // Sets the minute component to trigger at every 15th minute
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CronComponent {
-    bitfields: Vec<u8>,   // Vector of u8 to act as multiple bitfields
-    pub min: u16,         // Minimum value this component can take
-    pub max: u16,         // Maximum value this component can take
-    pub step: u16,        // Steps to skip in this component
+    bitfields: Vec<u8>,      // Vector of u8 to act as multiple bitfields
+    pub min: u16,            // Minimum value this component can take
+    pub max: u16,            // Maximum value this component can take
+    pub step: u16,           // Steps to skip in this component
     pub from_wildcard: bool, // Wildcard used
-    features: u8,         // Single u8 bitfield to indicate supported special bits, like LAST_BIT
-    enabled_features: u8, // Bitfield to hold component-wide special bits like LAST_BIT
-    input_offset: u16,    // Offset for numerical representation
+    features: u8,            // Single u8 bitfield to indicate supported special bits, like LAST_BIT
+    enabled_features: u8,    // Bitfield to hold component-wide special bits like LAST_BIT
+    input_offset: u16,       // Offset for numerical representation
 }
 
 impl CronComponent {
@@ -92,7 +92,7 @@ impl CronComponent {
             from_wildcard: false, // Used by .describe()
         }
     }
-    
+
     // Set a bit at a given position (e.g., 0 to 9999 for year)
     pub fn set_bit(&mut self, mut pos: u16, bit: u8) -> Result<(), CronError> {
         if pos < self.input_offset {
@@ -329,6 +329,14 @@ impl CronComponent {
         if let Some(day_pos) = value.find('W') {
             // Use a slice
             let day_str = &value[..day_pos];
+
+            // Check for "LW" - last weekday of the month
+            if day_str.eq_ignore_ascii_case("L") {
+                // Enable both LAST_BIT and CLOSEST_WEEKDAY_BIT to indicate "last weekday"
+                self.enable_feature(LAST_BIT)?;
+                self.enable_feature(CLOSEST_WEEKDAY_BIT)?;
+                return Ok(());
+            }
 
             // Parse the day from the slice
             let day = day_str.parse::<u16>().map_err(|_| {

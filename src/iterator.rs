@@ -1,5 +1,5 @@
 use crate::{Cron, CronError, Direction};
-use chrono::{DateTime, TimeZone, Duration};
+use chrono::{DateTime, Duration, TimeZone};
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Hash)]
 pub struct CronIterator<Tz>
@@ -56,10 +56,15 @@ where
             // After yielding the second ambiguous time, advance current_time past it.
             // Clone pending_dt_to_yield because it's about to be returned,
             // but we need its value to calculate the next `self.current_time`.
-            self.current_time = pending_dt_to_yield.clone().checked_add_signed(match self.direction { // Fixed E0382: pending_dt_to_yield
-                Direction::Forward => Duration::seconds(1),
-                Direction::Backward => Duration::seconds(-1),
-            }).ok_or(CronError::InvalidTime).ok()?;
+            self.current_time = pending_dt_to_yield
+                .clone()
+                .checked_add_signed(match self.direction {
+                    // Fixed E0382: pending_dt_to_yield
+                    Direction::Forward => Duration::seconds(1),
+                    Direction::Backward => Duration::seconds(-1),
+                })
+                .ok_or(CronError::InvalidTime)
+                .ok()?;
             return Some(pending_dt_to_yield);
         }
 
@@ -71,7 +76,9 @@ where
             false // Subsequent searches are always exclusive of the last actual point in time.
         };
 
-        let result = self.cron.find_occurrence(&self.current_time, inclusive_search, self.direction);
+        let result =
+            self.cron
+                .find_occurrence(&self.current_time, inclusive_search, self.direction);
 
         match result {
             Ok((found_time, optional_second_ambiguous_dt)) => {
@@ -88,20 +95,27 @@ where
 
                     // Advance `self.current_time` past the latest of the ambiguous pair.
                     // This ensures the next `find_occurrence` call searches for the next unique naive time.
-                    self.current_time = second_ambiguous_dt.checked_add_signed(match self.direction {
-                        Direction::Forward => Duration::seconds(1),
-                        Direction::Backward => Duration::seconds(-1),
-                    }).ok_or(CronError::InvalidTime).ok()?;
-
+                    self.current_time = second_ambiguous_dt
+                        .checked_add_signed(match self.direction {
+                            Direction::Forward => Duration::seconds(1),
+                            Direction::Backward => Duration::seconds(-1),
+                        })
+                        .ok_or(CronError::InvalidTime)
+                        .ok()?;
                 } else {
                     // Case: No second ambiguous time (either not an overlap, or fixed-time job).
                     // Advance `self.current_time` simply past the `found_time`.
                     // Clone found_time because it's used to calculate the next self.current_time
                     // AND returned at the end of this block.
-                    self.current_time = found_time.clone().checked_add_signed(match self.direction { // Fixed E0382: found_time
-                        Direction::Forward => Duration::seconds(1),
-                        Direction::Backward => Duration::seconds(-1),
-                    }).ok_or(CronError::InvalidTime).ok()?;
+                    self.current_time = found_time
+                        .clone()
+                        .checked_add_signed(match self.direction {
+                            // Fixed E0382: found_time
+                            Direction::Forward => Duration::seconds(1),
+                            Direction::Backward => Duration::seconds(-1),
+                        })
+                        .ok_or(CronError::InvalidTime)
+                        .ok()?;
                 }
 
                 // Finally, return the found_time for the current iteration.

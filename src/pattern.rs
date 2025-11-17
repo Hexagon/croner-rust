@@ -39,13 +39,18 @@ impl CronPattern {
             days: CronComponent::new(1, 31, LAST_BIT | CLOSEST_WEEKDAY_BIT, 0),
             months: CronComponent::new(1, 12, NONE_BIT, 0),
             days_of_week: CronComponent::new(0, 7, LAST_BIT | NTH_ALL, 0),
-            years: CronComponent::new(YEAR_LOWER_LIMIT as u16, YEAR_UPPER_LIMIT as u16, NONE_BIT, 0), // Use u16 for year range
+            years: CronComponent::new(
+                YEAR_LOWER_LIMIT as u16,
+                YEAR_UPPER_LIMIT as u16,
+                NONE_BIT,
+                0,
+            ), // Use u16 for year range
             star_dom: false,
             star_dow: false,
             dom_and_dow: false,
         }
     }
-    
+
     // Checks if a given year matches the year part of the cron pattern.
     pub fn year_match(&self, year: i32) -> Result<bool, CronError> {
         if !(YEAR_LOWER_LIMIT..=YEAR_UPPER_LIMIT).contains(&year) {
@@ -54,7 +59,6 @@ impl CronPattern {
         }
         self.years.is_bit_set(year as u16, ALL_BIT) // Use u16 cast
     }
-
 
     // Determines the nth weekday of the month
     fn is_nth_weekday_of_month(date: chrono::NaiveDate, nth: u8, weekday: Weekday) -> bool {
@@ -82,10 +86,20 @@ impl CronPattern {
         let mut day_matches = self.days.is_bit_set(day as u16, ALL_BIT)?; // Use u16
         let mut dow_matches = false;
 
+        // Check for LW (last weekday) - both LAST_BIT and CLOSEST_WEEKDAY_BIT enabled
+        // This must be checked BEFORE the plain LAST_BIT check to avoid matching both
         if !day_matches
             && self.days.is_feature_enabled(LAST_BIT)
+            && self.days.is_feature_enabled(CLOSEST_WEEKDAY_BIT)
+            && day == Self::last_weekday_of_month(year, month)?
+        {
+            day_matches = true;
+        } else if !day_matches
+            && self.days.is_feature_enabled(LAST_BIT)
+            && !self.days.is_feature_enabled(CLOSEST_WEEKDAY_BIT)
             && day == Self::last_day_of_month(year, month)?
         {
+            // Check for L (last day of month) - only if CLOSEST_WEEKDAY_BIT is not enabled
             day_matches = true;
         }
 
@@ -154,6 +168,22 @@ impl CronPattern {
             .pred_opt()
             .unwrap()
             .day())
+    }
+
+    // Helper function to find the last weekday (Mon-Fri) of a given month
+    fn last_weekday_of_month(year: i32, month: u32) -> Result<u32, CronError> {
+        let last_day = Self::last_day_of_month(year, month)?;
+        let mut current_date =
+            NaiveDate::from_ymd_opt(year, month, last_day).ok_or(CronError::InvalidDate)?;
+
+        // Walk backwards from the last day until we find a weekday (Mon-Fri)
+        while current_date.weekday().num_days_from_sunday() == 0
+            || current_date.weekday().num_days_from_sunday() == 6
+        {
+            current_date = current_date.pred_opt().ok_or(CronError::InvalidDate)?;
+        }
+
+        Ok(current_date.day())
     }
 
     pub fn closest_weekday(&self, year: i32, month: u32, day: u32) -> Result<bool, CronError> {
@@ -316,7 +346,7 @@ impl std::fmt::Display for CronPattern {
 
 impl PartialEq for CronPattern {
     /// Checks for functional equality between two CronPattern instances.
-     ///
+    ///
     /// Two patterns are considered equal if they have been parsed and their
     /// resulting schedule components and behavioral options are identical.
     /// The original pattern string is ignored in this comparison.
@@ -358,13 +388,13 @@ impl Ord for CronPattern {
         // Compare the time components in logical order, from most to least
         // significant.
         self.seconds
-        .cmp(&other.seconds)
-        .then_with(|| self.minutes.cmp(&other.minutes))
-        .then_with(|| self.hours.cmp(&other.hours))
-        .then_with(|| self.days.cmp(&other.days))
-        .then_with(|| self.months.cmp(&other.months))
-        .then_with(|| self.days_of_week.cmp(&other.days_of_week))
-        .then_with(|| self.years.cmp(&other.years))
+            .cmp(&other.seconds)
+            .then_with(|| self.minutes.cmp(&other.minutes))
+            .then_with(|| self.hours.cmp(&other.hours))
+            .then_with(|| self.days.cmp(&other.days))
+            .then_with(|| self.months.cmp(&other.months))
+            .then_with(|| self.days_of_week.cmp(&other.days_of_week))
+            .then_with(|| self.years.cmp(&other.years))
             // Finally, compare the boolean flags to ensure a stable order
             // for patterns that are otherwise identical.
             .then_with(|| self.star_dom.cmp(&other.star_dom))
