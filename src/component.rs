@@ -92,7 +92,7 @@ impl CronComponent {
 
             from_wildcard: false, // Used by .describe()
 
-            sloppy_ranges: false, // Strict by default
+            sloppy_ranges: false, // Disabled by default for OCPS/vixie-cron compliance
         }
     }
 
