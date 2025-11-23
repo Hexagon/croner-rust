@@ -449,11 +449,11 @@ impl CronComponent {
                     .map_err(|_| CronError::ComponentError("Invalid range end.".to_string()))?,
             )
         } else {
-            let single_start = range_part
-                .parse::<u16>()
-                .map_err(|_| CronError::ComponentError("Invalid start.".to_string()))?;
-            // If only one number is provided, set the range to go from the start value to the max value.
-            (single_start, self.max)
+            // Single number with step (e.g., 0/10, 30/10) is not allowed per OCPS/vixie/cronie standards
+            // Only */Z and X-Y/Z syntax is valid
+            return Err(CronError::ComponentError(
+                "Invalid step syntax: only */step and start-end/step are allowed.".to_string(),
+            ));
         };
 
         if start < self.min || end > self.max || start > end {

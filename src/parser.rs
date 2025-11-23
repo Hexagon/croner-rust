@@ -445,8 +445,8 @@ mod tests {
 
     #[test]
     fn test_cron_pattern_short() {
-        let cron = Cron::from_str("5/5 * * * *").unwrap();
-        assert_eq!(cron.pattern.pattern, "5/5 * * * *");
+        let cron = Cron::from_str("5-59/5 * * * *").unwrap();
+        assert_eq!(cron.pattern.pattern, "5-59/5 * * * *");
         assert!(cron.pattern.seconds.is_bit_set(0, ALL_BIT).unwrap());
         assert!(!cron.pattern.seconds.is_bit_set(5, ALL_BIT).unwrap());
         assert!(cron.pattern.minutes.is_bit_set(5, ALL_BIT).unwrap());

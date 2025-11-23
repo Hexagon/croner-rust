@@ -343,4 +343,70 @@ mod ocps_1_4_tests {
             Err(croner::errors::CronError::IllegalCharacters(_))
         ));
     }
+
+    #[test]
+    fn test_invalid_step_syntax_single_number() {
+        // Only */Z and X-Y/Z should be allowed, not X/Z
+        // Test 0/10 in minute field
+        let result = Cron::from_str("0/10 * * * *");
+        assert!(
+            result.is_err(),
+            "Pattern '0/10 * * * *' should be rejected (invalid step syntax)"
+        );
+
+        // Test 30/10 in minute field
+        let result = Cron::from_str("30/10 * * * *");
+        assert!(
+            result.is_err(),
+            "Pattern '30/10 * * * *' should be rejected (invalid step syntax)"
+        );
+
+        // Test 5/15 in hour field
+        let result = Cron::from_str("* 5/15 * * *");
+        assert!(
+            result.is_err(),
+            "Pattern '* 5/15 * * *' should be rejected (invalid step syntax)"
+        );
+
+        // Test 15/5 in day-of-month field
+        let result = Cron::from_str("* * 15/5 * *");
+        assert!(
+            result.is_err(),
+            "Pattern '* * 15/5 * *' should be rejected (invalid step syntax)"
+        );
+
+        // Test 6/2 in month field
+        let result = Cron::from_str("* * * 6/2 *");
+        assert!(
+            result.is_err(),
+            "Pattern '* * * 6/2 *' should be rejected (invalid step syntax)"
+        );
+
+        // Test 1/2 in day-of-week field
+        let result = Cron::from_str("* * * * 1/2");
+        assert!(
+            result.is_err(),
+            "Pattern '* * * * 1/2' should be rejected (invalid step syntax)"
+        );
+    }
+
+    #[test]
+    fn test_valid_step_syntax() {
+        // Verify that */Z syntax is still valid
+        assert!(
+            Cron::from_str("*/10 * * * *").is_ok(),
+            "Pattern '*/10 * * * *' should be accepted (valid wildcard step)"
+        );
+
+        // Verify that X-Y/Z syntax is still valid
+        assert!(
+            Cron::from_str("0-30/10 * * * *").is_ok(),
+            "Pattern '0-30/10 * * * *' should be accepted (valid range step)"
+        );
+
+        assert!(
+            Cron::from_str("10-50/5 * * * *").is_ok(),
+            "Pattern '10-50/5 * * * *' should be accepted (valid range step)"
+        );
+    }
 }
