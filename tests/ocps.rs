@@ -388,6 +388,20 @@ mod ocps_1_4_tests {
             result.is_err(),
             "Pattern '* * * * 1/2' should be rejected (invalid step syntax)"
         );
+
+        // Test /10 in minute field (omitting starting point)
+        let result = Cron::from_str("/10 * * * *");
+        assert!(
+            result.is_err(),
+            "Pattern '/10 * * * *' should be rejected (omitting starting point)"
+        );
+
+        // Test /5 in hour field
+        let result = Cron::from_str("* /5 * * *");
+        assert!(
+            result.is_err(),
+            "Pattern '* /5 * * *' should be rejected (omitting starting point)"
+        );
     }
 
     #[test]

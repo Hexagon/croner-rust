@@ -448,6 +448,11 @@ impl CronComponent {
                     .parse::<u16>()
                     .map_err(|_| CronError::ComponentError("Invalid range end.".to_string()))?,
             )
+        } else if range_part.is_empty() {
+            // Empty range part (e.g., /10) is not allowed
+            return Err(CronError::ComponentError(
+                format!("Invalid step syntax: omitting the starting point like \"/{0}\" is not allowed. Use \"*/{0}\" for wildcard steps or \"X-Y/{0}\" for range steps.", step_str)
+            ));
         } else {
             // Single number with step (e.g., 0/10, 30/10) is not allowed per OCPS/vixie/cronie standards
             // Only */Z and X-Y/Z syntax is valid
