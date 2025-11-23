@@ -306,6 +306,29 @@ let cron = parser
     .expect("Invalid cron pattern");
 ```
 
+#### 5. `sloppy_ranges`
+
+This option enables backward compatibility with non-standard step syntax. When enabled, patterns like `0/10` (start at 0, step by 10) and `/10` (same as `*/10`) are accepted. These patterns are not compliant with OCPS/vixie-cron standards, which only allow `*/Z` (wildcard with step) and `X-Y/Z` (range with step).
+
+**Note**: This option is disabled by default to ensure compliance with cron standards. Only enable it if you need to support legacy cron patterns.
+
+**Example Usage**:
+
+```rust
+use croner::parser::CronParser;
+
+// Configure the parser to allow sloppy range syntax.
+let parser = CronParser::builder().sloppy_ranges(true).build();
+
+let cron = parser
+    .parse("0/10 * * * *") // Start at 0, step by 10 (0, 10, 20, 30, 40, 50)
+    .expect("Valid with sloppy_ranges enabled");
+
+let cron2 = parser
+    .parse("/10 * * * *") // Same as */10 (0, 10, 20, 30, 40, 50)
+    .expect("Valid with sloppy_ranges enabled");
+```
+
 ### Documentation
 
 For detailed usage and API documentation, visit

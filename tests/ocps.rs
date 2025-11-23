@@ -423,4 +423,80 @@ mod ocps_1_4_tests {
             "Pattern '10-50/5 * * * *' should be accepted (valid range step)"
         );
     }
+
+    #[test]
+    fn test_sloppy_ranges_enabled() {
+        // When sloppy_ranges is enabled, X/Z and /Z patterns should be accepted
+        let parser = CronParser::builder().sloppy_ranges(true).build();
+
+        // Test single number with step (0/10)
+        let result = parser.parse("0/10 * * * *");
+        assert!(
+            result.is_ok(),
+            "Pattern '0/10 * * * *' should be accepted with sloppy_ranges enabled"
+        );
+
+        // Test single number with step (30/10)
+        let result = parser.parse("30/10 * * * *");
+        assert!(
+            result.is_ok(),
+            "Pattern '30/10 * * * *' should be accepted with sloppy_ranges enabled"
+        );
+
+        // Test omitted starting point (/10)
+        let result = parser.parse("/10 * * * *");
+        assert!(
+            result.is_ok(),
+            "Pattern '/10 * * * *' should be accepted with sloppy_ranges enabled"
+        );
+
+        // Test in different fields
+        let result = parser.parse("* 5/15 * * *");
+        assert!(
+            result.is_ok(),
+            "Pattern '* 5/15 * * *' should be accepted with sloppy_ranges enabled"
+        );
+
+        let result = parser.parse("* * /5 * *");
+        assert!(
+            result.is_ok(),
+            "Pattern '* * /5 * *' should be accepted with sloppy_ranges enabled"
+        );
+    }
+
+    #[test]
+    fn test_sloppy_ranges_disabled_by_default() {
+        // Default parser should have sloppy_ranges disabled
+        let parser = CronParser::new();
+
+        // These should fail with default strict mode
+        assert!(
+            parser.parse("0/10 * * * *").is_err(),
+            "Pattern '0/10 * * * *' should be rejected by default"
+        );
+
+        assert!(
+            parser.parse("/10 * * * *").is_err(),
+            "Pattern '/10 * * * *' should be rejected by default"
+        );
+    }
+
+    #[test]
+    fn test_sloppy_ranges_behavior() {
+        // Test that sloppy patterns produce correct behavior
+        let parser = CronParser::builder().sloppy_ranges(true).build();
+
+        // 0/10 should match 0, 10, 20, 30, 40, 50
+        let cron = parser.parse("0/10 * * * *").unwrap();
+        assert!(cron.pattern.minutes.is_bit_set(0, 1).unwrap());
+        assert!(cron.pattern.minutes.is_bit_set(10, 1).unwrap());
+        assert!(cron.pattern.minutes.is_bit_set(20, 1).unwrap());
+        assert!(!cron.pattern.minutes.is_bit_set(5, 1).unwrap());
+
+        // /10 should match 0, 10, 20, 30, 40, 50 (same as */10)
+        let cron = parser.parse("/10 * * * *").unwrap();
+        assert!(cron.pattern.minutes.is_bit_set(0, 1).unwrap());
+        assert!(cron.pattern.minutes.is_bit_set(10, 1).unwrap());
+        assert!(cron.pattern.minutes.is_bit_set(50, 1).unwrap());
+    }
 }

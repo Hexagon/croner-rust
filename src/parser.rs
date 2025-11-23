@@ -81,6 +81,10 @@ pub struct CronParser {
     dom_and_dow: bool,
     /// Use the Quartz-style weekday mode.
     alternative_weekdays: bool,
+    /// Allow sloppy range syntax (e.g., `0/10` or `/10`) for backward compatibility.
+    /// When enabled, patterns like `0/10` (start at 0, step by 10) and `/10` (same as `*/10`)
+    /// are accepted. This is not compliant with OCPS/vixie-cron standards.
+    sloppy_ranges: bool,
 }
 
 impl CronParser {
@@ -198,16 +202,21 @@ impl CronParser {
 
         // Parse the individual components
         let mut seconds = CronComponent::new(0, 59, NONE_BIT, 0);
+        seconds.set_sloppy_ranges(self.sloppy_ranges);
         seconds.parse(parts[0])?;
 
         let mut minutes = CronComponent::new(0, 59, NONE_BIT, 0);
+        minutes.set_sloppy_ranges(self.sloppy_ranges);
         minutes.parse(parts[1])?;
 
         let mut hours = CronComponent::new(0, 23, NONE_BIT, 0);
+        hours.set_sloppy_ranges(self.sloppy_ranges);
         hours.parse(parts[2])?;
         let mut days = CronComponent::new(1, 31, LAST_BIT | CLOSEST_WEEKDAY_BIT, 0);
+        days.set_sloppy_ranges(self.sloppy_ranges);
         days.parse(parts[3])?;
         let mut months = CronComponent::new(1, 12, NONE_BIT, 0);
+        months.set_sloppy_ranges(self.sloppy_ranges);
         months.parse(parts[4])?;
 
         let mut days_of_week = if self.alternative_weekdays {
@@ -215,6 +224,7 @@ impl CronParser {
         } else {
             CronComponent::new(0, 7, LAST_BIT | NTH_ALL, 0)
         };
+        days_of_week.set_sloppy_ranges(self.sloppy_ranges);
         days_of_week.parse(parts[5])?;
 
         let mut years = CronComponent::new(
@@ -223,6 +233,7 @@ impl CronParser {
             NONE_BIT,
             0,
         ); // Placeholder, real limits are i32
+        years.set_sloppy_ranges(self.sloppy_ranges);
         years.parse(parts[6])?;
 
         // Handle conversion of 7 to 0 for day_of_week if necessary
@@ -391,12 +402,14 @@ impl CronParserBuilder {
             year,
             dom_and_dow,
             alternative_weekdays,
+            sloppy_ranges,
         } = self;
         CronParser {
             seconds: seconds.unwrap_or_default(),
             year: year.unwrap_or_default(),
             dom_and_dow: dom_and_dow.unwrap_or_default(),
             alternative_weekdays: alternative_weekdays.unwrap_or_default(),
+            sloppy_ranges: sloppy_ranges.unwrap_or_default(),
         }
     }
 }
