@@ -452,7 +452,7 @@ impl CronComponent {
             // Single number with step (e.g., 0/10, 30/10) is not allowed per OCPS/vixie/cronie standards
             // Only */Z and X-Y/Z syntax is valid
             return Err(CronError::ComponentError(
-                "Invalid step syntax: only */step and start-end/step are allowed.".to_string(),
+                format!("Invalid step syntax: single number steps like \"{}/{}\" are not allowed. Use \"*/{1}\" for wildcard steps or \"X-Y/{1}\" for range steps.", range_part, step_str)
             ));
         };
 
