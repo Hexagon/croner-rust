@@ -756,6 +756,306 @@ mod tests {
         );
     }
 
+    // Tests for case insensitivity of aliases and modifiers
+    #[test]
+    fn test_nickname_aliases_case_insensitive() {
+        // Test each nickname alias in different cases
+        let nicknames = [
+            ("@yearly", "@YEARLY", "@YeArLy"),
+            ("@annually", "@ANNUALLY", "@AnNuAlLy"),
+            ("@monthly", "@MONTHLY", "@MoNtHlY"),
+            ("@weekly", "@WEEKLY", "@WeEkLy"),
+            ("@daily", "@DAILY", "@DaIlY"),
+            ("@hourly", "@HOURLY", "@HoUrLy"),
+        ];
+
+        for (lower, upper, mixed) in nicknames {
+            let result_lower = Cron::from_str(lower);
+            let result_upper = Cron::from_str(upper);
+            let result_mixed = Cron::from_str(mixed);
+
+            assert!(result_lower.is_ok(), "Should parse lowercase {}", lower);
+            assert!(result_upper.is_ok(), "Should parse uppercase {}", upper);
+            assert!(result_mixed.is_ok(), "Should parse mixed case {}", mixed);
+
+            // Verify they all produce the same result
+            let cron_lower = result_lower.unwrap();
+            let cron_upper = result_upper.unwrap();
+            let cron_mixed = result_mixed.unwrap();
+
+            assert_eq!(
+                cron_lower.pattern, cron_upper.pattern,
+                "Lowercase and uppercase {} should produce the same pattern",
+                lower
+            );
+            assert_eq!(
+                cron_lower.pattern, cron_mixed.pattern,
+                "Lowercase and mixed case {} should produce the same pattern",
+                lower
+            );
+        }
+    }
+
+    #[test]
+    fn test_month_aliases_case_insensitive() {
+        // Test each month alias in different cases
+        let months = [
+            ("JAN", "jan", "Jan"),
+            ("FEB", "feb", "Feb"),
+            ("MAR", "mar", "Mar"),
+            ("APR", "apr", "Apr"),
+            ("MAY", "may", "May"),
+            ("JUN", "jun", "Jun"),
+            ("JUL", "jul", "Jul"),
+            ("AUG", "aug", "Aug"),
+            ("SEP", "sep", "Sep"),
+            ("OCT", "oct", "Oct"),
+            ("NOV", "nov", "Nov"),
+            ("DEC", "dec", "Dec"),
+        ];
+
+        for (upper, lower, mixed) in months {
+            let pattern_upper = format!("0 0 1 {} *", upper);
+            let pattern_lower = format!("0 0 1 {} *", lower);
+            let pattern_mixed = format!("0 0 1 {} *", mixed);
+
+            let result_upper = Cron::from_str(&pattern_upper);
+            let result_lower = Cron::from_str(&pattern_lower);
+            let result_mixed = Cron::from_str(&pattern_mixed);
+
+            assert!(result_upper.is_ok(), "Should parse uppercase {}", upper);
+            assert!(result_lower.is_ok(), "Should parse lowercase {}", lower);
+            assert!(result_mixed.is_ok(), "Should parse mixed case {}", mixed);
+
+            // Verify they all produce the same result
+            let cron_upper = result_upper.unwrap();
+            let cron_lower = result_lower.unwrap();
+            let cron_mixed = result_mixed.unwrap();
+
+            assert_eq!(
+                cron_upper.pattern.months, cron_lower.pattern.months,
+                "Uppercase and lowercase {} should produce the same months",
+                upper
+            );
+            assert_eq!(
+                cron_upper.pattern.months, cron_mixed.pattern.months,
+                "Uppercase and mixed case {} should produce the same months",
+                upper
+            );
+        }
+    }
+
+    #[test]
+    fn test_weekday_aliases_case_insensitive() {
+        // Test each weekday alias in different cases
+        let weekdays = [
+            ("SUN", "sun", "Sun"),
+            ("MON", "mon", "Mon"),
+            ("TUE", "tue", "Tue"),
+            ("WED", "wed", "Wed"),
+            ("THU", "thu", "Thu"),
+            ("FRI", "fri", "Fri"),
+            ("SAT", "sat", "Sat"),
+        ];
+
+        for (upper, lower, mixed) in weekdays {
+            let pattern_upper = format!("0 0 * * {}", upper);
+            let pattern_lower = format!("0 0 * * {}", lower);
+            let pattern_mixed = format!("0 0 * * {}", mixed);
+
+            let result_upper = Cron::from_str(&pattern_upper);
+            let result_lower = Cron::from_str(&pattern_lower);
+            let result_mixed = Cron::from_str(&pattern_mixed);
+
+            assert!(result_upper.is_ok(), "Should parse uppercase {}", upper);
+            assert!(result_lower.is_ok(), "Should parse lowercase {}", lower);
+            assert!(result_mixed.is_ok(), "Should parse mixed case {}", mixed);
+
+            // Verify they all produce the same result
+            let cron_upper = result_upper.unwrap();
+            let cron_lower = result_lower.unwrap();
+            let cron_mixed = result_mixed.unwrap();
+
+            assert_eq!(
+                cron_upper.pattern.days_of_week, cron_lower.pattern.days_of_week,
+                "Uppercase and lowercase {} should produce the same days_of_week",
+                upper
+            );
+            assert_eq!(
+                cron_upper.pattern.days_of_week, cron_mixed.pattern.days_of_week,
+                "Uppercase and mixed case {} should produce the same days_of_week",
+                upper
+            );
+        }
+    }
+
+    #[test]
+    fn test_last_modifier_case_insensitive() {
+        // Test L modifier for last day of month
+        let patterns = ["0 0 L * *", "0 0 l * *"];
+        let results: Vec<_> = patterns.iter().map(|p| Cron::from_str(p)).collect();
+
+        for (i, result) in results.iter().enumerate() {
+            assert!(
+                result.is_ok(),
+                "Should parse L modifier pattern: {}",
+                patterns[i]
+            );
+        }
+
+        let cron_upper = results[0].as_ref().unwrap();
+        let cron_lower = results[1].as_ref().unwrap();
+        assert_eq!(
+            cron_upper.pattern.days, cron_lower.pattern.days,
+            "L and l modifiers should produce the same days"
+        );
+    }
+
+    #[test]
+    fn test_last_weekday_modifier_case_insensitive() {
+        // Test xL modifier for last occurrence of weekday
+        let patterns = ["0 0 * * 5L", "0 0 * * 5l"];
+        let results: Vec<_> = patterns.iter().map(|p| Cron::from_str(p)).collect();
+
+        for (i, result) in results.iter().enumerate() {
+            assert!(
+                result.is_ok(),
+                "Should parse weekday L modifier pattern: {}",
+                patterns[i]
+            );
+        }
+
+        let cron_upper = results[0].as_ref().unwrap();
+        let cron_lower = results[1].as_ref().unwrap();
+        assert_eq!(
+            cron_upper.pattern.days_of_week, cron_lower.pattern.days_of_week,
+            "5L and 5l modifiers should produce the same days_of_week"
+        );
+    }
+
+    #[test]
+    fn test_closest_weekday_modifier_case_insensitive() {
+        // Test W modifier for closest weekday
+        let patterns = ["0 0 15W * *", "0 0 15w * *"];
+        let results: Vec<_> = patterns.iter().map(|p| Cron::from_str(p)).collect();
+
+        for (i, result) in results.iter().enumerate() {
+            assert!(
+                result.is_ok(),
+                "Should parse W modifier pattern: {}",
+                patterns[i]
+            );
+        }
+
+        let cron_upper = results[0].as_ref().unwrap();
+        let cron_lower = results[1].as_ref().unwrap();
+        assert_eq!(
+            cron_upper.pattern.days, cron_lower.pattern.days,
+            "15W and 15w modifiers should produce the same days"
+        );
+    }
+
+    #[test]
+    fn test_last_weekday_of_month_lw_case_insensitive() {
+        // Test LW modifier for last weekday of month
+        let patterns = ["0 0 LW * *", "0 0 lw * *", "0 0 Lw * *", "0 0 lW * *"];
+        let results: Vec<_> = patterns.iter().map(|p| Cron::from_str(p)).collect();
+
+        for (i, result) in results.iter().enumerate() {
+            assert!(
+                result.is_ok(),
+                "Should parse LW modifier pattern: {}",
+                patterns[i]
+            );
+        }
+
+        // Verify they all produce the same result
+        let cron_first = results[0].as_ref().unwrap();
+        for (i, result) in results.iter().enumerate().skip(1) {
+            let cron = result.as_ref().unwrap();
+            assert_eq!(
+                cron_first.pattern.days, cron.pattern.days,
+                "LW pattern {} should produce the same days as LW",
+                patterns[i]
+            );
+        }
+    }
+
+    #[test]
+    fn test_weekday_alias_with_nth_modifier_case_insensitive() {
+        // Test weekday aliases with # modifier in different cases
+        let patterns = ["0 0 * * MON#2", "0 0 * * mon#2", "0 0 * * Mon#2"];
+        let results: Vec<_> = patterns.iter().map(|p| Cron::from_str(p)).collect();
+
+        for (i, result) in results.iter().enumerate() {
+            assert!(
+                result.is_ok(),
+                "Should parse weekday with # pattern: {}",
+                patterns[i]
+            );
+        }
+
+        let cron_first = results[0].as_ref().unwrap();
+        for (i, result) in results.iter().enumerate().skip(1) {
+            let cron = result.as_ref().unwrap();
+            assert_eq!(
+                cron_first.pattern.days_of_week, cron.pattern.days_of_week,
+                "Pattern {} should produce the same days_of_week as MON#2",
+                patterns[i]
+            );
+        }
+    }
+
+    #[test]
+    fn test_month_alias_range_case_insensitive() {
+        // Test month ranges with different cases
+        let patterns = ["0 0 * JAN-MAR *", "0 0 * jan-mar *", "0 0 * Jan-Mar *"];
+        let results: Vec<_> = patterns.iter().map(|p| Cron::from_str(p)).collect();
+
+        for (i, result) in results.iter().enumerate() {
+            assert!(
+                result.is_ok(),
+                "Should parse month range pattern: {}",
+                patterns[i]
+            );
+        }
+
+        let cron_first = results[0].as_ref().unwrap();
+        for (i, result) in results.iter().enumerate().skip(1) {
+            let cron = result.as_ref().unwrap();
+            assert_eq!(
+                cron_first.pattern.months, cron.pattern.months,
+                "Pattern {} should produce the same months as JAN-MAR",
+                patterns[i]
+            );
+        }
+    }
+
+    #[test]
+    fn test_weekday_alias_range_case_insensitive() {
+        // Test weekday ranges with different cases
+        let patterns = ["0 0 * * MON-FRI", "0 0 * * mon-fri", "0 0 * * Mon-Fri"];
+        let results: Vec<_> = patterns.iter().map(|p| Cron::from_str(p)).collect();
+
+        for (i, result) in results.iter().enumerate() {
+            assert!(
+                result.is_ok(),
+                "Should parse weekday range pattern: {}",
+                patterns[i]
+            );
+        }
+
+        let cron_first = results[0].as_ref().unwrap();
+        for (i, result) in results.iter().enumerate().skip(1) {
+            let cron = result.as_ref().unwrap();
+            assert_eq!(
+                cron_first.pattern.days_of_week, cron.pattern.days_of_week,
+                "Pattern {} should produce the same days_of_week as MON-FRI",
+                patterns[i]
+            );
+        }
+    }
+
     #[test]
     fn test_year_support() {
         let parser = CronParser::builder()
