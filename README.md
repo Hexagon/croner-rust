@@ -335,7 +335,6 @@ If you're migrating from Quartz or need croner-rust to behave like the Quartz sc
 
 - **Weekday numbering**: Quartz uses 1-7 (1=Sunday, 7=Saturday) instead of 0-6 (0=Sunday, 6=Saturday)
 - **Seconds field**: Quartz typically includes a seconds field (6-7 fields instead of 5)
-- **DOM and DOW logic**: Quartz uses AND logic for day-of-month and day-of-week by default
 - **Step syntax**: Quartz allows non-standard step patterns like `0/10`
 
 **Example Usage**:
@@ -347,7 +346,6 @@ use croner::parser::{CronParser, Seconds};
 let parser = CronParser::builder()
     .alternative_weekdays(true)  // Use Quartz-style weekday numbering (1=SUN, 7=SAT)
     .seconds(Seconds::Required)  // Require seconds field (6 or 7 fields)
-    .dom_and_dow(true)           // Use AND logic for day-of-month and day-of-week
     .sloppy_ranges(true)         // Allow non-standard step syntax like 0/10
     .build();
 
