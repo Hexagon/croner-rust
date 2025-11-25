@@ -306,6 +306,32 @@ let cron = parser
     .expect("Invalid cron pattern");
 ```
 
+#### 5. Quartz Compatibility
+
+If you're migrating from Quartz or need croner-rust to behave like the Quartz scheduler, you can configure the parser to match Quartz's behavior. The main differences between Quartz and standard POSIX cron are:
+
+- **Weekday numbering**: Quartz uses 1-7 (1=Sunday, 7=Saturday) instead of 0-6 (0=Sunday, 6=Saturday)
+- **Seconds field**: Quartz typically includes a seconds field (6-7 fields instead of 5)
+- **DOM and DOW logic**: Quartz uses AND logic for day-of-month and day-of-week by default
+
+**Example Usage**:
+
+```rust
+use croner::parser::{CronParser, Seconds};
+
+// Configure the parser for Quartz compatibility.
+let parser = CronParser::builder()
+    .alternative_weekdays(true)  // Use Quartz-style weekday numbering (1=SUN, 7=SAT)
+    .seconds(Seconds::Required)  // Require seconds field (6 or 7 fields)
+    .dom_and_dow(true)           // Use AND logic for day-of-month and day-of-week
+    .build();
+
+// Parse a Quartz-style cron expression: every Friday at noon
+let cron = parser
+    .parse("0 0 12 ? * 6")  // Quartz format: sec min hour dom month dow
+    .expect("Invalid cron pattern");
+```
+
 ### Documentation
 
 For detailed usage and API documentation, visit
