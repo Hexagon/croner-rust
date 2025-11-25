@@ -306,13 +306,37 @@ let cron = parser
     .expect("Invalid cron pattern");
 ```
 
-#### 5. Quartz Compatibility
+#### 5. `sloppy_ranges`
+
+This option enables backward compatibility with non-standard step syntax. When enabled, patterns like `0/10` (start at 0, step by 10) and `/10` (same as `*/10`) are accepted. These patterns are not compliant with OCPS/vixie-cron standards, which only allow `*/Z` (wildcard with step) and `X-Y/Z` (range with step).
+
+**Note**: This option is disabled by default to ensure compliance with cron standards. Only enable it if you need to support legacy cron patterns.
+
+**Example Usage**:
+
+```rust
+use croner::parser::CronParser;
+
+// Configure the parser to allow sloppy range syntax.
+let parser = CronParser::builder().sloppy_ranges(true).build();
+
+let cron = parser
+    .parse("0/10 * * * *") // Start at 0, step by 10 (0, 10, 20, 30, 40, 50)
+    .expect("Valid with sloppy_ranges enabled");
+
+let cron2 = parser
+    .parse("/10 * * * *") // Same as */10 (0, 10, 20, 30, 40, 50)
+    .expect("Valid with sloppy_ranges enabled");
+```
+
+#### 6. Quartz Compatibility
 
 If you're migrating from Quartz or need croner-rust to behave like the Quartz scheduler, you can configure the parser to match Quartz's behavior. The main differences between Quartz and standard POSIX cron are:
 
 - **Weekday numbering**: Quartz uses 1-7 (1=Sunday, 7=Saturday) instead of 0-6 (0=Sunday, 6=Saturday)
 - **Seconds field**: Quartz typically includes a seconds field (6-7 fields instead of 5)
 - **DOM and DOW logic**: Quartz uses AND logic for day-of-month and day-of-week by default
+- **Step syntax**: Quartz allows non-standard step patterns like `0/10`
 
 **Example Usage**:
 
@@ -324,6 +348,7 @@ let parser = CronParser::builder()
     .alternative_weekdays(true)  // Use Quartz-style weekday numbering (1=SUN, 7=SAT)
     .seconds(Seconds::Required)  // Require seconds field (6 or 7 fields)
     .dom_and_dow(true)           // Use AND logic for day-of-month and day-of-week
+    .sloppy_ranges(true)         // Allow non-standard step syntax like 0/10
     .build();
 
 // Parse a Quartz-style cron expression: every Friday at noon

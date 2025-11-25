@@ -43,6 +43,7 @@ pub struct CronComponent {
     features: u8,            // Single u8 bitfield to indicate supported special bits, like LAST_BIT
     enabled_features: u8,    // Bitfield to hold component-wide special bits like LAST_BIT
     input_offset: u16,       // Offset for numerical representation
+    sloppy_ranges: bool,     // Allow sloppy range syntax for backward compatibility
 }
 
 impl CronComponent {
@@ -90,7 +91,14 @@ impl CronComponent {
             step: 1, // Used by .describe()
 
             from_wildcard: false, // Used by .describe()
+
+            sloppy_ranges: false, // Disabled by default for OCPS/vixie-cron compliance
         }
+    }
+
+    /// Sets whether to allow sloppy range syntax.
+    pub fn set_sloppy_ranges(&mut self, sloppy: bool) {
+        self.sloppy_ranges = sloppy;
     }
 
     // Set a bit at a given position (e.g., 0 to 9999 for year)
@@ -448,12 +456,31 @@ impl CronComponent {
                     .parse::<u16>()
                     .map_err(|_| CronError::ComponentError("Invalid range end.".to_string()))?,
             )
+        } else if range_part.is_empty() {
+            // Empty range part (e.g., /10)
+            if self.sloppy_ranges {
+                // In sloppy mode, treat /10 as */10
+                self.from_wildcard = true;
+                (self.min, self.max)
+            } else {
+                return Err(CronError::ComponentError(
+                    format!("Invalid step syntax: omitting the starting point like \"/{0}\" is not allowed. Use \"*/{0}\" for wildcard steps or \"X-Y/{0}\" for range steps.", step_str)
+                ));
+            }
         } else {
-            let single_start = range_part
-                .parse::<u16>()
-                .map_err(|_| CronError::ComponentError("Invalid start.".to_string()))?;
-            // If only one number is provided, set the range to go from the start value to the max value.
-            (single_start, self.max)
+            // Single number with step (e.g., 0/10, 30/10)
+            if self.sloppy_ranges {
+                // In sloppy mode, allow single number as starting point
+                let single_start = range_part
+                    .parse::<u16>()
+                    .map_err(|_| CronError::ComponentError("Invalid start.".to_string()))?;
+                (single_start, self.max)
+            } else {
+                // Strict mode: not allowed per OCPS/vixie/cronie standards
+                return Err(CronError::ComponentError(
+                    format!("Invalid step syntax: single number steps like \"{}/{}\" are not allowed. Use \"*/{1}\" for wildcard steps or \"X-Y/{1}\" for range steps.", range_part, step_str)
+                ));
+            }
         };
 
         if start < self.min || end > self.max || start > end {

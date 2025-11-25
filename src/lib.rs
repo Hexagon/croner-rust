@@ -1354,7 +1354,7 @@ mod tests {
 
     #[test]
     fn test_cron_iterator_non_standard_intervals_with_offset() -> Result<(), CronError> {
-        let cron = Cron::from_str("7/29 2/13 * * *")?;
+        let cron = Cron::from_str("7-59/29 2-23/13 * * *")?;
         let start_time = Local.with_ymd_and_hms(2023, 1, 1, 0, 0, 0).unwrap();
         let mut iterator = cron.iter_after(start_time);
 
@@ -1669,7 +1669,7 @@ mod tests {
     #[case("* * * * *", "0-5 * * * *", false)]
     // Steps (`/`)
     #[case("*/15 * * * *", "*/30 * * * *", false)]
-    #[case("0/10 * * * *", "5/10 * * * *", false)]
+    #[case("0-59/10 * * * *", "5-59/10 * * * *", false)]
     #[case("* * 1-10/2 * *", "* * 1-10/3 * *", false)]
     #[case("* * * * *", "*/2 * * * *", false)]
     // Lists (`,`)
