@@ -148,7 +148,7 @@ pub const YEAR_LOWER_LIMIT: i32 = 1;
 
 // The Cron struct represents a cron schedule and provides methods to parse cron strings,
 // check if a datetime matches the cron pattern, and find the next occurrence.
-#[derive(Debug, Clone, PartialEq, PartialOrd, Hash)]
+#[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd, Hash)]
 pub struct Cron {
     pub pattern: CronPattern, // Parsed cron pattern
 }
