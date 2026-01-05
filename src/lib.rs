@@ -148,7 +148,7 @@ pub const YEAR_LOWER_LIMIT: i32 = 1;
 
 // The Cron struct represents a cron schedule and provides methods to parse cron strings,
 // check if a datetime matches the cron pattern, and find the next occurrence.
-#[derive(Debug, Clone, PartialEq, PartialOrd, Hash)]
+#[derive(Debug, Clone, Eq, Ord, PartialEq, PartialOrd, Hash)]
 pub struct Cron {
     pub pattern: CronPattern, // Parsed cron pattern
 }
@@ -859,7 +859,7 @@ impl<'de> Deserialize<'de> for Cron {
         impl Visitor<'_> for CronVisitor {
             type Value = Cron;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("a valid cron pattern")
             }
 

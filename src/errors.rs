@@ -43,7 +43,7 @@ pub enum CronError {
     ComponentError(String),
 }
 impl std::fmt::Display for CronError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             CronError::TimeSearchLimitExceeded => {
                 write!(f, "CronScheduler time search limit exceeded.")
