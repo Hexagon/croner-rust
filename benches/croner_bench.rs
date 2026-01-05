@@ -1,5 +1,7 @@
+use std::hint::black_box;
+
 use chrono::Local;
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use croner::{parser::CronParser, Cron};
 
 fn parse_take_100(_n: u64) {
