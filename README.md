@@ -18,10 +18,12 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 - Supports optional alternative weekday mode to use Quartz-style weekdays instead of POSIX using `with_alternative_weekdays`
 - Allows for flexible combination of DOM and DOW conditions, enabling patterns to match specific days of the week in specific weeks of the month or the closest weekday to a specific day.
 - Compatible with `chrono` and (optionally) `chrono-tz`.
+- Supports `no_std` environments (with `alloc`).
 - Robust error handling.
 
 ## Crate Features
 
+- `std` *(enabled by default)*: Links the Rust standard library. Disable this feature (`default-features = false`) to use the crate in `no_std` environments (requires a global allocator).
 - `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for [`Cron`](https://docs.rs/croner/2/croner/struct.Cron.html). This feature is disabled by default.
 
 ## Why croner instead of cron or saffron?
@@ -353,6 +355,17 @@ let parser = CronParser::builder()
 let cron = parser
     .parse("0 0 12 ? * 6")  // Quartz format: sec min hour dom month dow
     .expect("Invalid cron pattern");
+```
+
+#### 7. `no_std` Support
+
+Croner supports `no_std` environments by disabling the default `std` feature. This is useful for embedded systems or other environments without the Rust standard library. A global allocator is required.
+
+**Example `Cargo.toml`**:
+
+```toml
+[dependencies]
+croner = { version = "3", default-features = false }
 ```
 
 ### Documentation
