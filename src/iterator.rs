@@ -123,8 +123,9 @@ where
                 Some(found_time)
             }
             Err(CronError::TimeSearchLimitExceeded) => None,
-            Err(e) => {
-                eprintln!("CronIterator encountered an error: {e:?}");
+            Err(_e) => {
+                #[cfg(feature = "std")]
+                eprintln!("CronIterator encountered an error: {_e:?}");
                 None
             }
         }

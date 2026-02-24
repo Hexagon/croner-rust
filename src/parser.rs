@@ -38,8 +38,13 @@
 //!     .unwrap();
 //! ```
 
-use derive_builder::Builder;
 use strum::EnumIs;
+
+#[cfg(not(feature = "std"))]
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 
 use crate::{
     component::{
@@ -70,8 +75,7 @@ pub enum Year {
 /// Parser for Cron patterns.
 ///
 /// In order to build a custom cron parser use [`CronParser::builder`].
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Builder)]
-#[builder(default, build_fn(skip), pattern = "owned")]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CronParser {
     /// Configure how seconds should be handled.
     seconds: Seconds,
@@ -87,11 +91,23 @@ pub struct CronParser {
     sloppy_ranges: bool,
 }
 
+/// Builder for [`CronParser`].
+///
+/// Created via [`CronParser::builder`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct CronParserBuilder {
+    seconds: Seconds,
+    year: Year,
+    dom_and_dow: bool,
+    alternative_weekdays: bool,
+    sloppy_ranges: bool,
+}
+
 impl CronParser {
     /// Create a new parser.
     ///
     /// You should probably be using [`Cron`]'s implementation of
-    /// [`FromStr`][std::str::FromStr] instead of invoking this.
+    /// [`FromStr`][core::str::FromStr] instead of invoking this.
     pub fn new() -> Self {
         Self::default()
     }
@@ -396,20 +412,47 @@ impl CronParser {
 }
 
 impl CronParserBuilder {
+    /// Configure how seconds should be handled.
+    pub fn seconds(mut self, seconds: Seconds) -> Self {
+        self.seconds = seconds;
+        self
+    }
+
+    /// Configure how years should be handled.
+    pub fn year(mut self, year: Year) -> Self {
+        self.year = year;
+        self
+    }
+
+    /// Enable the combination of Day of Month (DOM) and Day of Week (DOW) conditions.
+    pub fn dom_and_dow(mut self, dom_and_dow: bool) -> Self {
+        self.dom_and_dow = dom_and_dow;
+        self
+    }
+
+    /// Use the Quartz-style weekday mode.
+    pub fn alternative_weekdays(mut self, alternative_weekdays: bool) -> Self {
+        self.alternative_weekdays = alternative_weekdays;
+        self
+    }
+
+    /// Allow sloppy range syntax (e.g., `0/10` or `/10`) for backward compatibility.
+    ///
+    /// When enabled, patterns like `0/10` (start at 0, step by 10) and `/10` (same as `*/10`)
+    /// are accepted. This is not compliant with OCPS/vixie-cron standards.
+    pub fn sloppy_ranges(mut self, sloppy_ranges: bool) -> Self {
+        self.sloppy_ranges = sloppy_ranges;
+        self
+    }
+
+    /// Build the configured [`CronParser`].
     pub fn build(self) -> CronParser {
-        let CronParserBuilder {
-            seconds,
-            year,
-            dom_and_dow,
-            alternative_weekdays,
-            sloppy_ranges,
-        } = self;
         CronParser {
-            seconds: seconds.unwrap_or_default(),
-            year: year.unwrap_or_default(),
-            dom_and_dow: dom_and_dow.unwrap_or_default(),
-            alternative_weekdays: alternative_weekdays.unwrap_or_default(),
-            sloppy_ranges: sloppy_ranges.unwrap_or_default(),
+            seconds: self.seconds,
+            year: self.year,
+            dom_and_dow: self.dom_and_dow,
+            alternative_weekdays: self.alternative_weekdays,
+            sloppy_ranges: self.sloppy_ranges,
         }
     }
 }

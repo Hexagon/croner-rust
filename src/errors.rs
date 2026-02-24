@@ -2,6 +2,9 @@
 ///
 /// `CronError` is used throughout the `croner` crate to indicate various types of failures
 /// and is exported for consuming programs to use.
+#[cfg(not(feature = "std"))]
+use alloc::string::String;
+
 #[derive(Debug)]
 pub enum CronError {
     /// The pattern string provided was empty.
@@ -42,8 +45,8 @@ pub enum CronError {
     /// such as "Position x is out of bounds for the current range (y-z).".
     ComponentError(String),
 }
-impl std::fmt::Display for CronError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for CronError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             CronError::TimeSearchLimitExceeded => {
                 write!(f, "CronScheduler time search limit exceeded.")
@@ -59,4 +62,4 @@ impl std::fmt::Display for CronError {
         }
     }
 }
-impl std::error::Error for CronError {}
+impl core::error::Error for CronError {}
