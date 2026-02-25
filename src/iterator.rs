@@ -12,6 +12,7 @@ where
     inclusive: bool,
     direction: Direction,
     pending_ambiguous_dt: Option<DateTime<Tz>>,
+    last_error: Option<CronError>,
 }
 
 impl<Tz> CronIterator<Tz>
@@ -39,7 +40,18 @@ where
             inclusive,
             direction,
             pending_ambiguous_dt: None,
+            last_error: None,
         }
+    }
+
+    /// Returns the last error encountered during iteration, if any.
+    ///
+    /// When the iterator returns `None`, this method can be used to distinguish
+    /// between a completed iteration (no more matches) and an error condition.
+    /// This is especially useful in `no_std` environments where `eprintln!` is
+    /// not available.
+    pub fn last_error(&self) -> Option<&CronError> {
+        self.last_error.as_ref()
     }
 }
 
@@ -126,6 +138,7 @@ where
             Err(_e) => {
                 #[cfg(feature = "std")]
                 eprintln!("CronIterator encountered an error: {_e:?}");
+                self.last_error = Some(_e);
                 None
             }
         }

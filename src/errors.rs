@@ -5,7 +5,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::string::String;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CronError {
     /// The pattern string provided was empty.
     ///

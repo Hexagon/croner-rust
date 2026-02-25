@@ -384,7 +384,6 @@ let cron = Cron::from_str("0 0 * * FRI").expect("Successful parsing");
 **Limitations**:
 
 - A global allocator (`#[global_allocator]`) is required since croner depends on `alloc`.
-- `println!`/`eprintln!` are not available; iterator errors are silently ignored in `no_std` mode.
 - Time zone support depends on what your `chrono` setup provides — `chrono-tz` may not be available on all `no_std` targets.
 
 ### Documentation
