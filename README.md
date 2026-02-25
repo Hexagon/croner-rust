@@ -359,7 +359,7 @@ let cron = parser
 
 #### 7. `no_std` Support
 
-Croner supports `no_std` environments by disabling the default `std` feature. This is useful for embedded systems or other environments without the Rust standard library. A global allocator is required.
+Croner supports `no_std` environments by disabling the default `std` feature. This is useful for embedded systems or other environments without the Rust standard library.
 
 **Example `Cargo.toml`**:
 
@@ -367,6 +367,25 @@ Croner supports `no_std` environments by disabling the default `std` feature. Th
 [dependencies]
 croner = { version = "3", default-features = false }
 ```
+
+**Example Usage** (in a `no_std` context):
+
+```rust
+use core::str::FromStr;
+use croner::Cron;
+
+// Parse a cron expression
+let cron = Cron::from_str("0 0 * * FRI").expect("Successful parsing");
+
+// Use with any chrono DateTime (e.g. from an RTC or network time source)
+// let next = cron.find_next_occurrence(&my_datetime, false).unwrap();
+```
+
+**Limitations**:
+
+- A global allocator (`#[global_allocator]`) is required since croner depends on `alloc`.
+- `println!`/`eprintln!` are not available; iterator errors are silently ignored in `no_std` mode.
+- Time zone support depends on what your `chrono` setup provides — `chrono-tz` may not be available on all `no_std` targets.
 
 ### Documentation
 
