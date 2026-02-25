@@ -1,7 +1,7 @@
 use crate::{Cron, CronError, Direction};
 use chrono::{DateTime, Duration, TimeZone};
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Hash)]
+#[derive(Debug, Clone)]
 pub struct CronIterator<Tz>
 where
     Tz: TimeZone,
@@ -12,7 +12,68 @@ where
     inclusive: bool,
     direction: Direction,
     pending_ambiguous_dt: Option<DateTime<Tz>>,
+    /// Diagnostic field — excluded from `PartialEq`/`Hash` comparisons.
     last_error: Option<CronError>,
+}
+
+impl<Tz> PartialEq for CronIterator<Tz>
+where
+    Tz: TimeZone,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.cron == other.cron
+            && self.current_time == other.current_time
+            && self.is_first == other.is_first
+            && self.inclusive == other.inclusive
+            && self.direction == other.direction
+            && self.pending_ambiguous_dt == other.pending_ambiguous_dt
+    }
+}
+
+impl<Tz> core::hash::Hash for CronIterator<Tz>
+where
+    Tz: TimeZone,
+    DateTime<Tz>: core::hash::Hash,
+{
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.cron.hash(state);
+        self.current_time.hash(state);
+        self.is_first.hash(state);
+        self.inclusive.hash(state);
+        self.direction.hash(state);
+        self.pending_ambiguous_dt.hash(state);
+    }
+}
+
+impl<Tz> PartialOrd for CronIterator<Tz>
+where
+    Tz: TimeZone,
+    DateTime<Tz>: PartialOrd,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        match self.cron.partial_cmp(&other.cron) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        match self.current_time.partial_cmp(&other.current_time) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        match self.is_first.partial_cmp(&other.is_first) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        match self.inclusive.partial_cmp(&other.inclusive) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        match self.direction.partial_cmp(&other.direction) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        self.pending_ambiguous_dt
+            .partial_cmp(&other.pending_ambiguous_dt)
+    }
 }
 
 impl<Tz> CronIterator<Tz>
@@ -134,7 +195,10 @@ where
                 // This `found_time` is the original value received from `find_occurrence`.
                 Some(found_time)
             }
-            Err(CronError::TimeSearchLimitExceeded) => None,
+            Err(CronError::TimeSearchLimitExceeded) => {
+                self.last_error = Some(CronError::TimeSearchLimitExceeded);
+                None
+            }
             Err(_e) => {
                 #[cfg(feature = "std")]
                 eprintln!("CronIterator encountered an error: {_e:?}");
