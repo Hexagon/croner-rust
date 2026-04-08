@@ -22,7 +22,7 @@
 //! The following example demonstrates how to use Croner to parse a cron expression and find the next and previous occurrences.
 //!
 //! ```rust
-//! use std::str::FromStr as _;
+//! use core::str::FromStr as _;
 //!
 //! use chrono::Utc;
 //! use croner::Cron;
@@ -199,7 +199,7 @@ impl Cron {
     /// # Examples
     ///
     /// ```
-    /// use std::str::FromStr as _;
+    /// use core::str::FromStr as _;
     ///
     /// use croner::Cron;
     /// use chrono::Utc;
@@ -589,7 +589,7 @@ impl Cron {
     /// # Example
     /// ```
     /// use croner::Cron;
-    /// use std::str::FromStr as _;
+    /// use core::str::FromStr as _;
     ///
     /// let cron = Cron::from_str("0 12 * * MON-FRI").unwrap();
     /// println!("{}", cron.describe());

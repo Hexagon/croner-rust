@@ -3,7 +3,7 @@
 //! Croner uses [`CronParser`] to parse the cron expression. Invoking
 //!
 //! ```rust
-//! # use std::str::FromStr as _;
+//! # use core::str::FromStr as _;
 //! #
 //! # use croner::{Cron, parser::CronParser};
 //! #
@@ -13,7 +13,7 @@
 //! is equivalent to
 //!
 //! ```rust
-//! # use std::str::FromStr as _;
+//! # use core::str::FromStr as _;
 //! #
 //! # use croner::{Cron, parser::CronParser};
 //! #
@@ -107,7 +107,7 @@ impl CronParser {
     /// Create a new parser.
     ///
     /// You should probably be using [`Cron`]'s implementation of
-    /// [`FromStr`][core::str::FromStr] instead of invoking this.
+    /// [`FromStr`] instead of invoking this.
     pub fn new() -> Self {
         Self::default()
     }
