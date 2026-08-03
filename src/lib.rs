@@ -298,7 +298,7 @@ impl Cron {
     ) -> Result<(DateTime<Tz>, Option<DateTime<Tz>>), CronError> {
         let mut naive_time = start_time.naive_local();
         let timezone = start_time.timezone();
-        let job_type = self.determine_job_type();
+        let mut job_type: Option<JobType> = None;
 
         let initial_adjusted_naive_time = if !inclusive {
             let adjustment = match direction {
@@ -407,7 +407,9 @@ impl Cron {
                     let second_occurrence_dt =
                         timezone.from_local_datetime(&naive_time).latest().unwrap();
 
-                    if job_type == JobType::FixedTime {
+                    if *job_type.get_or_insert_with(|| self.determine_job_type())
+                        == JobType::FixedTime
+                    {
                         // Fixed-Time Job: Execute only once, at its first occurrence (earliest in the ambiguous pair).
                         if self.is_time_matching(&first_occurrence_dt)? {
                             return Ok((first_occurrence_dt, None)); // Return only the first, no second for fixed jobs.
@@ -451,7 +453,9 @@ impl Cron {
                 }
                 chrono::LocalResult::None => {
                     // DST Gap (Spring Forward)
-                    if job_type == JobType::FixedTime {
+                    if *job_type.get_or_insert_with(|| self.determine_job_type())
+                        == JobType::FixedTime
+                    {
                         // For fixed-time jobs that fall into a gap, we want them to "snap" to the first valid time after the gap.
                         // Find the very first valid NaiveDateTime after the current `naive_time`
                         // that can be successfully converted to a DateTime<Tz>.
@@ -600,27 +604,16 @@ impl Cron {
     /// A Fixed-Time Job has fixed (non-wildcard, non-stepped, single-value) Seconds, Minute,
     /// and Hour fields. Otherwise, it's an Interval/Wildcard Job.
     pub fn determine_job_type(&self) -> JobType {
-        let is_seconds_fixed = self.pattern.seconds.step == 1
-            && !self.pattern.seconds.from_wildcard
-            && self
-                .pattern
-                .seconds
-                .get_set_values(component::ALL_BIT)
-                .len()
-                == 1;
-        let is_minutes_fixed = self.pattern.minutes.step == 1
-            && !self.pattern.minutes.from_wildcard
-            && self
-                .pattern
-                .minutes
-                .get_set_values(component::ALL_BIT)
-                .len()
-                == 1;
-        let is_hours_fixed = self.pattern.hours.step == 1
-            && !self.pattern.hours.from_wildcard
-            && self.pattern.hours.get_set_values(component::ALL_BIT).len() == 1;
+        let is_fixed = |field: &component::CronComponent| {
+            field.step == 1
+                && !field.from_wildcard
+                && field.count_set_values(component::ALL_BIT) == 1
+        };
 
-        if is_seconds_fixed && is_minutes_fixed && is_hours_fixed {
+        if is_fixed(&self.pattern.seconds)
+            && is_fixed(&self.pattern.minutes)
+            && is_fixed(&self.pattern.hours)
+        {
             JobType::FixedTime
         } else {
             JobType::IntervalWildcard
