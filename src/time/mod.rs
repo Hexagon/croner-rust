@@ -10,12 +10,18 @@
 //! |------|---------------|
 //! | [`chrono::DateTime<Tz>`](https://docs.rs/chrono/0.4/chrono/struct.DateTime.html) | `chrono` (default) |
 //! | [`chrono::NaiveDateTime`](https://docs.rs/chrono/0.4/chrono/struct.NaiveDateTime.html) | `chrono` (default) |
+//! | [`jiff::Zoned`](https://docs.rs/jiff/0.2/jiff/struct.Zoned.html) | `jiff` |
+//! | [`jiff::civil::DateTime`](https://docs.rs/jiff/0.2/jiff/civil/struct.DateTime.html) | `jiff` |
 //!
 //! Implement [`CronDateTime`] for your own type to use a different library.
 
 #[cfg(feature = "chrono")]
 #[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
 mod chrono_impl;
+#[cfg(feature = "jiff")]
+#[cfg_attr(docsrs, doc(cfg(feature = "jiff")))]
+mod jiff_impl;
+
 mod cursor;
 
 pub(crate) use cursor::Cursor;

@@ -18,6 +18,9 @@ path = "src/lib.rs"
 [dependencies]
 chrono = { version = "0.4.42", default-features = false, optional = true }
 derive_builder = "0.20.2"
+jiff = { version = "0.2.35", default-features = false, features = [
+    "alloc",
+], optional = true }
 serde = { version = "1.0", optional = true }
 strum = { version = "0.27.2", features = ["derive"] }
 
@@ -25,6 +28,7 @@ strum = { version = "0.27.2", features = ["derive"] }
 chrono = { version = "0.4.42", default-features = false, features = ["clock"] }
 chrono-tz = "0.10.4"
 criterion = "0.7.0"
+jiff = "0.2.35"
 rstest = "0.26.1"
 serde_test = "1.0"
 
@@ -32,6 +36,8 @@ serde_test = "1.0"
 default = ["chrono"]
 # Support for `chrono::DateTime` and `chrono::NaiveDateTime`.
 chrono = ["dep:chrono"]
+# Support for `jiff::Zoned` and `jiff::civil::DateTime`.
+jiff = ["dep:jiff"]
 serde = ["dep:serde"]
 
 [[bench]]
