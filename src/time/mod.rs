@@ -6,13 +6,15 @@
 //!
 //! Croner includes these implementations:
 //!
-//! | Type | |
-//! |------|-|
-//! | [`chrono::DateTime<Tz>`](https://docs.rs/chrono/0.4/chrono/struct.DateTime.html) | |
-//! | [`chrono::NaiveDateTime`](https://docs.rs/chrono/0.4/chrono/struct.NaiveDateTime.html) | |
+//! | Type | Crate feature |
+//! |------|---------------|
+//! | [`chrono::DateTime<Tz>`](https://docs.rs/chrono/0.4/chrono/struct.DateTime.html) | `chrono` (default) |
+//! | [`chrono::NaiveDateTime`](https://docs.rs/chrono/0.4/chrono/struct.NaiveDateTime.html) | `chrono` (default) |
 //!
 //! Implement [`CronDateTime`] for your own type to use a different library.
 
+#[cfg(feature = "chrono")]
+#[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
 mod chrono_impl;
 mod cursor;
 
@@ -453,6 +455,7 @@ pub enum Resolution<T> {
 /// # Example
 ///
 /// ```
+/// # #[cfg(feature = "chrono")] {
 /// use std::str::FromStr as _;
 ///
 /// use chrono::Utc;
@@ -462,6 +465,7 @@ pub enum Resolution<T> {
 ///
 /// // The return type follows the argument type.
 /// let next: chrono::DateTime<Utc> = cron.find_next_occurrence(&Utc::now(), false).unwrap();
+/// # }
 /// ```
 pub trait CronDateTime: Sized + Clone {
     /// Returns the local wall clock date and time.
