@@ -1,37 +1,32 @@
+use crate::time::CronDateTime;
 use crate::{Cron, CronError, Direction};
-use chrono::{DateTime, Duration, TimeZone};
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, Hash)]
-pub struct CronIterator<Tz>
+pub struct CronIterator<T>
 where
-    Tz: TimeZone,
+    T: CronDateTime,
 {
     cron: Cron,
-    current_time: DateTime<Tz>,
+    current_time: T,
     is_first: bool,
     inclusive: bool,
     direction: Direction,
-    pending_ambiguous_dt: Option<DateTime<Tz>>,
+    pending_ambiguous_dt: Option<T>,
 }
 
-impl<Tz> CronIterator<Tz>
+impl<T> CronIterator<T>
 where
-    Tz: TimeZone,
+    T: CronDateTime,
 {
     /// Creates a new `CronIterator`.
     ///
     /// # Arguments
     ///
     /// * `cron` - The `Cron` schedule instance.
-    /// * `start_time` - The `DateTime` to start iterating from.
+    /// * `start_time` - The date and time to start iterating from.
     /// * `inclusive` - Whether the `start_time` should be included in the results if it matches.
     /// * `direction` - The direction to iterate in (Forward or Backward).
-    pub fn new(
-        cron: Cron,
-        start_time: DateTime<Tz>,
-        inclusive: bool,
-        direction: Direction,
-    ) -> Self {
+    pub fn new(cron: Cron, start_time: T, inclusive: bool, direction: Direction) -> Self {
         CronIterator {
             cron,
             current_time: start_time,
@@ -43,28 +38,18 @@ where
     }
 }
 
-impl<Tz> Iterator for CronIterator<Tz>
+impl<T> Iterator for CronIterator<T>
 where
-    Tz: TimeZone + Clone + Copy,
+    T: CronDateTime,
 {
-    type Item = DateTime<Tz>;
+    type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
         // Step 1: Check for and yield a pending ambiguous datetime first.
         // This handles the second occurrence of a time during DST fallback.
         if let Some(pending_dt_to_yield) = self.pending_ambiguous_dt.take() {
             // After yielding the second ambiguous time, advance current_time past it.
-            // Clone pending_dt_to_yield because it's about to be returned,
-            // but we need its value to calculate the next `self.current_time`.
-            self.current_time = pending_dt_to_yield
-                .clone()
-                .checked_add_signed(match self.direction {
-                    // Fixed E0382: pending_dt_to_yield
-                    Direction::Forward => Duration::seconds(1),
-                    Direction::Backward => Duration::seconds(-1),
-                })
-                .ok_or(CronError::InvalidTime)
-                .ok()?;
+            self.current_time = pending_dt_to_yield.checked_add_seconds(self.direction.step())?;
             return Some(pending_dt_to_yield);
         }
 
@@ -89,33 +74,15 @@ where
                 // And importantly, set `self.current_time` to advance *past* this second ambiguous time
                 // so the *next* search for a *new* naive time is correct.
                 if let Some(second_ambiguous_dt) = optional_second_ambiguous_dt {
-                    // Clone second_ambiguous_dt because it's stored in self.pending_ambiguous_dt
-                    // AND used to calculate the next self.current_time.
-                    self.pending_ambiguous_dt = Some(second_ambiguous_dt.clone()); // Fixed E0382: second_ambiguous_dt
-
                     // Advance `self.current_time` past the latest of the ambiguous pair.
                     // This ensures the next `find_occurrence` call searches for the next unique naive time.
-                    self.current_time = second_ambiguous_dt
-                        .checked_add_signed(match self.direction {
-                            Direction::Forward => Duration::seconds(1),
-                            Direction::Backward => Duration::seconds(-1),
-                        })
-                        .ok_or(CronError::InvalidTime)
-                        .ok()?;
+                    self.current_time =
+                        second_ambiguous_dt.checked_add_seconds(self.direction.step())?;
+                    self.pending_ambiguous_dt = Some(second_ambiguous_dt);
                 } else {
                     // Case: No second ambiguous time (either not an overlap, or fixed-time job).
                     // Advance `self.current_time` simply past the `found_time`.
-                    // Clone found_time because it's used to calculate the next self.current_time
-                    // AND returned at the end of this block.
-                    self.current_time = found_time
-                        .clone()
-                        .checked_add_signed(match self.direction {
-                            // Fixed E0382: found_time
-                            Direction::Forward => Duration::seconds(1),
-                            Direction::Backward => Duration::seconds(-1),
-                        })
-                        .ok_or(CronError::InvalidTime)
-                        .ok()?;
+                    self.current_time = found_time.checked_add_seconds(self.direction.step())?;
                 }
 
                 // Finally, return the found_time for the current iteration.
