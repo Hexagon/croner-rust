@@ -90,10 +90,18 @@
 pub mod describe;
 pub mod errors;
 pub mod parser;
+pub mod time;
 
 mod component;
 mod iterator;
 mod pattern;
+
+use crate::time::Weekday;
+
+/// Reads the weekday of a date as croner's own [`Weekday`].
+fn weekday_of<D: Datelike>(date: &D) -> Weekday {
+    Weekday::from_days_from_sunday(date.weekday().num_days_from_sunday())
+}
 
 // Enum to specify the direction of time search
 #[derive(Clone, Copy, Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
@@ -213,9 +221,12 @@ impl Cron {
         Ok(self.pattern.second_match(naive_time.second())?
             && self.pattern.minute_match(naive_time.minute())?
             && self.pattern.hour_match(naive_time.hour())?
-            && self
-                .pattern
-                .day_match(naive_time.year(), naive_time.month(), naive_time.day())?
+            && self.pattern.day_match(
+                naive_time.year(),
+                naive_time.month(),
+                naive_time.day(),
+                weekday_of(&naive_time),
+            )?
             && self.pattern.month_match(naive_time.month())?
             && self.pattern.year_match(naive_time.year())?) // Add year match check
     }
@@ -499,6 +510,7 @@ impl Cron {
                             resolved_dt_after_gap.year(),
                             resolved_dt_after_gap.month(),
                             resolved_dt_after_gap.day(),
+                            weekday_of(&resolved_dt_after_gap),
                         )? && self.pattern.month_match(resolved_dt_after_gap.month())?
                             && self.pattern.year_match(resolved_dt_after_gap.year())?
                         {
@@ -778,6 +790,7 @@ impl Cron {
                 current_time.year(),
                 current_time.month(),
                 current_time.day(),
+                weekday_of(current_time),
             ),
             _ => Ok(true), // Should not happen for other components, but this is safe
         })? {
