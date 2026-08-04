@@ -60,20 +60,18 @@ impl CronPattern {
         self.years.is_bit_set(year as u16, ALL_BIT) // Use u16 cast
     }
 
-    // Determines the nth weekday of the month
-    fn is_nth_weekday_of_month(date: chrono::NaiveDate, nth: u8, weekday: Weekday) -> bool {
-        let mut count = 0;
-        let mut current = date.with_day(1).unwrap();
-        while current.month() == date.month() {
-            if current.weekday() == weekday {
-                count += 1;
-                if count == nth {
-                    return current.day() == date.day();
-                }
-            }
-            current += chrono::Duration::days(1);
+    // Returns the bit for which occurrence of its own weekday a day is, or
+    // `None` past the fifth. Days 1-7 hold the first occurrence of every
+    // weekday, days 8-14 the second, and so on, so no calendar walk is needed.
+    fn nth_weekday_bit(day: u32) -> Option<u8> {
+        match (day - 1) / 7 {
+            0 => Some(NTH_1ST_BIT),
+            1 => Some(NTH_2ND_BIT),
+            2 => Some(NTH_3RD_BIT),
+            3 => Some(NTH_4TH_BIT),
+            4 => Some(NTH_5TH_BIT),
+            _ => None,
         }
-        false
     }
 
     // Checks if a given year, month, and day match the day part of the cron pattern.
@@ -83,6 +81,7 @@ impl CronPattern {
         }
 
         let date = NaiveDate::from_ymd_opt(year, month, day).ok_or(CronError::InvalidDate)?;
+        let weekday_bit = date.weekday().num_days_from_sunday() as u16;
         let mut day_matches = self.days.is_bit_set(day as u16, ALL_BIT)?; // Use u16
         let mut dow_matches = false;
 
@@ -107,38 +106,20 @@ impl CronPattern {
             day_matches = true;
         }
 
-        for nth in 1..=5 {
-            let nth_bit = match nth {
-                1 => NTH_1ST_BIT,
-                2 => NTH_2ND_BIT,
-                3 => NTH_3RD_BIT,
-                4 => NTH_4TH_BIT,
-                5 => NTH_5TH_BIT,
-                _ => continue,
-            };
-            if self
-                .days_of_week
-                .is_bit_set(date.weekday().num_days_from_sunday() as u16, nth_bit)? // Use u16
-                && Self::is_nth_weekday_of_month(date, nth, date.weekday())
-            {
-                dow_matches = true;
-                break;
-            }
+        // A day can only be one occurrence of its own weekday, so only that
+        // one nth bit needs testing.
+        if let Some(nth_bit) = Self::nth_weekday_bit(day) {
+            dow_matches = self.days_of_week.is_bit_set(weekday_bit, nth_bit)?;
         }
 
         if !dow_matches
-            && self
-                .days_of_week
-                .is_bit_set(date.weekday().num_days_from_sunday() as u16, LAST_BIT)? // Use u16
+            && self.days_of_week.is_bit_set(weekday_bit, LAST_BIT)?
             && (date + chrono::Duration::days(7)).month() != date.month()
         {
             dow_matches = true;
         }
 
-        dow_matches = dow_matches
-            || self
-                .days_of_week
-                .is_bit_set(date.weekday().num_days_from_sunday() as u16, ALL_BIT)?; // Use u16
+        dow_matches = dow_matches || self.days_of_week.is_bit_set(weekday_bit, ALL_BIT)?;
 
         if (day_matches && self.star_dow) || (dow_matches && self.star_dom) {
             Ok(true)
@@ -173,22 +154,24 @@ impl CronPattern {
     // Helper function to find the last weekday (Mon-Fri) of a given month
     fn last_weekday_of_month(year: i32, month: u32) -> Result<u32, CronError> {
         let last_day = Self::last_day_of_month(year, month)?;
-        let mut current_date =
+        let last_date =
             NaiveDate::from_ymd_opt(year, month, last_day).ok_or(CronError::InvalidDate)?;
 
-        // Walk backwards from the last day until we find a weekday (Mon-Fri)
-        while current_date.weekday().num_days_from_sunday() == 0
-            || current_date.weekday().num_days_from_sunday() == 6
-        {
-            current_date = current_date.pred_opt().ok_or(CronError::InvalidDate)?;
-        }
-
-        Ok(current_date.day())
+        // Walking back from the last day stops after at most two steps, so the
+        // weekday of the last day decides the answer on its own.
+        Ok(match last_date.weekday() {
+            Weekday::Sat => last_day - 1,
+            Weekday::Sun => last_day - 2,
+            _ => last_day,
+        })
     }
 
     pub fn closest_weekday(&self, year: i32, month: u32, day: u32) -> Result<bool, CronError> {
-        // Iterate through all possible days to see if any have the 'W' flag.
-        for pattern_day_u16 in 1..=31 {
+        // The 'W' rule never moves a date by more than two days, so only
+        // pattern days within two days of `day` can resolve to it.
+        let first = day.saturating_sub(2).max(1) as u16;
+        let last = (day + 2).min(31) as u16;
+        for pattern_day_u16 in first..=last {
             if self.days.is_bit_set(pattern_day_u16, CLOSEST_WEEKDAY_BIT)? {
                 // A 'W' day exists in the pattern. Check if it resolves to the function's date argument.
                 let pattern_day = pattern_day_u16 as u32;
