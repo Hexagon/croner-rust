@@ -1,5 +1,8 @@
-use std::cmp::Ordering;
-use std::hash::Hasher;
+use core::cmp::Ordering;
+use core::hash::Hasher;
+
+#[cfg(not(feature = "std"))]
+use alloc::string::{String, ToString};
 
 use crate::component::{
     CronComponent, ALL_BIT, CLOSEST_WEEKDAY_BIT, LAST_BIT, NONE_BIT, NTH_1ST_BIT, NTH_2ND_BIT,
@@ -321,8 +324,8 @@ impl CronPattern {
     }
 }
 
-impl std::fmt::Display for CronPattern {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for CronPattern {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.pattern)
     }
 }
@@ -386,7 +389,7 @@ impl Ord for CronPattern {
     }
 }
 
-impl std::hash::Hash for CronPattern {
+impl core::hash::Hash for CronPattern {
     /// Hashes the functionally significant fields of the CronPattern.
     ///
     /// This implementation is consistent with the `PartialEq` implementation,

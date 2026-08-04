@@ -22,3 +22,7 @@ jobs:
       run: cargo test --verbose
     - name: Run tests with features
       run: cargo test --all-features --verbose
+    - name: Build no_std
+      run: |
+        rustup target add thumbv7m-none-eabi
+        cargo build --no-default-features --target thumbv7m-none-eabi
