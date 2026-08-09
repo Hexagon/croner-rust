@@ -804,10 +804,14 @@ impl<'de> Deserialize<'de> for Cron {
 
 /// Converts a `chrono` naive date and time back to a zoned one.
 ///
-/// Kept for callers that already use it. It is a thin wrapper around
-/// [`chrono::TimeZone::from_local_datetime`] and croner no longer uses it:
-/// wall clock times are resolved through [`CronDateTime::resolve_civil`],
-/// which works with every supported date and time library.
+/// It is a thin wrapper around [`chrono::TimeZone::from_local_datetime`] and
+/// croner no longer uses it: wall clock times are resolved through
+/// [`CronDateTime::resolve_civil`], which works with every supported date and
+/// time library.
+#[deprecated(
+    since = "4.0.0",
+    note = "call `chrono::TimeZone::from_local_datetime` directly"
+)]
 pub fn from_naive<Tz: chrono::TimeZone>(
     naive_time: chrono::NaiveDateTime,
     timezone: &Tz,
