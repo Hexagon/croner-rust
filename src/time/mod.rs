@@ -335,8 +335,10 @@ impl CivilDateTime {
         minute: u32,
         second: u32,
     ) -> Result<CivilDateTime, CronError> {
-        CivilDateTime::from_ymd_hms_opt(year, month, day, hour, minute, second)
-            .ok_or(CronError::InvalidTime)
+        Ok(CivilDateTime::new(
+            CivilDate::from_ymd(year, month, day)?,
+            CivilTime::from_hms_opt(hour, minute, second).ok_or(CronError::InvalidTime)?,
+        ))
     }
 
     /// Returns the date part.
