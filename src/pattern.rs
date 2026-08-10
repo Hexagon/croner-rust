@@ -405,7 +405,7 @@ impl std::hash::Hash for CronPattern {
 
 #[cfg(test)]
 mod tests {
-    use chrono::NaiveDate;
+    use chrono::{Datelike as _, NaiveDate};
 
     use crate::parser::{CronParser, Seconds};
 
@@ -421,7 +421,8 @@ mod tests {
         day: u32,
     ) -> Result<bool, CronError> {
         let date = NaiveDate::from_ymd_opt(year, month, day).expect("test date must exist");
-        pattern.day_match(year, month, day, crate::weekday_of(&date))
+        let weekday = Weekday::from_days_from_sunday(date.weekday().num_days_from_sunday());
+        pattern.day_match(year, month, day, weekday)
     }
 
     #[test]
