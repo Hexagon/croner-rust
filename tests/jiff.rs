@@ -281,15 +281,21 @@ mod parity {
                     let cron = Cron::from_str(pattern).expect("a valid pattern");
 
                     for direction in [Direction::Forward, Direction::Backward] {
+                        // The tz database only guarantees zone history from
+                        // 1970 on. chrono-tz bundles the default build, while
+                        // jiff reads the system copy, which may include the
+                        // richer "backzone" history, so older instants differ.
                         let from_chrono: Vec<i64> = cron
                             .iter_from(chrono_start, direction)
                             .take(50)
                             .map(|dt| dt.timestamp())
+                            .take_while(|ts| *ts >= 0)
                             .collect();
                         let from_jiff: Vec<i64> = cron
                             .iter_from(jiff_start.clone(), direction)
                             .take(50)
                             .map(|z| z.timestamp().as_second())
+                            .take_while(|ts| *ts >= 0)
                             .collect();
 
                         assert_eq!(
