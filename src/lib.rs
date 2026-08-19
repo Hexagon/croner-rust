@@ -19,6 +19,7 @@
 //! The following example demonstrates how to use Croner to parse a cron expression and find the next and previous occurrences.
 //!
 //! ```rust
+//! # #[cfg(feature = "chrono")] {
 //! use std::str::FromStr as _;
 //!
 //! use chrono::Utc;
@@ -45,6 +46,7 @@
 //!     cron.pattern.to_string(),
 //!     previous
 //! );
+//! # }
 //! ```
 //!
 //! In this example, `Cron::from_str("0 0 * * FRI")` creates a new Cron instance for the pattern that represents every Friday at midnight. The `find_next_occurrence` method calculates the next time this pattern will be true from the current moment.
@@ -86,6 +88,8 @@
 //! | Day of Week  | Yes      | 0-7 or SUN-MON    | * , - / ? # L              | 0 to 6 are Sunday to Saturday, 7 is Sunday, the same as 0. '#' is used to specify the nth weekday |
 //!
 //! For more information, refer to the full [README](https://github.com/hexagon/croner-rust).
+
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub mod describe;
 pub mod errors;
@@ -210,6 +214,7 @@ impl Cron {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "chrono")] {
     /// use std::str::FromStr as _;
     ///
     /// use croner::Cron;
@@ -230,6 +235,7 @@ impl Cron {
     ///     if matches_all { "match" } else { "not match" },
     ///     time
     /// );
+    /// # }
     /// ```
     pub fn is_time_matching<T: CronDateTime>(&self, time: &T) -> Result<bool, CronError> {
         self.is_cursor_matching(Cursor::new(time))
@@ -284,6 +290,7 @@ impl Cron {
     /// # Examples
     ///
     /// ```
+    /// # #[cfg(feature = "chrono")] {
     /// use chrono::Utc;
     /// use croner::{Cron, parser::{Seconds, CronParser}};
     ///
@@ -299,6 +306,7 @@ impl Cron {
     ///     cron.pattern.to_string(),
     ///     next
     /// );
+    /// # }
     /// ```
     pub fn find_next_occurrence<T: CronDateTime>(
         &self,
@@ -808,6 +816,8 @@ impl<'de> Deserialize<'de> for Cron {
 /// croner no longer uses it: wall clock times are resolved through
 /// [`CronDateTime::resolve_civil`], which works with every supported date and
 /// time library.
+#[cfg(feature = "chrono")]
+#[cfg_attr(docsrs, doc(cfg(feature = "chrono")))]
 #[deprecated(
     since = "4.0.0",
     note = "call `chrono::TimeZone::from_local_datetime` directly"
@@ -819,7 +829,8 @@ pub fn from_naive<Tz: chrono::TimeZone>(
     chrono::TimeZone::from_local_datetime(timezone, &naive_time)
 }
 
-#[cfg(test)]
+// These tests search over `chrono` types, so they need that backend.
+#[cfg(all(test, feature = "chrono"))]
 mod tests {
     use std::hash::{DefaultHasher, Hash, Hasher as _};
 
@@ -830,8 +841,6 @@ mod tests {
     use chrono_tz::Tz;
 
     use rstest::rstest;
-    #[cfg(feature = "serde")]
-    use serde_test::{assert_de_tokens_error, assert_tokens, Token};
     #[test]
     fn test_is_time_matching() -> Result<(), CronError> {
         // This pattern is meant to match first second of 9 am on the first day of January.
@@ -1709,36 +1718,6 @@ mod tests {
         assert!(cron_1 == cron_2, "Patterns are not equal");
     }
 
-    #[cfg(feature = "serde")]
-    #[test]
-    fn test_serde_tokens() {
-        let cron = Cron::from_str("0 0 * * *").expect("should be valid pattern");
-        assert_tokens(&cron.to_string(), &[Token::Str("0 0 * * *")]);
-    }
-
-    #[cfg(feature = "serde")]
-    #[test]
-    fn test_shorthand_serde_tokens() {
-        let expressions = [
-            ("@daily", "0 0 * * *"),
-            ("0 12 * * MON", "0 12 * * 1"),
-            ("*/15 9-17 * * MON-FRI", "*/15 9-17 * * 1-5"),
-        ];
-        for (shorthand, expected) in expressions.iter() {
-            let cron = Cron::from_str(shorthand).expect("should be valid pattern");
-            assert_tokens(&cron.to_string(), &[Token::Str(expected)]);
-        }
-    }
-
-    #[cfg(feature = "serde")]
-    #[test]
-    fn test_invalid_serde_tokens() {
-        assert_de_tokens_error::<Cron>(
-            &[Token::Str("Invalid cron pattern")],
-            "Invalid pattern: Pattern must have between 5 and 7 fields.",
-        );
-    }
-
     #[test]
     fn test_find_previous_occurrence() -> Result<(), CronError> {
         let cron = Cron::from_str("* * * * *")?;
@@ -2148,5 +2127,42 @@ mod tests {
         }
 
         Ok(())
+    }
+}
+
+// Serialisation works on the pattern alone, so these tests need no backend.
+#[cfg(all(test, feature = "serde"))]
+mod serde_tests {
+    use std::str::FromStr as _;
+
+    use serde_test::{assert_de_tokens_error, assert_tokens, Token};
+
+    use crate::Cron;
+
+    #[test]
+    fn test_serde_tokens() {
+        let cron = Cron::from_str("0 0 * * *").expect("should be valid pattern");
+        assert_tokens(&cron.to_string(), &[Token::Str("0 0 * * *")]);
+    }
+
+    #[test]
+    fn test_shorthand_serde_tokens() {
+        let expressions = [
+            ("@daily", "0 0 * * *"),
+            ("0 12 * * MON", "0 12 * * 1"),
+            ("*/15 9-17 * * MON-FRI", "*/15 9-17 * * 1-5"),
+        ];
+        for (shorthand, expected) in expressions.iter() {
+            let cron = Cron::from_str(shorthand).expect("should be valid pattern");
+            assert_tokens(&cron.to_string(), &[Token::Str(expected)]);
+        }
+    }
+
+    #[test]
+    fn test_invalid_serde_tokens() {
+        assert_de_tokens_error::<Cron>(
+            &[Token::Str("Invalid cron pattern")],
+            "Invalid pattern: Pattern must have between 5 and 7 fields.",
+        );
     }
 }

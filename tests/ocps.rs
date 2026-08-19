@@ -8,6 +8,9 @@
 // Each module in this suite corresponds to a specific version of the OCPS,
 // allowing for targeted testing of features as they were introduced.
 
+// The occurrence searches here run over `chrono` types.
+#![cfg(feature = "chrono")]
+
 use croner::parser::CronParser;
 use croner::Cron;
 use std::str::FromStr;
