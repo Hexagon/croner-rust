@@ -22,9 +22,9 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 
 ## Crate Features
 
-- `chrono`: Enables support for [`chrono::DateTime`](https://docs.rs/chrono/latest/chrono/struct.DateTime.html) and [`chrono::NaiveDateTime`](https://docs.rs/chrono/latest/chrono/struct.NaiveDateTime.html). This feature is enabled by default.
-- `jiff`: Enables support for [`jiff::Zoned`](https://docs.rs/jiff/latest/jiff/struct.Zoned.html) and [`jiff::civil::DateTime`](https://docs.rs/jiff/latest/jiff/civil/struct.DateTime.html). This feature is disabled by default.
-- `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for [`Cron`](https://docs.rs/croner/2/croner/struct.Cron.html). This feature is disabled by default.
+- `jiff`: Enables support for [`jiff::Zoned`](https://docs.rs/jiff/latest/jiff/struct.Zoned.html) and [`jiff::civil::DateTime`](https://docs.rs/jiff/latest/jiff/civil/struct.DateTime.html).
+- `chrono`: Enables support for [`chrono::DateTime`](https://docs.rs/chrono/latest/chrono/struct.DateTime.html) and [`chrono::NaiveDateTime`](https://docs.rs/chrono/latest/chrono/struct.NaiveDateTime.html).
+- `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for [`Cron`](https://docs.rs/croner/latest/croner/struct.Cron.html). This feature is disabled by default.
 
 ## Why croner instead of cron or saffron?
 
@@ -66,8 +66,25 @@ Add `croner` to your `Cargo.toml` dependencies:
 
 ```toml
 [dependencies]
-croner = "3.0.1" # Adjust the version as necessary
+croner = { version = "4.0", default-features = false, features = ["jiff"] }
 ```
+
+If you want to use `chrono` instead of `jiff`:
+
+```toml
+[dependencies]
+croner = { version = "4.0", default-features = false, features = ["chrono"] }
+chrono-tz = "0.10" # optional, for named time zones
+```
+
+### Migration guide (3.x -> 4.0)
+
+- Switch feature selection to explicit backend choice in your dependency line.
+- For jiff:
+  `croner = { version = "4.0", default-features = false, features = ["jiff"] }`
+- For chrono:
+  `croner = { version = "4.0", default-features = false, features = ["chrono"] }`
+- If you used named time zones with chrono, keep `chrono-tz` in your dependencies.
 
 ### Usage
 
@@ -78,6 +95,7 @@ your crate if you want to run this example:
 ```rust
 use croner::Cron;
 use jiff::Zoned;
+use std::str::FromStr as _;
 
 fn main() {
 
@@ -109,6 +127,7 @@ zoned chrono `DateTime<Tz>`. To use a named time zone, you can utilize the
 use croner::Cron;
 use chrono::Local;
 use chrono_tz::Tz;
+use std::str::FromStr as _;
 
 fn main() {
     // Parse cron expression
