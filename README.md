@@ -70,6 +70,7 @@ If you omit `default-features = false`, `chrono` is enabled by default.
 ```toml
 [dependencies]
 croner = { version = "4.0", default-features = false, features = ["jiff"] }
+jiff = "0.2"
 ```
 
 If you want to use `chrono` instead of `jiff`:
