@@ -23,7 +23,7 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 ## Crate Features
 
 - `jiff`: Enables support for [`jiff::Zoned`](https://docs.rs/jiff/latest/jiff/struct.Zoned.html) and [`jiff::civil::DateTime`](https://docs.rs/jiff/latest/jiff/civil/struct.DateTime.html). Disabled by default.
-- `chrono`: Enables support for [`chrono::DateTime`](https://docs.rs/chrono/latest/chrono/struct.DateTime.html) and [`chrono::NaiveDateTime`](https://docs.rs/chrono/latest/chrono/struct.NaiveDateTime.html). Enabled by default.
+- `chrono`: Enables support for [`chrono::DateTime`](https://docs.rs/chrono/latest/chrono/struct.DateTime.html) and [`chrono::NaiveDateTime`](https://docs.rs/chrono/latest/chrono/struct.NaiveDateTime.html). Enabled by default when default features are left on.
 - `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for [`Cron`](https://docs.rs/croner/latest/croner/struct.Cron.html). This feature is disabled by default.
 
 ## Why croner instead of cron or saffron?
