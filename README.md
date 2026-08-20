@@ -64,8 +64,12 @@ Ensure you have Rust installed on your machine. If not, you can get it from
 
 Add `croner` to your `Cargo.toml` dependencies:
 
-These examples disable default features so the backend choice is explicit.
-If you omit `default-features = false`, `chrono` is enabled by default.
+```toml
+[dependencies]
+croner = "4.0"
+```
+
+If you want to use `jiff` instead of the default `chrono` backend:
 
 ```toml
 [dependencies]
@@ -73,28 +77,47 @@ croner = { version = "4.0", default-features = false, features = ["jiff"] }
 jiff = "0.2"
 ```
 
-If you want to use `chrono` instead of `jiff`:
-
-```toml
-[dependencies]
-croner = { version = "4.0", default-features = false, features = ["chrono"] }
-chrono-tz = "0.10" # optional, for named time zones
-```
-
 ### Migration guide (3.x -> 4.0)
 
-- Switch feature selection to explicit backend choice in your dependency line.
+- Chrono remains the default backend:
+  `croner = "4.0"`
 - For jiff:
   `croner = { version = "4.0", default-features = false, features = ["jiff"] }`
-- For chrono:
-  `croner = { version = "4.0", default-features = false, features = ["chrono"] }`
 - If you used named time zones with chrono, keep `chrono-tz` in your dependencies.
 
 ### Usage
 
 Here's a quick example to get you started with matching current time, and
-finding the next occurrence using `jiff::Zoned`. Enable the `jiff` feature in
-your crate if you want to run this example:
+finding the next occurrence using `chrono::Local` (the default backend):
+
+```rust
+use chrono::Local;
+use croner::Cron;
+use std::str::FromStr as _;
+
+fn main() {
+
+    // Parse cron expression
+    let cron_all = Cron::from_str("18 * * * 5")
+      .expect("Couldn't parse cron string");
+
+    // Compare cron pattern with current local time
+    let time = Local::now();
+    let matches_all = cron_all.is_time_matching(&time).unwrap();
+
+    // Get next match
+    let next = cron_all.find_next_occurrence(&time, false).unwrap();
+
+    // Output results
+    println!("Description: {}", cron_all.describe());
+    println!("Time is: {}", time);
+    println!("Pattern \"{}\" does {} time {}", cron_all.pattern, if matches_all { "match" } else { "not match" }, time );
+    println!("Pattern \"{}\" will match next time at {}", cron_all.pattern, next);
+
+}
+```
+
+If you prefer the `jiff` backend:
 
 ```rust
 use croner::Cron;
@@ -117,8 +140,8 @@ fn main() {
     // Output results
     println!("Description: {}", cron_all.describe());
     println!("Time is: {}", time);
-    println!("Pattern \"{}\" does {} time {}", cron_all.pattern.to_string(), if matches_all { "match" } else { "not match" }, time );
-    println!("Pattern \"{}\" will match next time at {}", cron_all.pattern.to_string(), next);
+    println!("Pattern \"{}\" does {} time {}", cron_all.pattern, if matches_all { "match" } else { "not match" }, time );
+    println!("Pattern \"{}\" will match next time at {}", cron_all.pattern, next);
 
 }
 ```
@@ -416,7 +439,8 @@ To start developing in the Croner project:
 2. Navigate into the project directory.
 3. Build the project using `cargo build`.
 4. Run tests with `cargo test --all-features`.
-5. Run demo with `cargo run --example simple_demo --no-default-features --features jiff`
+5. Run demo with `cargo run --example simple_demo`
+6. Run jiff demo with `cargo run --example simple_demo_jiff --no-default-features --features jiff`
 
 ## Contributing
 
