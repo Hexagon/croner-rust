@@ -63,6 +63,8 @@ Ensure you have Rust installed on your machine. If not, you can get it from
 ### Installation
 
 Add `croner` to your `Cargo.toml` dependencies:
+These examples disable default features so the backend choice is explicit.
+If you omit `default-features = false`, `chrono` is enabled by default.
 
 ```toml
 [dependencies]
