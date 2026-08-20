@@ -47,7 +47,7 @@ required-features = ["chrono"]
 
 [[example]]
 name = "simple_demo"
-required-features = ["chrono"]
+required-features = ["jiff"]
 
 [[example]]
 name = "iter_demo"

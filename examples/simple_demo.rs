@@ -1,6 +1,6 @@
-use chrono::Local;
 use croner::describe::lang::swedish::Swedish;
 use croner::parser::CronParser; // For demonstrating translation
+use jiff::Zoned;
 
 fn main() {
     // Example: Parse cron expression
@@ -10,8 +10,8 @@ fn main() {
         .parse("0 18 * * * FRI")
         .expect("Couldn't parse cron string");
 
-    // Example: Compare cron pattern with current local time
-    let time = Local::now();
+    // Example: Compare cron pattern with current zoned time
+    let time = Zoned::now();
     let matches = cron.is_time_matching(&time).unwrap();
 
     // Example: Get next match
@@ -40,13 +40,13 @@ fn main() {
 
     // Example: Iterator
     println!("Next 5 matches:");
-    for time in cron.clone().iter_after(Local::now()).take(5) {
+    for time in cron.clone().iter_after(Zoned::now()).take(5) {
         println!("{time}");
     }
 
     // Example: Reverse Iterator
     println!("Previous 5 matches:");
-    for time in cron.clone().iter_before(Local::now()).take(5) {
+    for time in cron.clone().iter_before(Zoned::now()).take(5) {
         println!("{time}");
     }
 }

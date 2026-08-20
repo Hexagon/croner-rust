@@ -17,11 +17,13 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 - Supports optional second-, and year granularity
 - Supports optional alternative weekday mode to use Quartz-style weekdays instead of POSIX using `with_alternative_weekdays`
 - Allows for flexible combination of DOM and DOW conditions, enabling patterns to match specific days of the week in specific weeks of the month or the closest weekday to a specific day.
-- Compatible with `chrono` and (optionally) `chrono-tz`.
+- Compatible with `chrono` and `jiff`.
 - Robust error handling.
 
 ## Crate Features
 
+- `chrono`: Enables support for [`chrono::DateTime`](https://docs.rs/chrono/latest/chrono/struct.DateTime.html) and [`chrono::NaiveDateTime`](https://docs.rs/chrono/latest/chrono/struct.NaiveDateTime.html). This feature is enabled by default.
+- `jiff`: Enables support for [`jiff::Zoned`](https://docs.rs/jiff/latest/jiff/struct.Zoned.html) and [`jiff::civil::DateTime`](https://docs.rs/jiff/latest/jiff/civil/struct.DateTime.html). This feature is disabled by default.
 - `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for [`Cron`](https://docs.rs/croner/2/croner/struct.Cron.html). This feature is disabled by default.
 
 ## Why croner instead of cron or saffron?
@@ -70,11 +72,12 @@ croner = "3.0.1" # Adjust the version as necessary
 ### Usage
 
 Here's a quick example to get you started with matching current time, and
-finding the next occurrence. `is_time_matching` takes a `chrono` `DateTime`:
+finding the next occurrence using `jiff::Zoned`. Enable the `jiff` feature in
+your crate if you want to run this example:
 
 ```rust
 use croner::Cron;
-use chrono::Local;
+use jiff::Zoned;
 
 fn main() {
 
@@ -82,8 +85,8 @@ fn main() {
     let cron_all = Cron::from_str("18 * * * 5")
       .expect("Couldn't parse cron string");
 
-    // Compare cron pattern with current local time
-    let time = Local::now();
+    // Compare cron pattern with current zoned time
+    let time = Zoned::now();
     let matches_all = cron_all.is_time_matching(&time).unwrap();
 
     // Get next match
@@ -98,8 +101,9 @@ fn main() {
 }
 ```
 
-To match against a non local timezone, croner supports zoned chrono DateTime's
-`DateTime<Tz>`. To use a named time zone, you can utilize the `chrono-tz` crate.
+To match against a non-local timezone with the `chrono` backend, croner supports
+zoned chrono `DateTime<Tz>`. To use a named time zone, you can utilize the
+`chrono-tz` crate.
 
 ```rust
 use croner::Cron;
@@ -389,7 +393,7 @@ To start developing in the Croner project:
 2. Navigate into the project directory.
 3. Build the project using `cargo build`.
 4. Run tests with `cargo test --all-features`.
-5. Run demo with `cargo run --example simple_demo`
+5. Run demo with `cargo run --example simple_demo --no-default-features --features jiff`
 
 ## Contributing
 
