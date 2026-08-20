@@ -17,7 +17,7 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 - Supports optional second-, and year granularity
 - Supports optional alternative weekday mode to use Quartz-style weekdays instead of POSIX using `with_alternative_weekdays`
 - Allows for flexible combination of DOM and DOW conditions, enabling patterns to match specific days of the week in specific weeks of the month or the closest weekday to a specific day.
-- Compatible with `chrono` and `jiff`.
+- Compatible with `chrono`, (optionally) `chrono-tz`, and `jiff`.
 - Robust error handling.
 
 ## Crate Features
