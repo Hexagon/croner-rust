@@ -380,7 +380,13 @@ During DST transitions, Croner-rust behaves as follows:
 * **DST Overlap (Fall Back)**: When a scheduled time interval occurs twice (e.g., 2:00 AM falls back to 1:00 AM):
     * Fixed-Time Jobs: Will execute only once, at its first occurrence in wall clock time.
     * Interval/Wildcard Jobs: Will execute for each occurrence that matches its pattern in wall clock time within the duplicated hour.
-    
+
+Searches and iterators always move in real time, not in wall clock time. Over a
+duplicated hour they run through the whole first pass before the whole second
+pass, so a forward search never returns a time in the past and a backward search
+never returns one in the future. The start time you give decides which pass a
+search is on, so pass the exact value the previous call returned.
+
 ## Development
 
 To start developing in the Croner project:

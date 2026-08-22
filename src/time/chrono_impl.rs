@@ -1,5 +1,7 @@
 //! [`CronDateTime`] implementations for the `chrono` crate.
 
+use core::cmp::Ordering;
+
 use chrono::{
     DateTime, Datelike, LocalResult, NaiveDate, NaiveDateTime, TimeDelta, TimeZone, Timelike,
 };
@@ -61,6 +63,12 @@ impl<Tz: TimeZone> CronDateTime for DateTime<Tz> {
         self.clone()
             .checked_add_signed(TimeDelta::try_seconds(seconds)?)
     }
+
+    #[inline]
+    fn cmp_instant(&self, other: &Self) -> Ordering {
+        // `chrono` orders a `DateTime` by its instant, not by its wall clock.
+        self.cmp(other)
+    }
 }
 
 impl CronDateTime for NaiveDateTime {
@@ -82,5 +90,10 @@ impl CronDateTime for NaiveDateTime {
     #[inline]
     fn checked_add_seconds(&self, seconds: i64) -> Option<Self> {
         self.checked_add_signed(TimeDelta::try_seconds(seconds)?)
+    }
+
+    #[inline]
+    fn cmp_instant(&self, other: &Self) -> Ordering {
+        self.cmp(other)
     }
 }
