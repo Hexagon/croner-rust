@@ -50,6 +50,10 @@ name = "simple_demo"
 required-features = ["chrono"]
 
 [[example]]
+name = "simple_demo_jiff"
+required-features = ["jiff"]
+
+[[example]]
 name = "iter_demo"
 required-features = ["chrono"]
 
