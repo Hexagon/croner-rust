@@ -76,7 +76,8 @@ pub(crate) fn other_fold_edge<T: CronDateTime>(origin: &T, on: Fold) -> Result<T
     at_offset(outside_offset)
 }
 
-#[cfg(test)]
+// These tests resolve `chrono` types, so they need that backend.
+#[cfg(all(test, feature = "chrono"))]
 mod tests {
     use chrono::{DateTime, TimeDelta, TimeZone};
     use chrono_tz::Europe::Paris;

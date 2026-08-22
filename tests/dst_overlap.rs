@@ -5,6 +5,8 @@
 //! the search has to cover the second pass on its own. These tests check that
 //! it does, and that it never doubles back.
 
+#![cfg(feature = "chrono")]
+
 use chrono::{DateTime, LocalResult, TimeZone};
 use chrono_tz::Australia::Lord_Howe;
 use chrono_tz::Europe::Paris;

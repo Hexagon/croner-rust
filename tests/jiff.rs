@@ -204,19 +204,97 @@ fn dst_overlap_interval_job_covers_every_minute_twice() -> Result<(), CronError>
     let runs: Vec<Zoned> = cron.iter_after(start).take(120).collect();
     assert_eq!(runs.len(), 120);
 
+    // The iterator runs in real order: the whole CEST hour first, then the
+    // whole CET hour.
     for minute in 0..60 {
         let (earlier, later) = zoned_pair(&tz, 2025, 10, 26, 2, minute as i8, 0);
-        assert_eq!(
-            runs[minute * 2],
-            earlier,
-            "Minute {minute}: CEST occurrence"
-        );
-        assert_eq!(
-            runs[minute * 2 + 1],
-            later,
-            "Minute {minute}: CET occurrence"
+        assert_eq!(runs[minute], earlier, "Minute {minute}: CEST occurrence");
+        assert_eq!(runs[minute + 60], later, "Minute {minute}: CET occurrence");
+    }
+    Ok(())
+}
+
+#[test]
+fn dst_overlap_search_starts_from_the_half_it_is_given() -> Result<(), CronError> {
+    let tz = stockholm();
+    let cron = Cron::from_str("* * * * *")?;
+
+    let (cest_29, cet_29) = zoned_pair(&tz, 2025, 10, 26, 2, 29, 0);
+    let (cest_30, cet_30) = zoned_pair(&tz, 2025, 10, 26, 2, 30, 0);
+    let (cest_31, cet_31) = zoned_pair(&tz, 2025, 10, 26, 2, 31, 0);
+
+    // A search from the later 02:30 must not answer with the earlier
+    // 02:31, which is already in the past.
+    assert_eq!(cron.find_next_occurrence(&cet_30, false)?, cet_31);
+    assert_eq!(cron.find_next_occurrence(&cest_30, false)?, cest_31);
+
+    // And the same going backwards.
+    assert_eq!(cron.find_previous_occurrence(&cet_30, false)?, cet_29);
+    assert_eq!(cron.find_previous_occurrence(&cest_30, false)?, cest_29);
+
+    // Crossing from one half to the other keeps real order.
+    let (cest_59, _) = zoned_pair(&tz, 2025, 10, 26, 2, 59, 0);
+    let (_, cet_00) = zoned_pair(&tz, 2025, 10, 26, 2, 0, 0);
+    assert_eq!(cron.find_next_occurrence(&cest_59, false)?, cet_00);
+    assert_eq!(cron.find_previous_occurrence(&cet_00, false)?, cest_59);
+    Ok(())
+}
+
+#[test]
+fn dst_overlap_iterators_run_through_both_halves_in_order() -> Result<(), CronError> {
+    let tz = stockholm();
+    let cron = Cron::from_str("* * * * *")?;
+
+    // Forward from the last minute before the repeated range: 60 CEST
+    // minutes, then 60 CET minutes, then 03:00.
+    let start = zoned(&tz, 2025, 10, 26, 1, 59, 0);
+    let run: Vec<Zoned> = cron.iter_after(start).take(121).collect();
+    for step in run.windows(2) {
+        assert!(
+            step[0] < step[1],
+            "the run went backwards, from {} to {}",
+            step[0],
+            step[1]
         );
     }
+
+    let (cest_00, cet_00) = zoned_pair(&tz, 2025, 10, 26, 2, 0, 0);
+    let (cest_59, cet_59) = zoned_pair(&tz, 2025, 10, 26, 2, 59, 0);
+    assert_eq!(run[0], cest_00);
+    assert_eq!(run[59], cest_59);
+    assert_eq!(run[60], cet_00);
+    assert_eq!(run[119], cet_59);
+    assert_eq!(run[120], zoned(&tz, 2025, 10, 26, 3, 0, 0));
+    Ok(())
+}
+
+#[test]
+fn dst_overlap_fixed_time_job_runs_once_from_either_half() -> Result<(), CronError> {
+    // A job pinned to one time of day runs once when that time happens
+    // twice, at the earlier of the two instants.
+    let tz = stockholm();
+    let cron = Cron::from_str("30 2 * * *")?;
+
+    let (cest_30, _) = zoned_pair(&tz, 2025, 10, 26, 2, 30, 0);
+    let before = zoned(&tz, 2025, 10, 26, 1, 0, 0);
+    assert_eq!(cron.find_next_occurrence(&before, false)?, cest_30);
+
+    // Once it has run, neither half offers it again that day.
+    let next_day = zoned(&tz, 2025, 10, 27, 2, 30, 0);
+    let (_, cet_45) = zoned_pair(&tz, 2025, 10, 26, 2, 45, 0);
+    assert_eq!(cron.find_next_occurrence(&cest_30, false)?, next_day);
+    assert_eq!(cron.find_next_occurrence(&cet_45, false)?, next_day);
+
+    // A backward search names the same instant, not the CET one.
+    let after = zoned(&tz, 2025, 10, 26, 4, 0, 0);
+    assert_eq!(cron.find_previous_occurrence(&after, false)?, cest_30);
+
+    // From the later half, before the job's wall clock time: forward, the
+    // job's one instant is already in the past; backward, it is the answer.
+    let (_, cet_00) = zoned_pair(&tz, 2025, 10, 26, 2, 0, 0);
+    let (_, cet_15) = zoned_pair(&tz, 2025, 10, 26, 2, 15, 0);
+    assert_eq!(cron.find_next_occurrence(&cet_00, false)?, next_day);
+    assert_eq!(cron.find_previous_occurrence(&cet_15, false)?, cest_30);
     Ok(())
 }
 

@@ -1,5 +1,7 @@
 //! [`CronDateTime`] implementations for the `jiff` crate.
 
+use core::cmp::Ordering;
+
 use jiff::civil::DateTime;
 use jiff::tz::AmbiguousOffset;
 use jiff::{SignedDuration, Zoned};
@@ -89,6 +91,13 @@ impl CronDateTime for Zoned {
     fn checked_add_seconds(&self, seconds: i64) -> Option<Self> {
         self.checked_add(SignedDuration::from_secs(seconds)).ok()
     }
+
+    #[inline]
+    fn cmp_instant(&self, other: &Self) -> Ordering {
+        // The timestamp is the instant a `Zoned` names, so the two halves
+        // of a repeated wall clock range compare unequal.
+        self.timestamp().cmp(&other.timestamp())
+    }
 }
 
 impl CronDateTime for DateTime {
@@ -110,5 +119,10 @@ impl CronDateTime for DateTime {
     #[inline]
     fn checked_add_seconds(&self, seconds: i64) -> Option<Self> {
         self.checked_add(SignedDuration::from_secs(seconds)).ok()
+    }
+
+    #[inline]
+    fn cmp_instant(&self, other: &Self) -> Ordering {
+        self.cmp(other)
     }
 }
