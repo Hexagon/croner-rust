@@ -23,8 +23,12 @@ mod chrono_impl;
 mod jiff_impl;
 
 mod cursor;
+mod fold;
 
 pub(crate) use cursor::Cursor;
+pub(crate) use fold::{fold_of, other_fold_edge, Fold};
+
+use core::cmp::Ordering;
 
 use crate::errors::CronError;
 
@@ -501,6 +505,15 @@ pub trait CronDateTime: Sized + Clone {
     /// This moves along the absolute time line, so a daylight saving time shift
     /// changes the wall clock result. Returns `None` on overflow.
     fn checked_add_seconds(&self, seconds: i64) -> Option<Self>;
+
+    /// Compares two values on the absolute time line.
+    ///
+    /// When a clock goes back, one wall clock time stands for two distinct
+    /// instants. Croner uses this method to tell them apart and to keep a
+    /// search moving one way through the change.
+    ///
+    /// Types without a time zone compare their wall clock times.
+    fn cmp_instant(&self, other: &Self) -> Ordering;
 }
 
 #[cfg(test)]

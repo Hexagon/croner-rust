@@ -125,6 +125,15 @@ impl Direction {
             Direction::Backward => CivilTime::END_OF_DAY,
         }
     }
+
+    /// Whether `a` comes before `b` on the absolute time line: earlier when
+    /// forward, later when backward.
+    fn precedes<T: CronDateTime>(self, a: &T, b: &T) -> bool {
+        match self {
+            Direction::Forward => a.cmp_instant(b).is_lt(),
+            Direction::Backward => a.cmp_instant(b).is_gt(),
+        }
+    }
 }
 
 #[derive(PartialEq, Eq, Ord, PartialOrd, Hash, Clone, Copy, Debug)]
@@ -151,7 +160,7 @@ use parser::CronParser;
 use pattern::CronPattern;
 use std::str::FromStr;
 
-use time::Cursor;
+use time::{fold_of, other_fold_edge, Cursor, Fold};
 pub use time::{CivilDate, CivilDateTime, CivilTime, CronDateTime, Resolution, Weekday};
 
 #[cfg(feature = "serde")]
@@ -314,7 +323,6 @@ impl Cron {
         inclusive: bool,
     ) -> Result<T, CronError> {
         self.find_occurrence(start_time, inclusive, Direction::Forward)
-            .map(|(dt, _)| dt)
     }
 
     /// Finds the previous occurrence of a scheduled time that matches the cron pattern.
@@ -324,20 +332,79 @@ impl Cron {
         inclusive: bool,
     ) -> Result<T, CronError> {
         self.find_occurrence(start_time, inclusive, Direction::Backward)
-            .map(|(dt, _)| dt) // Take only the first element
     }
 
     /// The main generic search function.
-    /// Returns (found_datetime, optional_second_ambiguous_datetime_if_any)
+    ///
+    /// Returns the first time that matches the pattern, counting from
+    /// `start_time` in `direction` along the absolute time line.
+    ///
+    /// A clock that goes back repeats a range of wall clock times, and one
+    /// wall clock walk covers only one half of it. When `start_time` sits on
+    /// the half the search meets first, the other half still lies ahead: the
+    /// search walks it too, from its edge, and keeps the nearer match.
     fn find_occurrence<T: CronDateTime>(
         &self,
         start_time: &T,
         inclusive: bool,
         direction: Direction,
-    ) -> Result<(T, Option<T>), CronError> {
-        let mut cursor = Cursor::new(start_time);
-        let mut job_type: Option<JobType> = None;
+    ) -> Result<T, CronError> {
+        let fixed_time = self.determine_job_type() == JobType::FixedTime;
 
+        // The half of a repeated range that the search meets first.
+        let first_half = match direction {
+            Direction::Forward => Fold::Earlier,
+            Direction::Backward => Fold::Later,
+        };
+
+        let in_fold = self.walk(start_time, inclusive, direction, fixed_time)?;
+
+        if fixed_time && direction == Direction::Forward {
+            // A second walk could only add the later half of a repeated
+            // range, where a fixed-time job never runs. Return before the
+            // fold check below spends a time zone lookup.
+            return Ok(in_fold);
+        }
+        // The walk above never reaches the other half, and that half only
+        // lies ahead when the start sits on `first_half`. Almost every
+        // search returns here.
+        if fold_of(start_time)? != Some(first_half) {
+            return Ok(in_fold);
+        }
+
+        // The other half lies wholly at or past this edge, so an answer
+        // before the edge beats anything it could offer and the second walk
+        // is skipped.
+        let other_edge = other_fold_edge(start_time, first_half)?;
+        if direction.precedes(&in_fold, &other_edge) {
+            return Ok(in_fold);
+        }
+
+        let in_other_fold = self.walk(&other_edge, true, direction, fixed_time)?;
+        // A walk that finds no match on its half runs on past it, so only
+        // the real order of the two results decides.
+        Ok(if direction.precedes(&in_other_fold, &in_fold) {
+            in_other_fold
+        } else {
+            in_fold
+        })
+    }
+
+    /// Walks the wall clock from `origin` in `direction` until it reaches a
+    /// time that matches the pattern. An exclusive walk first steps off
+    /// `origin`'s wall clock second.
+    ///
+    /// `origin` supplies the time zone, and an ambiguous match picks between
+    /// its two instants by order against it. A walk that finds no match on
+    /// its half runs past it; the caller orders the walks' answers.
+    fn walk<T: CronDateTime>(
+        &self,
+        origin: &T,
+        inclusive: bool,
+        direction: Direction,
+        fixed_time: bool,
+    ) -> Result<T, CronError> {
+        let mut cursor = Cursor::new(origin);
         if !inclusive {
             cursor = cursor
                 .checked_add_seconds(direction.step())
@@ -398,7 +465,7 @@ impl Cron {
             // clock time, and the pattern only looks at the wall clock. So the
             // pattern is checked once, on the cursor itself, instead of
             // converting each resolved value back.
-            match cursor.resolve_in(start_time)? {
+            match cursor.resolve_in(origin)? {
                 Resolution::Single(dt) => {
                     debug_assert_eq!(
                         dt.to_civil(),
@@ -406,41 +473,59 @@ impl Cron {
                         "CronDateTime::resolve_civil must return the wall clock time it was given"
                     );
                     if self.is_cursor_matching(cursor)? {
-                        return Ok((dt, None)); // Single match, no second ambiguous time
+                        return Ok(dt);
                     }
                     cursor = cursor
                         .checked_add_seconds(direction.step())
                         .ok_or(CronError::InvalidTime)?;
                 }
-                Resolution::Ambiguous(first_occurrence_dt, second_occurrence_dt) => {
+                Resolution::Ambiguous(earlier, later) => {
                     // DST Overlap (Fall Back)
                     debug_assert_eq!(
-                        first_occurrence_dt.to_civil(),
+                        earlier.to_civil(),
                         cursor.civil(),
                         "CronDateTime::resolve_civil must return the wall clock time it was given"
                     );
                     if self.is_cursor_matching(cursor)? {
-                        if *job_type.get_or_insert_with(|| self.determine_job_type())
-                            == JobType::FixedTime
-                        {
-                            // Fixed-Time Job: Execute only once, at its first occurrence (earliest in the ambiguous pair).
-                            return Ok((first_occurrence_dt, None));
+                        // Behind means more than a second past `origin` in
+                        // the search direction; the slack keeps the origin's
+                        // own second in play, as the single-instant arm does.
+                        let behind = |instant: &T| -> Result<bool, CronError> {
+                            let nudged = instant
+                                .checked_add_seconds(direction.step())
+                                .ok_or(CronError::InvalidTime)?;
+                            Ok(!direction.precedes(origin, &nudged))
+                        };
+                        if fixed_time {
+                            // A fixed-time job runs once, at the earlier of
+                            // the two instants.
+                            if !behind(&earlier)? {
+                                return Ok(earlier);
+                            }
+                        } else {
+                            // An interval job runs on both instants; take
+                            // the first, in search order, that is not behind.
+                            let (near, far) = match direction {
+                                Direction::Forward => (earlier, later),
+                                Direction::Backward => (later, earlier),
+                            };
+                            if !behind(&near)? {
+                                return Ok(near);
+                            }
+                            if !behind(&far)? {
+                                return Ok(far);
+                            }
                         }
-                        // Interval/Wildcard Job: Execute for each occurrence.
-                        return Ok((first_occurrence_dt, Some(second_occurrence_dt)));
                     }
-                    // This wall clock time doesn't match the pattern's exact time
-                    // (e.g., cron is "0 0 2 *" and the cursor is at 02:30:00).
-                    // So, we just advance to the next second and continue the loop.
+                    // Either this wall clock time does not match, or every
+                    // instant it offers is behind. Advance one second.
                     cursor = cursor
                         .checked_add_seconds(direction.step())
                         .ok_or(CronError::InvalidTime)?;
                 }
                 Resolution::Gap => {
                     // DST Gap (Spring Forward)
-                    if *job_type.get_or_insert_with(|| self.determine_job_type())
-                        == JobType::FixedTime
-                    {
+                    if fixed_time {
                         // For fixed-time jobs that fall into a gap, we want them to "snap" to the first valid time after the gap.
                         // Find the very first valid wall clock time after the current
                         // cursor that can be successfully resolved to a real instant.
@@ -457,14 +542,16 @@ impl Cron {
                             gap_adjust_count += 1;
 
                             // Try to resolve this wall clock time into a real instant.
-                            match after_gap.resolve_in(start_time)? {
+                            match after_gap.resolve_in(origin)? {
                                 Resolution::Single(dt) => {
                                     resolved_dt_after_gap = dt;
                                     break;
                                 }
-                                // If it resolves to ambiguous (unlikely right at a gap boundary for Single), take the earliest.
-                                Resolution::Ambiguous(dt1, _) => {
-                                    resolved_dt_after_gap = dt1;
+                                // A gap and a repeated range never touch, so
+                                // this arm is unreachable in a real time zone;
+                                // take the earlier instant either way.
+                                Resolution::Ambiguous(earlier, _) => {
+                                    resolved_dt_after_gap = earlier;
                                     break;
                                 }
                                 // Keep looping if still in the gap or search limit exceeded
@@ -489,7 +576,7 @@ impl Cron {
                             && self.pattern.year_match(after_gap.year())?
                         {
                             // No need to update the cursor here
-                            return Ok((resolved_dt_after_gap, None));
+                            return Ok(resolved_dt_after_gap);
                         } else {
                             // If even the date components of this post-gap time do not match the pattern,
                             // then the fixed job's *date* itself was not the one containing the gap.
@@ -1988,8 +2075,8 @@ mod tests {
 
         // Collect occurrences for the repeated hour (02:00:00 to 02:59:00 twice)
         // We expect two entries for each minute from 02:00 to 02:59.
-        // The loop should find the 02:00:00 CEST, then 02:01:00 CEST... 02:59:00 CEST,
-        // then 02:00:00 CET, then 02:01:00 CET... 02:59:00 CET.
+        // The iterator runs in real order: the whole CEST hour first, then
+        // the whole CET hour.
         // So, 60 minutes * 2 occurrences = 120 entries.
         for _ in 0..120 {
             if let Some(time) = iter.next() {
@@ -2016,18 +2103,259 @@ mod tests {
 
             // Assert CEST occurrence (earliest)
             assert_eq!(
-                occurrences[(2 * m) as usize], // <-- CAST TO usize HERE
+                occurrences[m as usize],
                 ambiguous_m_00.earliest().unwrap(),
                 "Minute {m}: CEST occurrence mismatch"
             );
 
             // Assert CET occurrence (latest)
             assert_eq!(
-                occurrences[(2 * m + 1) as usize], // <-- CAST TO usize HERE
+                occurrences[(60 + m) as usize],
                 ambiguous_m_00.latest().unwrap(),
                 "Minute {m}: CET occurrence mismatch"
             );
         }
+
+        // And the whole run moves forward, one instant at a time.
+        assert_moves_one_way(&occurrences, Direction::Forward);
+
+        Ok(())
+    }
+
+    // Europe/Paris on 2024-10-27: the clock goes 03:00 CEST back to 02:00
+    // CET, so every wall clock time from 02:00 to 02:59:59 happens twice.
+    fn cest(hour: u32, minute: u32, second: u32) -> chrono::DateTime<Tz> {
+        chrono_tz::Europe::Paris
+            .with_ymd_and_hms(2024, 10, 27, hour, minute, second)
+            .earliest()
+            .expect("the test time must exist")
+    }
+
+    fn cet(hour: u32, minute: u32, second: u32) -> chrono::DateTime<Tz> {
+        chrono_tz::Europe::Paris
+            .with_ymd_and_hms(2024, 10, 27, hour, minute, second)
+            .latest()
+            .expect("the test time must exist")
+    }
+
+    #[track_caller]
+    fn assert_moves_one_way(times: &[chrono::DateTime<Tz>], direction: Direction) {
+        for pair in times.windows(2) {
+            let moved_the_right_way = match direction {
+                Direction::Forward => pair[0] < pair[1],
+                Direction::Backward => pair[0] > pair[1],
+            };
+            assert!(
+                moved_the_right_way,
+                "a {direction:?} search went the other way, from {} to {}",
+                pair[0], pair[1]
+            );
+        }
+    }
+
+    #[test]
+    fn dst_overlap_search_starts_from_the_half_it_is_given() -> Result<(), CronError> {
+        let cron = Cron::from_str("* * * * *")?;
+
+        // A search from the later 02:30 must not answer with the earlier
+        // one, which is already in the past.
+        assert_eq!(
+            cron.find_next_occurrence(&cet(2, 30, 0), false)?,
+            cet(2, 31, 0)
+        );
+        assert_eq!(
+            cron.find_next_occurrence(&cest(2, 30, 0), false)?,
+            cest(2, 31, 0)
+        );
+
+        // And the same going backwards.
+        assert_eq!(
+            cron.find_previous_occurrence(&cet(2, 30, 0), false)?,
+            cet(2, 29, 0)
+        );
+        assert_eq!(
+            cron.find_previous_occurrence(&cest(2, 30, 0), false)?,
+            cest(2, 29, 0)
+        );
+
+        // Crossing from one half to the other keeps real order.
+        assert_eq!(
+            cron.find_next_occurrence(&cest(2, 59, 0), false)?,
+            cet(2, 0, 0)
+        );
+        assert_eq!(
+            cron.find_previous_occurrence(&cet(2, 0, 0), false)?,
+            cest(2, 59, 0)
+        );
+
+        // A time outside the repeated range meets the half nearest to it.
+        assert_eq!(
+            cron.find_next_occurrence(&cest(1, 59, 0), false)?,
+            cest(2, 0, 0)
+        );
+        assert_eq!(
+            cron.find_previous_occurrence(&cet(3, 0, 0), false)?,
+            cet(2, 59, 0)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn dst_overlap_iterators_run_through_both_halves_in_order() -> Result<(), CronError> {
+        let cron = Cron::from_str("* * * * *")?;
+
+        // Forward from the last minute before the repeated range: 60 CEST
+        // minutes, then 60 CET minutes, then 03:00.
+        let forward: Vec<_> = cron.iter_after(cest(1, 59, 0)).take(121).collect();
+        assert_moves_one_way(&forward, Direction::Forward);
+        assert_eq!(forward[0], cest(2, 0, 0));
+        assert_eq!(forward[59], cest(2, 59, 0));
+        assert_eq!(forward[60], cet(2, 0, 0));
+        assert_eq!(forward[119], cet(2, 59, 0));
+        assert_eq!(forward[120], cet(3, 0, 0));
+
+        // Backward from the first minute after it, in the mirror order.
+        let mut backward: Vec<_> = cron.iter_before(cet(3, 0, 0)).take(121).collect();
+        assert_moves_one_way(&backward, Direction::Backward);
+        assert_eq!(backward[0], cet(2, 59, 0));
+        assert_eq!(backward[59], cet(2, 0, 0));
+        assert_eq!(backward[60], cest(2, 59, 0));
+        assert_eq!(backward[119], cest(2, 0, 0));
+        assert_eq!(backward[120], cest(1, 59, 0));
+
+        // The two runs cover the same instants.
+        backward.reverse();
+        assert_eq!(&backward[1..], &forward[..120]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn dst_overlap_starting_mid_range_stays_on_its_own_half() -> Result<(), CronError> {
+        let cron = Cron::from_str("*/15 * * * *")?;
+
+        // From the middle of the CEST half, the next quarter hour is the first
+        // CET one, because the CEST half has no quarter hour left.
+        let forward: Vec<_> = cron.iter_after(cest(2, 45, 0)).take(5).collect();
+        assert_moves_one_way(&forward, Direction::Forward);
+        assert_eq!(
+            forward,
+            vec![
+                cet(2, 0, 0),
+                cet(2, 15, 0),
+                cet(2, 30, 0),
+                cet(2, 45, 0),
+                cet(3, 0, 0)
+            ]
+        );
+
+        // And from the start of the CET half, the previous quarter hour is the
+        // last CEST one.
+        let backward: Vec<_> = cron.iter_before(cet(2, 0, 0)).take(4).collect();
+        assert_moves_one_way(&backward, Direction::Backward);
+        assert_eq!(
+            backward,
+            vec![
+                cest(2, 45, 0),
+                cest(2, 30, 0),
+                cest(2, 15, 0),
+                cest(2, 0, 0)
+            ]
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn dst_overlap_fixed_time_job_runs_once_from_either_half() -> Result<(), CronError> {
+        // A job pinned to one time of day runs once when that time happens
+        // twice, at the earlier of the two instants.
+        let cron = Cron::from_str("30 2 * * *")?;
+
+        assert_eq!(
+            cron.find_next_occurrence(&cest(1, 0, 0), false)?,
+            cest(2, 30, 0)
+        );
+
+        // Once it has run, neither half offers it again that day.
+        let next_day = chrono_tz::Europe::Paris
+            .with_ymd_and_hms(2024, 10, 28, 2, 30, 0)
+            .unwrap();
+        assert_eq!(cron.find_next_occurrence(&cest(2, 30, 0), false)?, next_day);
+        assert_eq!(cron.find_next_occurrence(&cet(2, 45, 0), false)?, next_day);
+
+        // A backward search names the same instant, not the CET one.
+        assert_eq!(
+            cron.find_previous_occurrence(&cet(4, 0, 0), false)?,
+            cest(2, 30, 0)
+        );
+
+        // From the later half, before the job's wall clock time: forward, the
+        // job's one instant is already in the past; backward, it is the answer.
+        assert_eq!(cron.find_next_occurrence(&cet(2, 0, 0), false)?, next_day);
+        assert_eq!(
+            cron.find_previous_occurrence(&cet(2, 15, 0), false)?,
+            cest(2, 30, 0)
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn dst_overlap_fixed_time_match_in_a_later_overlap_still_counts() -> Result<(), CronError> {
+        // The next 26 October with a 02:30 is 2025-10-26, itself a fall-back
+        // day. Starting on the later half of the 2024 range must not
+        // disqualify the 2025 match, which runs at its own earlier instant.
+        let cron = Cron::from_str("30 2 26 10 *")?;
+        let expected = chrono_tz::Europe::Paris
+            .with_ymd_and_hms(2025, 10, 26, 2, 30, 0)
+            .earliest()
+            .expect("the test time must exist");
+        assert_eq!(cron.find_next_occurrence(&cet(2, 45, 0), false)?, expected);
+        Ok(())
+    }
+
+    #[test]
+    fn dst_overlap_crossing_ignores_a_match_in_a_later_overlap() -> Result<(), CronError> {
+        // On the earlier half, the pattern's next wall clock match is a year
+        // on, in the 2025 fall-back range. The near later half still wins:
+        // its 02:00 comes nineteen minutes after the start.
+        let cron = Cron::from_str("*/20 2 26-27 10 *")?;
+        assert_eq!(
+            cron.find_next_occurrence(&cest(2, 41, 0), false)?,
+            cet(2, 0, 0)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn iteration_steps_over_no_matching_time() -> Result<(), CronError> {
+        // The iterator resumes from the instant it just returned, so a pattern
+        // that matches every second gives every second.
+        let cron = CronParser::builder()
+            .seconds(Seconds::Optional)
+            .build()
+            .parse("* * * * * *")?;
+        let start = chrono::NaiveDate::from_ymd_opt(2024, 1, 1)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap();
+
+        let seconds: Vec<_> = cron
+            .iter_after(start)
+            .take(5)
+            .map(|time| time.second())
+            .collect();
+        assert_eq!(seconds, vec![1, 2, 3, 4, 5]);
+
+        // Including the start time itself when the search is inclusive.
+        let from_start: Vec<_> = cron
+            .iter_from(start, Direction::Forward)
+            .take(3)
+            .map(|time| time.second())
+            .collect();
+        assert_eq!(from_start, vec![0, 1, 2]);
 
         Ok(())
     }
