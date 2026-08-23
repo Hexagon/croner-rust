@@ -221,7 +221,7 @@ implementations of `CronDateTime` bridge to. These are re-exported from the
 crate root:
 
 ```rust
-use croner::time::{CivilDate, CivilDateTime, CivilTime, CronDateTime, Resolution, Weekday};
+use croner::{CivilDate, CivilDateTime, CivilTime, CronDateTime, Resolution, Weekday};
 ```
 
 Implement `CronDateTime` for your own type to use a different date and time
