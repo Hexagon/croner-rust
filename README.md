@@ -413,7 +413,12 @@ For stability and practical use, Croner supports dates from **year 1 AD/CE** up 
 
 ### Daylight Saving Time (DST) Handling
 
-Croner-rust provides robust and predictable handling of Daylight Saving Time (DST) transitions, aligning with the Open Cron Pattern Specification (OCPS) and Vixie-cron's time-tested behavior. Jobs are categorized based on their time-unit field specifications:
+Croner-rust provides robust and predictable handling of Daylight Saving Time (DST) transitions. OCPS 1.4 currently recommends this portable policy:
+
+* **DST Gap (Spring Forward)**: When a scheduled time falls into a non-existent interval, skip that occurrence instead of running it early or late.
+* **DST Overlap (Fall Back)**: When a scheduled time occurs twice, run it once at the first occurrence.
+
+Croner's current runtime behaviour is described below. Jobs are categorized based on their time-unit field specifications:
 
 * **Fixed-Time Jobs**: Jobs with specific numerical values for seconds, minutes, and hours (e.g., `0 30 2 * * *`).
 * **Interval/Wildcard Jobs**: Jobs using wildcards (`*`) or step values (`*/N`) in their seconds, minutes, or hours fields (e.g., `*/5 * * * * *`).
