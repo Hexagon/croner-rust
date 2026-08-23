@@ -205,7 +205,7 @@ The crate-level function `croner::from_naive` is deprecated. Call
 ```rust
 // Before
 use croner::from_naive;
-let dt = from_naive(naive, &tz).unwrap();
+let dt = from_naive(naive, &tz).single().unwrap();
 
 // After
 use chrono::TimeZone;
