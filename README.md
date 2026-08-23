@@ -112,7 +112,39 @@ chrono-tz = "0.10"
 
 ---
 
-#### 2. Method signatures are now generic over `CronDateTime`
+#### 2. Step syntax validation is now stricter (breaking)
+
+In 3.x, the parser accepted shortcut step syntax like `5/5 * * * *` (meaning
+"every five minutes starting at minute 5"). In 4.0 this is **rejected** by
+default — you must write the explicit range `5-59/5 * * * *`.
+
+```rust
+// Before (3.x) — accepted
+let cron = Cron::from_str("5/5 * * * *").unwrap();
+
+// After (4.0) — rejected
+let cron = Cron::from_str("5/5 * * * *").unwrap(); // Error!
+
+// After (4.0) — write the range explicitly
+let cron = Cron::from_str("5-59/5 * * * *").unwrap();
+```
+
+To restore the old lenient behaviour, build a parser with
+`sloppy_ranges(true)`:
+
+```rust
+use croner::parser::CronParser;
+
+let cron = CronParser::builder()
+    .sloppy_ranges(true)
+    .build()
+    .parse("5/5 * * * *")
+    .unwrap();
+```
+
+---
+
+#### 3. Method signatures are now generic over `CronDateTime`
 
 All datetime methods previously bound on `chrono::TimeZone` now bind on
 croner's own `CronDateTime` trait. At the call site the code looks the same
@@ -137,7 +169,7 @@ let next: Zoned = cron.find_next_occurrence(&Zoned::now(), false).unwrap();
 
 ---
 
-#### 3. Returning two values from `find_occurrence` (removed)
+#### 4. Returning two values from `find_occurrence` (removed)
 
 In 3.x, `find_occurrence` returned `(DateTime<Tz>, Option<DateTime<Tz>>)`, where the
 second element carried the later half of a DST-repeated hour. In 4.0 the
@@ -154,7 +186,7 @@ let dt = cron.find_next_occurrence(&start, false)?;
 
 ---
 
-#### 4. Turbofish: when inference needs help
+#### 5. Turbofish: when inference needs help
 
 Most of the time Rust infers the return type from the argument. When the
 compiler cannot decide (e.g., chaining `.unwrap()` in a context with multiple
@@ -169,7 +201,7 @@ let next = cron
 
 ---
 
-#### 5. `iter_after`, `iter_before`, `iter_from` take `T` by value
+#### 6. `iter_after`, `iter_before`, `iter_from` take `T` by value
 
 These methods already took `DateTime<Tz>` by value in 3.x, so most call sites
 do not change. The iterator is now `CronIterator<T>` instead of
@@ -197,7 +229,7 @@ struct MyScheduler<T: CronDateTime> {
 
 ---
 
-#### 6. Deprecated: `from_naive`
+#### 7. Deprecated: `from_naive`
 
 The crate-level function `croner::from_naive` is deprecated. Call
 `chrono::TimeZone::from_local_datetime` directly instead:
@@ -214,7 +246,7 @@ let dt = tz.from_local_datetime(&naive).unwrap();
 
 ---
 
-#### 7. New public types
+#### 8. New public types
 
 Croner now exports backend-agnostic date and time types that
 implementations of `CronDateTime` bridge to. These are re-exported from the
@@ -229,7 +261,7 @@ library.
 
 ---
 
-#### 8. New `jiff` backend
+#### 9. New `jiff` backend
 
 Add `jiff` support without `chrono`:
 
@@ -262,6 +294,7 @@ backends agree on the same behaviour (verified by shared test patterns).
 | Method bounds | `Tz: TimeZone` | `T: CronDateTime` |
 | `find_occurrence` | `pub`, returned tuple | removed from public API |
 | `from_naive` | public fn | deprecated |
+| Step syntax `5/5` | accepted by default | rejected; use `sloppy_ranges(true)` |
 | `find_next_occurrence` return | `DateTime<Tz>` | `T` (same as input) |
 | `CronIterator` type | `CronIterator<Tz>` | `CronIterator<T>` |
 | `iter_after` etc. | by value | by value (unchanged) |
