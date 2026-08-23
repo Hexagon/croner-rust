@@ -79,11 +79,7 @@ jiff = "0.2"
 
 ### Migration guide (3.x -> 4.0)
 
-- Chrono remains the default backend:
-  `croner = "4.0"`
-- For jiff:
-  `croner = { version = "4.0", default-features = false, features = ["jiff"] }`
-- If you used named time zones with chrono, keep `chrono-tz` in your dependencies.
+See [MIGRATION.md](MIGRATION.md) for a detailed guide covering all breaking changes, including chrono becoming optional, step syntax validation, generic `CronDateTime` method signatures, the new `jiff` backend, and more.
 
 ### Usage
 

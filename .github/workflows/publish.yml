@@ -25,8 +25,11 @@ jobs:
       - name: Run tests
         run: cargo test
 
-      - name: Run tests with features
+      - name: Run tests with features (including both jiff and chrono)
         run: cargo test --all-features
+
+      - name: Run tests (jiff standalone)
+        run: cargo test --no-default-features --features jiff
 
       - name: Publish
         run: cargo publish --token ${CRATES_TOKEN} --allow-dirty
