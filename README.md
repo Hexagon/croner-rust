@@ -163,7 +163,7 @@ possible types), add a turbofish:
 ```rust
 // If you see "type annotation needed", add the turbofish:
 let next = cron
-    .find_next_occurrence::<chrono::DateTime<chrono::Utc>>(&now, false)
+    .find_next_occurrence::<chrono::DateTime<chrono::Utc>>(&chrono::Utc::now(), false)
     .unwrap();
 ```
 
