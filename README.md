@@ -195,7 +195,7 @@ possible types), add a turbofish:
 ```rust
 // If you see "type annotation needed", add the turbofish:
 let next = cron
-    .find_next_occurrence::<chrono::DateTime<chrono::Utc>>(&now, false)
+    .find_next_occurrence::<chrono::DateTime<chrono::Utc>>(&chrono::Utc::now(), false)
     .unwrap();
 ```
 
@@ -237,7 +237,7 @@ The crate-level function `croner::from_naive` is deprecated. Call
 ```rust
 // Before
 use croner::from_naive;
-let dt = from_naive(naive, &tz).unwrap();
+let dt = from_naive(naive, &tz).single().unwrap();
 
 // After
 use chrono::TimeZone;
@@ -253,7 +253,7 @@ implementations of `CronDateTime` bridge to. These are re-exported from the
 crate root:
 
 ```rust
-use croner::time::{CivilDate, CivilDateTime, CivilTime, CronDateTime, Resolution, Weekday};
+use croner::{CivilDate, CivilDateTime, CivilTime, CronDateTime, Resolution, Weekday};
 ```
 
 Implement `CronDateTime` for your own type to use a different date and time
