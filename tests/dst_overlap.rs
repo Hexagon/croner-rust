@@ -245,8 +245,8 @@ mod jiff_tests {
     fn assert_moves_one_way(times: &[Zoned], direction: Direction, zone: &str) {
         for step in times.windows(2) {
             let moved = match direction {
-                Direction::Forward => step[0] < step[1],
-                Direction::Backward => step[0] > step[1],
+Direction::Forward => step[0].timestamp() < step[1].timestamp(),
+                Direction::Backward => step[0].timestamp() > step[1].timestamp()
             };
             assert!(
                 moved,
