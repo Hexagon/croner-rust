@@ -24,6 +24,8 @@ mod chrono_tests {
     #[test]
     fn fixed_time_gap_search_uses_the_post_gap_instant() -> Result<(), CronError> {
         let cron = Cron::from_str("0 30 2 * * *")?;
+        // 02:30 never occurs on this date, so the fixed-time run is carried by
+        // the first real instant after the gap.
         let gap_run = zoned(2025, 3, 30, 3, 0, 0);
 
         assert_eq!(
@@ -70,12 +72,16 @@ mod jiff_tests {
     }
 
     fn zoned(year: i16, month: i8, day: i8, hour: i8, minute: i8, second: i8) -> Zoned {
-        stockholm().to_zoned(date(year, month, day).at(hour, minute, second, 0)).unwrap()
+        stockholm()
+            .to_zoned(date(year, month, day).at(hour, minute, second, 0))
+            .unwrap()
     }
 
     #[test]
     fn fixed_time_gap_search_uses_the_post_gap_instant() -> Result<(), CronError> {
         let cron = Cron::from_str("0 30 2 * * *")?;
+        // 02:30 never occurs on this date, so the fixed-time run is carried by
+        // the first real instant after the gap.
         let gap_run = zoned(2025, 3, 30, 3, 0, 0);
 
         assert_eq!(

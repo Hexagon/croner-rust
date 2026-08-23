@@ -542,6 +542,9 @@ impl Cron {
                                 .checked_add_seconds(1)
                                 .ok_or(CronError::InvalidTime)?;
                             gap_adjust_count += 1;
+                            if gap_adjust_count > MAX_GAP_SEARCH_SECONDS {
+                                return Err(CronError::TimeSearchLimitExceeded);
+                            }
 
                             // Try to resolve this wall clock time into a real instant.
                             match after_gap.resolve_in(origin)? {
@@ -559,9 +562,6 @@ impl Cron {
                                 // Keep looping if still in the gap or search limit exceeded
                                 Resolution::Gap => {}
                             }
-                            if gap_adjust_count > MAX_GAP_SEARCH_SECONDS {
-                                return Err(CronError::TimeSearchLimitExceeded);
-                            }
                         }
 
                         // `resolved_dt_after_gap` is now the first valid wall-clock time after the gap,
@@ -577,7 +577,8 @@ impl Cron {
                         )? && self.pattern.month_match(after_gap.month())?
                             && self.pattern.year_match(after_gap.year())?
                         {
-                            let matches_direction = match resolved_dt_after_gap.cmp_instant(origin) {
+                            let matches_direction = match resolved_dt_after_gap.cmp_instant(origin)
+                            {
                                 core::cmp::Ordering::Less => direction == Direction::Backward,
                                 core::cmp::Ordering::Equal => inclusive,
                                 core::cmp::Ordering::Greater => direction == Direction::Forward,
@@ -601,6 +602,9 @@ impl Cron {
                                     .checked_add_seconds(-1)
                                     .ok_or(CronError::InvalidTime)?;
                                 gap_adjust_count += 1;
+                                if gap_adjust_count > MAX_GAP_SEARCH_SECONDS {
+                                    return Err(CronError::TimeSearchLimitExceeded);
+                                }
 
                                 match before_gap.resolve_in(origin)? {
                                     Resolution::Single(_) | Resolution::Ambiguous(_, _) => {
@@ -608,9 +612,6 @@ impl Cron {
                                         break;
                                     }
                                     Resolution::Gap => {}
-                                }
-                                if gap_adjust_count > MAX_GAP_SEARCH_SECONDS {
-                                    return Err(CronError::TimeSearchLimitExceeded);
                                 }
                             }
                         } else {
