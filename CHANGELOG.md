@@ -13,7 +13,6 @@
 - Made the `chrono` backend optional while keeping it enabled by default.
 - Made occurrence-finding APIs generic over the input datetime type.
 - Tightened default step parsing to the OCPS-compliant forms, with `sloppy_ranges(true)` available for backward compatibility.
-- Clarified the README to separate OCPS 1.4 DST recommendations from Croner's current runtime behaviour.
 
 ### Fixed
 - Fixed DST overlap iteration and search ordering for both backends.
