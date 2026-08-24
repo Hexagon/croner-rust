@@ -586,13 +586,6 @@ impl Cron {
                             if matches_direction {
                                 return Ok(resolved_dt_after_gap);
                             }
-                        } else {
-                            // If even the date components of this post-gap time do not match the pattern,
-                            // then the fixed job's *date* itself was not the one containing the gap.
-                            // In this case, we simply advance the cursor past the gap
-                            // and let the main loop continue searching for the next matching date.
-                            cursor = after_gap;
-                            continue;
                         }
 
                         if direction == Direction::Backward {

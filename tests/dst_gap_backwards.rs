@@ -56,6 +56,42 @@ mod chrono_tests {
         );
         Ok(())
     }
+
+    #[test]
+    fn a_gap_across_midnight_cannot_trap_a_backward_search() -> Result<(), CronError> {
+        use std::sync::mpsc::channel;
+        use std::time::Duration;
+
+        let (sender, receiver) = channel();
+        std::thread::spawn(move || {
+            let toronto: Tz = "America/Toronto".parse().expect("known zone");
+            let cron = Cron::from_str("0 45 23 30 3 *").expect("valid pattern");
+            let backward = cron.find_previous_occurrence(
+                &toronto.with_ymd_and_hms(1919, 4, 15, 12, 0, 0).unwrap(),
+                false,
+            );
+            let forward = cron.find_next_occurrence(
+                &toronto.with_ymd_and_hms(1919, 3, 25, 12, 0, 0).unwrap(),
+                false,
+            );
+            sender.send((backward, forward)).ok();
+        });
+
+        let (backward, forward) = receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("a search trapped in the midnight-crossing gap");
+
+        let toronto: Tz = "America/Toronto".parse().expect("known zone");
+        assert_eq!(
+            backward?,
+            toronto.with_ymd_and_hms(1918, 3, 30, 23, 45, 0).unwrap()
+        );
+        assert_eq!(
+            forward?,
+            toronto.with_ymd_and_hms(1920, 3, 30, 23, 45, 0).unwrap()
+        );
+        Ok(())
+    }
 }
 
 #[cfg(feature = "jiff")]
@@ -109,6 +145,50 @@ mod jiff_tests {
                 zoned(2025, 3, 30, 1, 59, 0),
                 zoned(2025, 3, 30, 1, 58, 0),
             ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_gap_across_midnight_cannot_trap_a_backward_search() -> Result<(), CronError> {
+        use std::sync::mpsc::channel;
+        use std::time::Duration;
+
+        let (sender, receiver) = channel();
+        std::thread::spawn(move || {
+            let toronto = TimeZone::get("America/Toronto").expect("known zone");
+            let cron = Cron::from_str("0 45 23 30 3 *").expect("valid pattern");
+            let backward = cron.find_previous_occurrence(
+                &toronto
+                    .to_zoned(date(1919, 4, 15).at(12, 0, 0, 0))
+                    .expect("valid instant"),
+                false,
+            );
+            let forward = cron.find_next_occurrence(
+                &toronto
+                    .to_zoned(date(1919, 3, 25).at(12, 0, 0, 0))
+                    .expect("valid instant"),
+                false,
+            );
+            sender.send((backward, forward)).ok();
+        });
+
+        let (backward, forward) = receiver
+            .recv_timeout(Duration::from_secs(10))
+            .expect("a search trapped in the midnight-crossing gap");
+
+        let toronto = TimeZone::get("America/Toronto").expect("known zone");
+        assert_eq!(
+            backward?,
+            toronto
+                .to_zoned(date(1918, 3, 30).at(23, 45, 0, 0))
+                .expect("valid instant")
+        );
+        assert_eq!(
+            forward?,
+            toronto
+                .to_zoned(date(1920, 3, 30).at(23, 45, 0, 0))
+                .expect("valid instant")
         );
         Ok(())
     }
