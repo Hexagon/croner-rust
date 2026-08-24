@@ -4,6 +4,9 @@ Version 4.0 introduces a generic `CronDateTime` trait and an optional `jiff` bac
 Most code needs **no changes** if you use the default features. The changes below
 cover every case that may need adjustment.
 
+For the release summary, see `CHANGELOG.md`.
+This guide stays focused on upgrade-impacting changes and migration steps.
+
 ---
 
 #### 1. Chrono is now an optional feature (still on by default)

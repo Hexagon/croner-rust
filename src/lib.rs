@@ -526,10 +526,12 @@ impl Cron {
                 Resolution::Gap => {
                     // DST Gap (Spring Forward)
                     if fixed_time {
-                        // For fixed-time jobs that fall into a gap, we want them to "snap" to the first valid time after the gap.
+                        // For fixed-time jobs that fall into a gap, the scheduled
+                        // run is the first real instant after that gap.
                         // Find the very first valid wall clock time after the current
                         // cursor that can be successfully resolved to a real instant.
                         let mut after_gap = cursor;
+                        let mut before_gap = cursor;
                         let mut gap_adjust_count = 0;
                         const MAX_GAP_SEARCH_SECONDS: u32 = 3600 * 2; // Max 2 hours for a typical gap
 
@@ -537,9 +539,12 @@ impl Cron {
 
                         loop {
                             after_gap = after_gap
-                                .checked_add_seconds(direction.step())
+                                .checked_add_seconds(1)
                                 .ok_or(CronError::InvalidTime)?;
                             gap_adjust_count += 1;
+                            if gap_adjust_count > MAX_GAP_SEARCH_SECONDS {
+                                return Err(CronError::TimeSearchLimitExceeded);
+                            }
 
                             // Try to resolve this wall clock time into a real instant.
                             match after_gap.resolve_in(origin)? {
@@ -557,9 +562,6 @@ impl Cron {
                                 // Keep looping if still in the gap or search limit exceeded
                                 Resolution::Gap => {}
                             }
-                            if gap_adjust_count > MAX_GAP_SEARCH_SECONDS {
-                                return Err(CronError::TimeSearchLimitExceeded);
-                            }
                         }
 
                         // `resolved_dt_after_gap` is now the first valid wall-clock time after the gap,
@@ -575,15 +577,38 @@ impl Cron {
                         )? && self.pattern.month_match(after_gap.month())?
                             && self.pattern.year_match(after_gap.year())?
                         {
-                            // No need to update the cursor here
-                            return Ok(resolved_dt_after_gap);
+                            let matches_direction = match resolved_dt_after_gap.cmp_instant(origin)
+                            {
+                                core::cmp::Ordering::Less => direction == Direction::Backward,
+                                core::cmp::Ordering::Equal => inclusive,
+                                core::cmp::Ordering::Greater => direction == Direction::Forward,
+                            };
+                            if matches_direction {
+                                return Ok(resolved_dt_after_gap);
+                            }
+                        }
+
+                        if direction == Direction::Backward {
+                            gap_adjust_count = 0;
+                            loop {
+                                before_gap = before_gap
+                                    .checked_add_seconds(-1)
+                                    .ok_or(CronError::InvalidTime)?;
+                                gap_adjust_count += 1;
+                                if gap_adjust_count > MAX_GAP_SEARCH_SECONDS {
+                                    return Err(CronError::TimeSearchLimitExceeded);
+                                }
+
+                                match before_gap.resolve_in(origin)? {
+                                    Resolution::Single(_) | Resolution::Ambiguous(_, _) => {
+                                        cursor = before_gap;
+                                        break;
+                                    }
+                                    Resolution::Gap => {}
+                                }
+                            }
                         } else {
-                            // If even the date components of this post-gap time do not match the pattern,
-                            // then the fixed job's *date* itself was not the one containing the gap.
-                            // In this case, we simply advance the cursor past the gap
-                            // and let the main loop continue searching for the next matching date.
                             cursor = after_gap;
-                            continue;
                         }
                     } else {
                         // Interval/Wildcard Job in DST Gap
