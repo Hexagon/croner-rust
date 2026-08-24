@@ -79,7 +79,7 @@ mod chrono_tests {
 
         let (backward, forward) = receiver
             .recv_timeout(Duration::from_secs(10))
-            .expect("a search trapped in the midnight-crossing gap");
+            .expect("timed out: search appears trapped in the midnight-crossing gap");
 
         let toronto: Tz = "America/Toronto".parse().expect("known zone");
         assert_eq!(
@@ -175,7 +175,7 @@ mod jiff_tests {
 
         let (backward, forward) = receiver
             .recv_timeout(Duration::from_secs(10))
-            .expect("a search trapped in the midnight-crossing gap");
+            .expect("timed out: search appears trapped in the midnight-crossing gap");
 
         let toronto = TimeZone::get("America/Toronto").expect("known zone");
         assert_eq!(
