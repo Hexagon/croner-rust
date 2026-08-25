@@ -1,7 +1,7 @@
 use crate::time::CronDateTime;
 use crate::{Cron, CronError, Direction};
 
-#[derive(Debug, Clone, PartialEq, PartialOrd, Hash)]
+#[derive(Debug, Clone)]
 pub struct CronIterator<T>
 where
     T: CronDateTime,
@@ -11,6 +11,60 @@ where
     is_first: bool,
     inclusive: bool,
     direction: Direction,
+
+    /// Diagnostic field — excluded from `PartialEq`/`Hash` comparisons.
+    last_error: Option<CronError>,
+}
+
+impl<T> PartialEq for CronIterator<T>
+where
+    T: CronDateTime + PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.cron == other.cron
+            && self.current_time == other.current_time
+            && self.is_first == other.is_first
+            && self.inclusive == other.inclusive
+            && self.direction == other.direction
+    }
+}
+
+impl<T> core::hash::Hash for CronIterator<T>
+where
+    T: CronDateTime + core::hash::Hash,
+{
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        self.cron.hash(state);
+        self.current_time.hash(state);
+        self.is_first.hash(state);
+        self.inclusive.hash(state);
+        self.direction.hash(state);
+    }
+}
+
+impl<T> PartialOrd for CronIterator<T>
+where
+    T: CronDateTime + PartialOrd,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        match self.cron.partial_cmp(&other.cron) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        match self.current_time.partial_cmp(&other.current_time) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        match self.is_first.partial_cmp(&other.is_first) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        match self.inclusive.partial_cmp(&other.inclusive) {
+            Some(core::cmp::Ordering::Equal) => {}
+            ord => return ord,
+        }
+        self.direction.partial_cmp(&other.direction)
+    }
 }
 
 impl<T> CronIterator<T>
@@ -32,7 +86,18 @@ where
             is_first: true,
             inclusive,
             direction,
+            last_error: None,
         }
+    }
+
+    /// Returns the last error encountered during iteration, if any.
+    ///
+    /// When the iterator returns `None`, this method can be used to distinguish
+    /// between a completed iteration (no more matches) and an error condition.
+    /// This is especially useful in `no_std` environments where `eprintln!` is
+    /// not available.
+    pub fn last_error(&self) -> Option<&CronError> {
+        self.last_error.as_ref()
     }
 }
 
@@ -63,9 +128,14 @@ where
                 self.current_time = found_time.clone();
                 Some(found_time)
             }
-            Err(CronError::TimeSearchLimitExceeded) => None,
-            Err(e) => {
-                eprintln!("CronIterator encountered an error: {e:?}");
+            Err(CronError::TimeSearchLimitExceeded) => {
+                self.last_error = Some(CronError::TimeSearchLimitExceeded);
+                None
+            }
+            Err(_e) => {
+                #[cfg(feature = "std")]
+                eprintln!("CronIterator encountered an error: {_e:?}");
+                self.last_error = Some(_e);
                 None
             }
         }

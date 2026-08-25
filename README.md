@@ -18,10 +18,12 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 - Supports optional alternative weekday mode to use Quartz-style weekdays instead of POSIX using `with_alternative_weekdays`
 - Allows for flexible combination of DOM and DOW conditions, enabling patterns to match specific days of the week in specific weeks of the month or the closest weekday to a specific day.
 - Compatible with `chrono`, (optionally) `chrono-tz`, and `jiff`.
+- Supports `no_std` environments (with `alloc`).
 - Robust error handling.
 
 ## Crate Features
 
+- `std` *(enabled by default)*: Links the Rust standard library. Disable this feature (`default-features = false`) to use the crate in `no_std` environments (requires a global allocator).
 - `jiff`: Enables support for [`jiff::Zoned`](https://docs.rs/jiff/latest/jiff/struct.Zoned.html) and [`jiff::civil::DateTime`](https://docs.rs/jiff/latest/jiff/civil/struct.DateTime.html). Disabled by default.
 - `chrono`: Enables support for [`chrono::DateTime`](https://docs.rs/chrono/latest/chrono/struct.DateTime.html) and [`chrono::NaiveDateTime`](https://docs.rs/chrono/latest/chrono/struct.NaiveDateTime.html). Enabled by default when default features are left on.
 - `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for [`Cron`](https://docs.rs/croner/latest/croner/struct.Cron.html). This feature is disabled by default.
@@ -400,6 +402,35 @@ let cron = parser
     .parse("0 0 12 ? * 6")  // Quartz format: sec min hour dom month dow
     .expect("Invalid cron pattern");
 ```
+
+#### 7. `no_std` Support
+
+Croner supports `no_std` environments by disabling the default `std` feature. This is useful for embedded systems or other environments without the Rust standard library.
+
+**Example `Cargo.toml`**:
+
+```toml
+[dependencies]
+croner = { version = "3", default-features = false }
+```
+
+**Example Usage** (in a `no_std` context):
+
+```rust
+use core::str::FromStr;
+use croner::Cron;
+
+// Parse a cron expression
+let cron = Cron::from_str("0 0 * * FRI").expect("Successful parsing");
+
+// Use with any chrono DateTime (e.g. from an RTC or network time source)
+// let next = cron.find_next_occurrence(&my_datetime, false).unwrap();
+```
+
+**Limitations**:
+
+- A global allocator (`#[global_allocator]`) is required since croner depends on `alloc`.
+- Time zone support depends on what your `chrono` setup provides — `chrono-tz` may not be available on all `no_std` targets.
 
 ### Documentation
 
