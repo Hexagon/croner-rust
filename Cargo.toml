@@ -1,6 +1,6 @@
 [package]
 name = "croner"
-version = "3.0.1"
+version = "4.0.0"
 edition = "2021"
 license = "MIT"
 description = "Fully-featured, lightweight, and efficient Rust library designed for parsing and evaluating cron patterns"
@@ -16,7 +16,10 @@ name = "croner"
 path = "src/lib.rs"
 
 [dependencies]
-chrono = { version = "0.4.42", default-features = false, features = ["alloc"] }
+chrono = { version = "0.4.42", default-features = false, features = ["alloc"], optional = true }
+jiff = { version = "0.2.35", default-features = false, features = [
+    "alloc",
+], optional = true }
 serde = { version = "1.0", optional = true, default-features = false }
 strum = { version = "0.27.2", default-features = false, features = ["derive"] }
 
@@ -24,18 +27,45 @@ strum = { version = "0.27.2", default-features = false, features = ["derive"] }
 chrono = { version = "0.4.42", default-features = false, features = ["clock"] }
 chrono-tz = "0.10.4"
 criterion = "0.7.0"
+jiff = "0.2.35"
 rstest = "0.26.1"
 serde_test = "1.0"
 
 [features]
-default = ["std"]
+default = ["std", "chrono"]
 std = [
-    "chrono/std",
+    "chrono?/std",
     "strum/std",
     "serde?/std",
+    "jiff?/std",
 ]
+# Support for `chrono::DateTime` and `chrono::NaiveDateTime`.
+chrono = ["dep:chrono"]
+# Support for `jiff::Zoned` and `jiff::civil::DateTime`.
+jiff = ["dep:jiff"]
 serde = ["dep:serde"]
 
 [[bench]]
 name = "croner_bench"
 harness = false
+required-features = ["chrono"]
+
+[[example]]
+name = "simple_demo"
+required-features = ["chrono"]
+
+[[example]]
+name = "simple_demo_jiff"
+required-features = ["jiff"]
+
+[[example]]
+name = "iter_demo"
+required-features = ["chrono"]
+
+[[example]]
+name = "timezone_demo"
+required-features = ["chrono"]
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

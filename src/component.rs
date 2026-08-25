@@ -298,9 +298,17 @@ impl CronComponent {
 
     /// Returns a vector of u16 values for all bits set in the component for a given bitflag.
     pub fn get_set_values(&self, bit: u8) -> Vec<u16> {
-        (self.min..=self.max)
-            .filter(|i| self.is_bit_set(*i, bit).unwrap_or(false))
-            .collect()
+        self.set_values(bit).collect()
+    }
+
+    /// Returns how many bits are set in the component for a given bitflag.
+    pub fn count_set_values(&self, bit: u8) -> usize {
+        self.set_values(bit).count()
+    }
+
+    /// Iterates the values whose bit is set in the component for a given bitflag.
+    fn set_values(&self, bit: u8) -> impl Iterator<Item = u16> + '_ {
+        (self.min..=self.max).filter(move |i| self.is_bit_set(*i, bit).unwrap_or(false))
     }
 
     fn get_nth_bit(value: &str) -> Result<u8, CronError> {

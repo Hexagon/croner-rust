@@ -26,3 +26,5 @@ jobs:
       run: |
         rustup target add thumbv7m-none-eabi
         cargo build --no-default-features --target thumbv7m-none-eabi
+    - name: Run tests (jiff standalone)
+      run: cargo test --no-default-features --features jiff,std --verbose

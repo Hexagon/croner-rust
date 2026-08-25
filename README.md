@@ -17,14 +17,16 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 - Supports optional second-, and year granularity
 - Supports optional alternative weekday mode to use Quartz-style weekdays instead of POSIX using `with_alternative_weekdays`
 - Allows for flexible combination of DOM and DOW conditions, enabling patterns to match specific days of the week in specific weeks of the month or the closest weekday to a specific day.
-- Compatible with `chrono` and (optionally) `chrono-tz`.
+- Compatible with `chrono`, (optionally) `chrono-tz`, and `jiff`.
 - Supports `no_std` environments (with `alloc`).
 - Robust error handling.
 
 ## Crate Features
 
 - `std` *(enabled by default)*: Links the Rust standard library. Disable this feature (`default-features = false`) to use the crate in `no_std` environments (requires a global allocator).
-- `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for [`Cron`](https://docs.rs/croner/2/croner/struct.Cron.html). This feature is disabled by default.
+- `jiff`: Enables support for [`jiff::Zoned`](https://docs.rs/jiff/latest/jiff/struct.Zoned.html) and [`jiff::civil::DateTime`](https://docs.rs/jiff/latest/jiff/civil/struct.DateTime.html). Disabled by default.
+- `chrono`: Enables support for [`chrono::DateTime`](https://docs.rs/chrono/latest/chrono/struct.DateTime.html) and [`chrono::NaiveDateTime`](https://docs.rs/chrono/latest/chrono/struct.NaiveDateTime.html). Enabled by default when default features are left on.
+- `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for [`Cron`](https://docs.rs/croner/latest/croner/struct.Cron.html). This feature is disabled by default.
 
 ## Why croner instead of cron or saffron?
 
@@ -66,17 +68,30 @@ Add `croner` to your `Cargo.toml` dependencies:
 
 ```toml
 [dependencies]
-croner = "3.0.1" # Adjust the version as necessary
+croner = "4.0"
 ```
+
+If you want to use `jiff` instead of the default `chrono` backend:
+
+```toml
+[dependencies]
+croner = { version = "4.0", default-features = false, features = ["jiff"] }
+jiff = "0.2"
+```
+
+### Migration guide (3.x -> 4.0)
+
+See [MIGRATION.md](MIGRATION.md) for a detailed guide covering all breaking changes, including chrono becoming optional, step syntax validation, generic `CronDateTime` method signatures, the new `jiff` backend, and more.
 
 ### Usage
 
 Here's a quick example to get you started with matching current time, and
-finding the next occurrence. `is_time_matching` takes a `chrono` `DateTime`:
+finding the next occurrence using `chrono::Local` (the default backend):
 
 ```rust
-use croner::Cron;
 use chrono::Local;
+use croner::Cron;
+use std::str::FromStr as _;
 
 fn main() {
 
@@ -94,19 +109,50 @@ fn main() {
     // Output results
     println!("Description: {}", cron_all.describe());
     println!("Time is: {}", time);
-    println!("Pattern \"{}\" does {} time {}", cron_all.pattern.to_string(), if matches_all { "match" } else { "not match" }, time );
-    println!("Pattern \"{}\" will match next time at {}", cron_all.pattern.to_string(), next);
+    println!("Pattern \"{}\" does {} time {}", cron_all.pattern, if matches_all { "match" } else { "not match" }, time );
+    println!("Pattern \"{}\" will match next time at {}", cron_all.pattern, next);
 
 }
 ```
 
-To match against a non local timezone, croner supports zoned chrono DateTime's
-`DateTime<Tz>`. To use a named time zone, you can utilize the `chrono-tz` crate.
+If you prefer the `jiff` backend:
+
+```rust
+use croner::Cron;
+use jiff::Zoned;
+use std::str::FromStr as _;
+
+fn main() {
+
+    // Parse cron expression
+    let cron_all = Cron::from_str("18 * * * 5")
+      .expect("Couldn't parse cron string");
+
+    // Compare cron pattern with current zoned time
+    let time = Zoned::now();
+    let matches_all = cron_all.is_time_matching(&time).unwrap();
+
+    // Get next match
+    let next = cron_all.find_next_occurrence(&time, false).unwrap();
+
+    // Output results
+    println!("Description: {}", cron_all.describe());
+    println!("Time is: {}", time);
+    println!("Pattern \"{}\" does {} time {}", cron_all.pattern, if matches_all { "match" } else { "not match" }, time );
+    println!("Pattern \"{}\" will match next time at {}", cron_all.pattern, next);
+
+}
+```
+
+To match against a non-local timezone with the `chrono` backend, croner supports
+zoned chrono `DateTime<Tz>`. To use a named time zone, you can utilize the
+`chrono-tz` crate.
 
 ```rust
 use croner::Cron;
 use chrono::Local;
 use chrono_tz::Tz;
+use std::str::FromStr as _;
 
 fn main() {
     // Parse cron expression
@@ -411,7 +457,13 @@ During DST transitions, Croner-rust behaves as follows:
 * **DST Overlap (Fall Back)**: When a scheduled time interval occurs twice (e.g., 2:00 AM falls back to 1:00 AM):
     * Fixed-Time Jobs: Will execute only once, at its first occurrence in wall clock time.
     * Interval/Wildcard Jobs: Will execute for each occurrence that matches its pattern in wall clock time within the duplicated hour.
-    
+
+Searches and iterators always move in real time, not in wall clock time. Over a
+duplicated hour they run through the whole first pass before the whole second
+pass, so a forward search never returns a time in the past and a backward search
+never returns one in the future. The start time you give decides which pass a
+search is on, so pass the exact value the previous call returned.
+
 ## Development
 
 To start developing in the Croner project:
@@ -421,6 +473,7 @@ To start developing in the Croner project:
 3. Build the project using `cargo build`.
 4. Run tests with `cargo test --all-features`.
 5. Run demo with `cargo run --example simple_demo`
+6. Run jiff demo with `cargo run --example simple_demo_jiff --no-default-features --features jiff`
 
 ## Contributing
 

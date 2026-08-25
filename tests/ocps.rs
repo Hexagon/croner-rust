@@ -8,6 +8,8 @@
 // Each module in this suite corresponds to a specific version of the OCPS,
 // allowing for targeted testing of features as they were introduced.
 
+#![cfg(any(feature = "chrono", feature = "jiff"))]
+
 use croner::parser::CronParser;
 use croner::Cron;
 use std::str::FromStr;
@@ -23,7 +25,6 @@ fn custom_parse(pattern: &str, dom_and_dow: bool) -> Result<Cron, croner::errors
 #[cfg(test)]
 mod ocps_1_0_tests {
     use super::*;
-    use chrono::{Local, TimeZone}; // Import trait for this module
 
     #[test]
     fn test_5_field_baseline() {
@@ -41,12 +42,27 @@ mod ocps_1_0_tests {
         );
     }
 
+    #[cfg(feature = "chrono")]
     #[test]
-    fn test_logical_or_for_date_fields() {
-        // Should match on the 1st AND on every Monday.
+    fn chrono_test_logical_or_for_date_fields() {
+        use chrono::{Local, TimeZone};
+
         let cron = Cron::from_str("0 12 1 * MON").unwrap();
-        let first_of_month = Local.with_ymd_and_hms(2025, 7, 1, 12, 0, 0).unwrap(); // A Tuesday
-        let a_monday = Local.with_ymd_and_hms(2025, 7, 14, 12, 0, 0).unwrap(); // Not the 1st
+        let first_of_month = Local.with_ymd_and_hms(2025, 7, 1, 12, 0, 0).unwrap();
+        let a_monday = Local.with_ymd_and_hms(2025, 7, 14, 12, 0, 0).unwrap();
+
+        assert!(cron.is_time_matching(&first_of_month).unwrap());
+        assert!(cron.is_time_matching(&a_monday).unwrap());
+    }
+
+    #[cfg(feature = "jiff")]
+    #[test]
+    fn jiff_test_logical_or_for_date_fields() {
+        use jiff::civil::date;
+
+        let cron = Cron::from_str("0 12 1 * MON").unwrap();
+        let first_of_month: jiff::civil::DateTime = date(2025, 7, 1).at(12, 0, 0, 0);
+        let a_monday: jiff::civil::DateTime = date(2025, 7, 14).at(12, 0, 0, 0);
 
         assert!(cron.is_time_matching(&first_of_month).unwrap());
         assert!(cron.is_time_matching(&a_monday).unwrap());
@@ -131,10 +147,14 @@ mod ocps_1_2_tests {
 #[cfg(test)]
 mod ocps_1_3_tests {
     use super::*;
-    use chrono::{Datelike, Local, TimeZone}; // Import traits for this module
 
-    #[test]
-    fn test_last_day_of_month() {
+    #[cfg(feature = "chrono")]
+    mod chrono_tests {
+        use super::*;
+        use chrono::{Datelike, Local, TimeZone};
+
+        #[test]
+        fn test_last_day_of_month() {
         let cron = Cron::from_str("0 0 L * *").unwrap();
         let last_of_july = Local.with_ymd_and_hms(2025, 7, 31, 0, 0, 0).unwrap();
         let not_last_of_july = Local.with_ymd_and_hms(2025, 7, 30, 0, 0, 0).unwrap();
@@ -288,13 +308,108 @@ mod ocps_1_3_tests {
                 Err(e) => panic!("Error finding occurrence at index {}: {:?}", i, e),
             }
         }
-    }
-}
+    } // closes test_lw_find_next_occurrences
+    } // closes chrono_tests
+
+    #[cfg(feature = "jiff")]
+    mod jiff_tests {
+        use super::*;
+        use jiff::civil::date;
+
+        #[test]
+        fn test_last_day_of_month() {
+            let cron = Cron::from_str("0 0 L * *").unwrap();
+            let last_of_july: jiff::civil::DateTime = date(2025, 7, 31).at(0, 0, 0, 0);
+            let not_last_of_july: jiff::civil::DateTime = date(2025, 7, 30).at(0, 0, 0, 0);
+            assert!(cron.is_time_matching(&last_of_july).unwrap());
+            assert!(!cron.is_time_matching(&not_last_of_july).unwrap());
+        }
+
+        #[test]
+        fn test_last_weekday_of_month() {
+            let cron = Cron::from_str("0 0 * * 5L").unwrap();
+            let last_friday: jiff::civil::DateTime = date(2025, 7, 25).at(0, 0, 0, 0);
+            let not_last_friday: jiff::civil::DateTime = date(2025, 7, 18).at(0, 0, 0, 0);
+            assert!(cron.is_time_matching(&last_friday).unwrap());
+            assert!(!cron.is_time_matching(&not_last_friday).unwrap());
+        }
+
+        #[test]
+        fn test_nth_weekday_of_month() {
+            let cron = Cron::from_str("0 0 * * 2#2").unwrap();
+            let second_tuesday: jiff::civil::DateTime = date(2025, 7, 8).at(0, 0, 0, 0);
+            let first_tuesday: jiff::civil::DateTime = date(2025, 7, 1).at(0, 0, 0, 0);
+            assert!(cron.is_time_matching(&second_tuesday).unwrap());
+            assert!(!cron.is_time_matching(&first_tuesday).unwrap());
+        }
+
+        #[test]
+        fn test_closest_weekday() {
+            let cron = Cron::from_str("0 0 5W 7 *").unwrap();
+            let closest_weekday: jiff::civil::DateTime = date(2025, 7, 4).at(0, 0, 0, 0);
+            assert!(cron.is_time_matching(&closest_weekday).unwrap());
+        }
+
+        #[test]
+        fn test_last_weekday_lw() {
+            let cron = Cron::from_str("0 0 LW * *").unwrap();
+            let feb_last: jiff::civil::DateTime = date(2025, 2, 28).at(0, 0, 0, 0);
+            assert!(cron.is_time_matching(&feb_last).unwrap(), "Feb 28 (Friday) as last weekday");
+            let aug_last: jiff::civil::DateTime = date(2025, 8, 29).at(0, 0, 0, 0);
+            assert!(cron.is_time_matching(&aug_last).unwrap(), "Aug 29 (Friday) as last weekday");
+            let aug_31: jiff::civil::DateTime = date(2025, 8, 31).at(0, 0, 0, 0);
+            assert!(!cron.is_time_matching(&aug_31).unwrap(), "Should NOT match Aug 31 (Sunday)");
+            let nov_last: jiff::civil::DateTime = date(2025, 11, 28).at(0, 0, 0, 0);
+            assert!(cron.is_time_matching(&nov_last).unwrap(), "Nov 28 (Friday) as last weekday");
+            let nov_30: jiff::civil::DateTime = date(2025, 11, 30).at(0, 0, 0, 0);
+            assert!(!cron.is_time_matching(&nov_30).unwrap(), "Should NOT match Nov 30 (Sunday)");
+        }
+
+        #[test]
+        fn test_31w_only_triggers_if_31st_exists() {
+            let cron = Cron::from_str("0 0 31W * *").unwrap();
+            let jan_31: jiff::civil::DateTime = date(2025, 1, 31).at(0, 0, 0, 0);
+            assert!(cron.is_time_matching(&jan_31).unwrap(), "Should match Jan 31 (Friday)");
+            let feb_28: jiff::civil::DateTime = date(2025, 2, 28).at(0, 0, 0, 0);
+            assert!(!cron.is_time_matching(&feb_28).unwrap(), "Should NOT match in February");
+            let apr_30: jiff::civil::DateTime = date(2025, 4, 30).at(0, 0, 0, 0);
+            assert!(!cron.is_time_matching(&apr_30).unwrap(), "Should NOT match in April");
+            let may_30: jiff::civil::DateTime = date(2025, 5, 30).at(0, 0, 0, 0);
+            assert!(cron.is_time_matching(&may_30).unwrap(), "Should match May 30 for 31W");
+            let aug_29: jiff::civil::DateTime = date(2025, 8, 29).at(0, 0, 0, 0);
+            assert!(cron.is_time_matching(&aug_29).unwrap(), "Should match Aug 29 for 31W");
+        }
+
+        #[test]
+        fn test_lw_find_next_occurrences() {
+            use jiff::civil::DateTime as CivilDateTime;
+
+            let cron = Cron::from_str("0 0 LW * *").expect("Failed to parse LW pattern");
+            let start_date: CivilDateTime = date(2025, 1, 1).at(0, 0, 0, 0);
+            let expected = vec![
+                (2025, 1, 31), (2025, 2, 28), (2025, 3, 31), (2025, 4, 30),
+                (2025, 5, 30), (2025, 6, 30), (2025, 7, 31), (2025, 8, 29),
+                (2025, 9, 30), (2025, 10, 31), (2025, 11, 28), (2025, 12, 31),
+            ];
+            let mut current = start_date;
+            for (i, (year, month, day)) in expected.iter().enumerate() {
+                match cron.find_next_occurrence(&current, false) {
+                    Ok(next) => {
+                        assert_eq!(next.year(), *year, "Year mismatch at index {i}");
+                        assert_eq!(next.month(), *month, "Month mismatch at index {i}");
+                        assert_eq!(next.day(), *day, "Day mismatch at index {i}");
+                        current = next;
+                    }
+                    Err(e) => panic!("Error finding occurrence at index {i}: {e:?}"),
+                }
+            }
+        }
+    } // closes jiff_tests
+} // closes ocps_1_3_tests
 
 #[cfg(test)]
 mod ocps_1_4_tests {
     use super::*;
-    use chrono::{Local, TimeZone}; // Import trait for this module
 
     #[test]
     fn test_question_mark_is_alias_for_wildcard() {
@@ -303,8 +418,11 @@ mod ocps_1_4_tests {
         assert_eq!(cron_star, cron_q);
     }
 
+    #[cfg(feature = "chrono")]
     #[test]
-    fn test_and_modifier() {
+    fn chrono_test_and_modifier() {
+        use chrono::{Local, TimeZone};
+
         // Should ONLY match if the 1st of the month is a Monday.
         let cron = custom_parse("0 12 1 * +MON", false).unwrap();
 
@@ -317,8 +435,24 @@ mod ocps_1_4_tests {
         assert!(!cron.is_time_matching(&first_is_not_monday).unwrap());
     }
 
+    #[cfg(feature = "jiff")]
     #[test]
-    fn test_global_and_mode() {
+    fn jiff_test_and_modifier() {
+        use jiff::civil::date;
+
+        let cron = custom_parse("0 12 1 * +MON", false).unwrap();
+        let first_is_monday: jiff::civil::DateTime = date(2025, 9, 1).at(12, 0, 0, 0);
+        let first_is_not_monday: jiff::civil::DateTime = date(2025, 7, 1).at(12, 0, 0, 0);
+
+        assert!(cron.is_time_matching(&first_is_monday).unwrap());
+        assert!(!cron.is_time_matching(&first_is_not_monday).unwrap());
+    }
+
+    #[cfg(feature = "chrono")]
+    #[test]
+    fn chrono_test_global_and_mode() {
+        use chrono::{Local, TimeZone};
+
         let cron = custom_parse("0 12 1 * MON", true).unwrap();
 
         // Should ONLY match if the 1st of the month is a Monday (due to global setting).
@@ -328,10 +462,22 @@ mod ocps_1_4_tests {
 
         assert!(cron.is_time_matching(&first_is_monday).unwrap());
         assert!(!cron.is_time_matching(&first_is_not_monday).unwrap());
-        assert!(
-            !cron.is_time_matching(&a_monday_not_first).unwrap(),
-            "Should not match a Monday that is not the 1st in AND mode."
-        );
+        assert!(!cron.is_time_matching(&a_monday_not_first).unwrap());
+    }
+
+    #[cfg(feature = "jiff")]
+    #[test]
+    fn jiff_test_global_and_mode() {
+        use jiff::civil::date;
+
+        let cron = custom_parse("0 12 1 * MON", true).unwrap();
+        let first_is_monday: jiff::civil::DateTime = date(2025, 9, 1).at(12, 0, 0, 0);
+        let first_is_not_monday: jiff::civil::DateTime = date(2025, 7, 1).at(12, 0, 0, 0);
+        let a_monday_not_first: jiff::civil::DateTime = date(2025, 7, 14).at(12, 0, 0, 0);
+
+        assert!(cron.is_time_matching(&first_is_monday).unwrap());
+        assert!(!cron.is_time_matching(&first_is_not_monday).unwrap());
+        assert!(!cron.is_time_matching(&a_monday_not_first).unwrap());
     }
 
     #[test]
