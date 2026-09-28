@@ -314,7 +314,7 @@ impl CronParser {
         let base_pattern = match pattern {
             p if eq_ignore_case(p, "@yearly") || eq_ignore_case(p, "@annually") => "0 0 1 1 *",
             p if eq_ignore_case(p, "@monthly") => "0 0 1 * *",
-            p if eq_ignore_case(p, "@weekly") => "0 0 * * 0",
+            p if eq_ignore_case(p, "@weekly") => "0 0 * * SUN",
             p if eq_ignore_case(p, "@daily") => "0 0 * * *",
             p if eq_ignore_case(p, "@hourly") => "0 * * * *",
             _ => pattern,
@@ -535,7 +535,7 @@ mod tests {
         );
         assert_eq!(
             CronParser::handle_nicknames("@weekly", false, false),
-            "0 0 * * 0"
+            "0 0 * * SUN"
         );
         assert_eq!(
             CronParser::handle_nicknames("@daily", false, false),
@@ -559,7 +559,7 @@ mod tests {
         );
         assert_eq!(
             CronParser::handle_nicknames("@weekly", true, false),
-            "0 0 0 * * 0"
+            "0 0 0 * * SUN"
         );
         assert_eq!(
             CronParser::handle_nicknames("@daily", true, false),
