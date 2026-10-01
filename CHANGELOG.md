@@ -1,5 +1,10 @@
 # Changelog
 
+## [4.0.1]
+
+### Fixed
+- Fixed the `@weekly` nickname in Quartz weekday mode.
+
 ## [4.0.0]
 
 ### Added
