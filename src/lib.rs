@@ -11,6 +11,9 @@
 //! - Compatible with the `chrono` library for dealing with date and time in Rust.
 //!
 //! ## Crate Features
+//! - `std` *(enabled by default)*: Links the Rust standard library. Disable this feature
+//!   (`default-features = false`) to use the crate in `no_std` environments (requires a
+//!   global allocator).
 //! - `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and
 //!   [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for
 //!   [`Cron`](struct.Cron.html). This feature is disabled by default.
@@ -20,7 +23,7 @@
 //!
 //! ```rust
 //! # #[cfg(feature = "chrono")] {
-//! use std::str::FromStr as _;
+//! use core::str::FromStr as _;
 //!
 //! use chrono::Utc;
 //! use croner::Cron;
@@ -89,7 +92,12 @@
 //!
 //! For more information, refer to the full [README](https://github.com/hexagon/croner-rust).
 
+#![cfg_attr(not(feature = "std"), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+
+#[cfg(not(feature = "std"))]
+#[macro_use]
+extern crate alloc;
 
 pub mod describe;
 pub mod errors;
@@ -158,7 +166,10 @@ use errors::CronError;
 pub use iterator::CronIterator;
 use parser::CronParser;
 use pattern::CronPattern;
-use std::str::FromStr;
+use core::str::FromStr;
+
+#[cfg(not(feature = "std"))]
+use alloc::string::String;
 
 use time::{fold_of, other_fold_edge, Cursor, Fold};
 pub use time::{CivilDate, CivilDateTime, CivilTime, CronDateTime, Resolution, Weekday};
@@ -224,7 +235,7 @@ impl Cron {
     ///
     /// ```
     /// # #[cfg(feature = "chrono")] {
-    /// use std::str::FromStr as _;
+    /// use core::str::FromStr as _;
     ///
     /// use croner::Cron;
     /// use chrono::Utc;
@@ -676,7 +687,7 @@ impl Cron {
     /// # Example
     /// ```
     /// use croner::Cron;
-    /// use std::str::FromStr as _;
+    /// use core::str::FromStr as _;
     ///
     /// let cron = Cron::from_str("0 12 * * MON-FRI").unwrap();
     /// println!("{}", cron.describe());
@@ -879,8 +890,8 @@ impl Cron {
     }
 }
 
-impl std::fmt::Display for Cron {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Cron {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.pattern)
     }
 }

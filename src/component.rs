@@ -1,5 +1,11 @@
 use crate::errors::CronError;
 
+#[cfg(not(feature = "std"))]
+use alloc::{
+    string::ToString,
+    vec::Vec,
+};
+
 // Constants for flags
 pub const NONE_BIT: u8 = 0;
 pub const ALL_BIT: u8 = 1;

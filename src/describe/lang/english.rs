@@ -1,5 +1,8 @@
 use crate::describe::Language;
 
+#[cfg(not(feature = "std"))]
+use alloc::string::String;
+
 #[derive(Default, Clone, Copy)]
 pub struct English;
 

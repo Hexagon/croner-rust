@@ -1,6 +1,12 @@
 pub mod lang;
 pub use lang::english::English;
 
+#[cfg(not(feature = "std"))]
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
+
 use crate::component::{
     CronComponent, ALL_BIT, CLOSEST_WEEKDAY_BIT, LAST_BIT, NTH_1ST_BIT, NTH_2ND_BIT, NTH_3RD_BIT,
     NTH_4TH_BIT, NTH_5TH_BIT,
