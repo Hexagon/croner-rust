@@ -290,6 +290,33 @@ impl CronComponent {
         Ok(())
     }
 
+    /// Returns the values this field matches without a modifier, in ascending order.
+    ///
+    /// For an hour field of `1-5,10` this is `[1, 2, 3, 4, 5, 10]`. Values selected only
+    /// through `L`, `W` or `#` are not included; [`Self::has_modifiers`] reports those.
+    /// Weekdays use `0` for Sunday, whichever weekday numbering the pattern was parsed with.
+    ///
+    /// ```
+    /// use std::str::FromStr;
+    /// use croner::Cron;
+    ///
+    /// let cron = Cron::from_str("0 9-11 * * 1-5").unwrap();
+    /// assert_eq!(cron.pattern.hours.values(), vec![9, 10, 11]);
+    /// assert_eq!(cron.pattern.days_of_week.values(), vec![1, 2, 3, 4, 5]);
+    /// ```
+    pub fn values(&self) -> Vec<u16> {
+        self.get_set_values(ALL_BIT)
+    }
+
+    /// Returns whether the field uses `L`, `W` or `#`, whose matches depend on the month.
+    pub fn has_modifiers(&self) -> bool {
+        self.enabled_features != NONE_BIT
+            || self
+                .bitfields
+                .iter()
+                .any(|bits| bits & !ALL_BIT != NONE_BIT)
+    }
+
     /// Returns a vector of u16 values for all bits set in the component for a given bitflag.
     pub fn get_set_values(&self, bit: u8) -> Vec<u16> {
         self.set_values(bit).collect()

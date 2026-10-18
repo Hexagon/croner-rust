@@ -154,10 +154,11 @@ pub enum JobType {
     IntervalWildcard,
 }
 
+pub use component::CronComponent;
 use errors::CronError;
 pub use iterator::CronIterator;
 use parser::CronParser;
-use pattern::CronPattern;
+pub use pattern::CronPattern;
 use std::str::FromStr;
 
 use time::{fold_of, other_fold_edge, Cursor, Fold};
