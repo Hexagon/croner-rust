@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+- Exported `CronPattern` and `CronComponent`, so the parsed fields of `Cron::pattern` can be named outside the crate.
+- Added `CronComponent::values()` and `CronComponent::has_modifiers()` to read a field's plain values and whether it uses `L`, `W` or `#`.
+- Added `CronPattern::is_dom_wildcard()`, `is_dow_wildcard()` and `matches_dom_and_dow()` to read how day-of-month and day-of-week combine.
+
 ## [4.0.1]
 
 ### Fixed

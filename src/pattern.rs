@@ -51,6 +51,25 @@ impl CronPattern {
         }
     }
 
+    /// Returns whether the day-of-month field is `*`.
+    ///
+    /// Unless [`Self::matches_dom_and_dow`] is set, a day matches when either its day of
+    /// month or its weekday matches, except that a `*` field is ignored.
+    pub fn is_dom_wildcard(&self) -> bool {
+        self.star_dom
+    }
+
+    /// Returns whether the day-of-week field is `*`. See [`Self::is_dom_wildcard`].
+    pub fn is_dow_wildcard(&self) -> bool {
+        self.star_dow
+    }
+
+    /// Returns whether a day must match both the day-of-month and day-of-week fields,
+    /// from the `+` prefix or the parser's `dom_and_dow` option.
+    pub fn matches_dom_and_dow(&self) -> bool {
+        self.dom_and_dow
+    }
+
     // Checks if a given year matches the year part of the cron pattern.
     pub fn year_match(&self, year: i32) -> Result<bool, CronError> {
         if !(YEAR_LOWER_LIMIT..=YEAR_UPPER_LIMIT).contains(&year) {
@@ -410,6 +429,71 @@ mod tests {
     use crate::parser::{CronParser, Seconds};
 
     use super::*;
+
+    #[test]
+    fn exposes_plain_field_values() {
+        let cron = CronParser::new().parse("*/20 9-11,14 * 1,6 1-5").unwrap();
+        assert_eq!(cron.pattern.minutes.values(), vec![0, 20, 40]);
+        assert_eq!(cron.pattern.hours.values(), vec![9, 10, 11, 14]);
+        assert_eq!(cron.pattern.days.values(), (1..=31).collect::<Vec<_>>());
+        assert_eq!(cron.pattern.months.values(), vec![1, 6]);
+        assert_eq!(cron.pattern.days_of_week.values(), vec![1, 2, 3, 4, 5]);
+        assert!(cron.pattern.minutes.from_wildcard);
+        assert!(!cron.pattern.hours.from_wildcard);
+    }
+
+    #[test]
+    fn weekday_values_use_zero_for_sunday_in_both_modes() {
+        let standard = CronParser::new().parse("0 0 * * 0,6,7").unwrap();
+        assert_eq!(standard.pattern.days_of_week.values(), vec![0, 6]);
+        let quartz = CronParser::builder()
+            .alternative_weekdays(true)
+            .seconds(Seconds::Optional)
+            .build()
+            .parse("0 0 0 ? * 1,7")
+            .unwrap();
+        assert_eq!(quartz.pattern.days_of_week.values(), vec![0, 6]);
+    }
+
+    #[test]
+    fn reports_modifiers() {
+        let plain = CronParser::new().parse("0 0 1,15 * 1-5").unwrap();
+        assert!(!plain.pattern.days.has_modifiers());
+        assert!(!plain.pattern.days_of_week.has_modifiers());
+        for (pattern, days, weekdays) in [
+            ("0 0 L * *", true, false),
+            ("0 0 15W * *", true, false),
+            ("0 0 * * 5L", false, true),
+            ("0 0 * * 1#2", false, true),
+        ] {
+            let cron = CronParser::new().parse(pattern).unwrap();
+            assert_eq!(cron.pattern.days.has_modifiers(), days, "{pattern}");
+            assert_eq!(
+                cron.pattern.days_of_week.has_modifiers(),
+                weekdays,
+                "{pattern}"
+            );
+        }
+    }
+
+    #[test]
+    fn exposes_day_matching_flags() {
+        let either = CronParser::new().parse("0 0 1 * 1").unwrap();
+        assert!(!either.pattern.is_dom_wildcard());
+        assert!(!either.pattern.is_dow_wildcard());
+        assert!(!either.pattern.matches_dom_and_dow());
+
+        let weekdays_only = CronParser::new().parse("0 0 * * 1").unwrap();
+        assert!(weekdays_only.pattern.is_dom_wildcard());
+        assert!(!weekdays_only.pattern.is_dow_wildcard());
+
+        let both = CronParser::builder()
+            .dom_and_dow(true)
+            .build()
+            .parse("0 0 1 * 1")
+            .unwrap();
+        assert!(both.pattern.matches_dom_and_dow());
+    }
 
     // Calls `day_match` with the weekday the caller would have supplied. The
     // weekday comes from chrono so that the test is an independent check on the
