@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [4.0.2]
 
 ### Added
 - Exported `CronPattern` and `CronComponent`, so the parsed fields of `Cron::pattern` can be named outside the crate.
