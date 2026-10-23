@@ -38,9 +38,6 @@
 //!     .unwrap();
 //! ```
 
-use derive_builder::Builder;
-use strum::EnumIs;
-
 use crate::{
     component::{
         CronComponent, ALL_BIT, CLOSEST_WEEKDAY_BIT, LAST_BIT, NONE_BIT, NTH_1ST_BIT, NTH_2ND_BIT,
@@ -51,7 +48,7 @@ use crate::{
     Cron, YEAR_LOWER_LIMIT, YEAR_UPPER_LIMIT,
 };
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, EnumIs)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Seconds {
     #[default]
     Optional,
@@ -59,7 +56,7 @@ pub enum Seconds {
     Disallowed,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, EnumIs)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Year {
     #[default]
     Optional,
@@ -67,11 +64,38 @@ pub enum Year {
     Disallowed,
 }
 
+impl Seconds {
+    pub const fn is_optional(&self) -> bool {
+        matches!(self, Self::Optional)
+    }
+
+    pub const fn is_required(&self) -> bool {
+        matches!(self, Self::Required)
+    }
+
+    pub const fn is_disallowed(&self) -> bool {
+        matches!(self, Self::Disallowed)
+    }
+}
+
+impl Year {
+    pub const fn is_optional(&self) -> bool {
+        matches!(self, Self::Optional)
+    }
+
+    pub const fn is_required(&self) -> bool {
+        matches!(self, Self::Required)
+    }
+
+    pub const fn is_disallowed(&self) -> bool {
+        matches!(self, Self::Disallowed)
+    }
+}
+
 /// Parser for Cron patterns.
 ///
 /// In order to build a custom cron parser use [`CronParser::builder`].
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Builder)]
-#[builder(default, build_fn(skip), pattern = "owned")]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CronParser {
     /// Configure how seconds should be handled.
     seconds: Seconds,
@@ -85,6 +109,48 @@ pub struct CronParser {
     /// When enabled, patterns like `0/10` (start at 0, step by 10) and `/10` (same as `*/10`)
     /// are accepted. This is not compliant with OCPS/vixie-cron standards.
     sloppy_ranges: bool,
+}
+
+/// Builder for [`CronParser`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CronParserBuilder(CronParser);
+
+impl CronParserBuilder {
+    /// Configure how seconds should be handled.
+    pub fn seconds(mut self, value: Seconds) -> Self {
+        self.0.seconds = value;
+        self
+    }
+
+    /// Configure how years should be handled.
+    pub fn year(mut self, value: Year) -> Self {
+        self.0.year = value;
+        self
+    }
+
+    /// Enable the combination of Day of Month (DOM) and Day of Week (DOW) conditions.
+    pub fn dom_and_dow(mut self, value: bool) -> Self {
+        self.0.dom_and_dow = value;
+        self
+    }
+
+    /// Use the Quartz-style weekday mode.
+    pub fn alternative_weekdays(mut self, value: bool) -> Self {
+        self.0.alternative_weekdays = value;
+        self
+    }
+
+    /// Allow sloppy range syntax (e.g., `0/10` or `/10`) for backward compatibility.
+    /// When enabled, patterns like `0/10` (start at 0, step by 10) and `/10` (same as `*/10`)
+    /// are accepted. This is not compliant with OCPS/vixie-cron standards.
+    pub fn sloppy_ranges(mut self, value: bool) -> Self {
+        self.0.sloppy_ranges = value;
+        self
+    }
+
+    pub fn build(self) -> CronParser {
+        self.0
+    }
 }
 
 impl CronParser {
@@ -392,25 +458,6 @@ impl CronParser {
         }
 
         replaced
-    }
-}
-
-impl CronParserBuilder {
-    pub fn build(self) -> CronParser {
-        let CronParserBuilder {
-            seconds,
-            year,
-            dom_and_dow,
-            alternative_weekdays,
-            sloppy_ranges,
-        } = self;
-        CronParser {
-            seconds: seconds.unwrap_or_default(),
-            year: year.unwrap_or_default(),
-            dom_and_dow: dom_and_dow.unwrap_or_default(),
-            alternative_weekdays: alternative_weekdays.unwrap_or_default(),
-            sloppy_ranges: sloppy_ranges.unwrap_or_default(),
-        }
     }
 }
 
