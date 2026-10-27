@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- `describe_lang` now routes every phrase through `Language`: "hour N", "X past Y", "every N months" and "every N years" were hard-coded English. Added `Language` methods with English defaults (`every_past_phrase`, `past_hour_phrase`, `every_x_months`, `every_x_years`), so existing implementations still compile, and translated them for Swedish.
+
+### Added
+- Added `Language::time_of_day()` so a language can format times of day, e.g. with a 12-hour clock.
+
 ## [4.0.2]
 
 ### Added
