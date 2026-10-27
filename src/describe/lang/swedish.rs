@@ -106,6 +106,19 @@ impl Language for Swedish {
             "söndag", "måndag", "tisdag", "onsdag", "torsdag", "fredag", "lördag",
         ]
     }
+    fn every_past_phrase(&self, every: &str, hours: &str) -> String {
+        format!("{every} under {hours}")
+    }
+    fn past_hour_phrase(&self, s: &str) -> String {
+        format!("timme {s}")
+    }
+    fn every_x_months(&self, step: u16) -> String {
+        format!("var {step}:e månad")
+    }
+    fn every_x_years(&self, step: u16) -> String {
+        format!("var {step}:e år")
+    }
+
     fn month_names(&self) -> [&'static str; 12] {
         [
             "januari",
