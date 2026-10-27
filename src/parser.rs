@@ -245,6 +245,7 @@ impl CronParser {
                 NTH_3RD_BIT,
                 NTH_4TH_BIT,
                 NTH_5TH_BIT,
+                LAST_BIT,
             ] {
                 if days_of_week.is_bit_set(7, nth_bit)? {
                     days_of_week.unset_bit(7, nth_bit)?;
