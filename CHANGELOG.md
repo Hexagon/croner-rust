@@ -7,6 +7,7 @@
 
 ### Added
 - Added `Language::time_of_day()` so a language can format times of day, e.g. with a 12-hour clock.
+- Fixed `7L` and `7#L` (last Sunday using `7`) never matching in the day-of-week field.
 
 ## [4.0.2]
 
