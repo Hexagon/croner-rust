@@ -1580,6 +1580,36 @@ mod tests {
     }
 
     #[test]
+    fn test_cron_expression_last_sunday_using_seven() -> Result<(), CronError> {
+        use chrono::TimeZone;
+
+        let cron = CronParser::builder()
+            .seconds(Seconds::Optional)
+            .build()
+            .parse("0 0 0 * * 7L")?;
+
+        let start_date = Local.with_ymd_and_hms(2024, 10, 1, 0, 0, 0).unwrap();
+        let last_sundays = vec![
+            Local.with_ymd_and_hms(2024, 10, 27, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 11, 24, 0, 0, 0).unwrap(),
+            Local.with_ymd_and_hms(2024, 12, 29, 0, 0, 0).unwrap(),
+        ];
+        let dates: Vec<_> = cron
+            .iter_from(start_date, Direction::Forward)
+            .take(3)
+            .collect();
+        assert_eq!(dates, last_sundays);
+
+        // A range ending in 7 includes the last Sunday as well
+        let cron = Cron::from_str("0 0 * * 6-7#L")?;
+        for date in &last_sundays {
+            assert!(cron.is_time_matching(date)?, "{date}");
+        }
+
+        Ok(())
+    }
+
+    #[test]
     fn test_specific_and_wildcard_entries() -> Result<(), CronError> {
         let cron = Cron::from_str("15 */2 * 3,5 FRI")?;
         let matching_time = Local.with_ymd_and_hms(2023, 3, 3, 2, 15, 0).unwrap();
