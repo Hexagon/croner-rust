@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- Fixed `7L` and `7#L` (last Sunday using `7`) never matching in the day-of-week field.
+
 ## [4.0.2]
 
 ### Added
