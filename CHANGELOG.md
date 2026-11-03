@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
+- Fixed `*/n` (and `/n` with `sloppy_ranges`) being rejected in the day-of-week field when `alternative_weekdays` is enabled.
 - `describe_lang` now routes every phrase through `Language`: "hour N", "X past Y", "every N months" and "every N years" were hard-coded English. Added `Language` methods with English defaults (`every_past_phrase`, `past_hour_phrase`, `every_x_months`, `every_x_years`), so existing implementations still compile, and translated them for Swedish.
 
 ### Added

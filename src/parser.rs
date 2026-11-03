@@ -666,6 +666,24 @@ mod tests {
     }
 
     #[test]
+    fn test_with_alternative_weekdays_wildcard_step() {
+        for (pattern, sloppy_ranges) in [("* * * * */2", false), ("* * * * /2", true)] {
+            let cron = CronParser::builder()
+                .alternative_weekdays(true)
+                .sloppy_ranges(sloppy_ranges)
+                .build()
+                .parse(pattern)
+                .unwrap();
+
+            // Steps count from 1 (Sunday), so this is 1,3,5,7: Sunday, Tuesday, Thursday, Saturday
+            assert_eq!(
+                cron.pattern.days_of_week.get_set_values(ALL_BIT),
+                vec![0, 2, 4, 6]
+            );
+        }
+    }
+
+    #[test]
     fn test_seven_to_zero() {
         // Test with alternative weekdays enabled
         let cron = Cron::from_str("* * * * 7").unwrap();
