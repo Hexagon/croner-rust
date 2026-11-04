@@ -8,7 +8,7 @@ repository = "https://github.com/hexagon/croner-rust"
 documentation = "https://docs.rs/croner"
 readme = "README.md"
 keywords = ["cron", "scheduler", "job", "task", "time"]
-categories = ["date-and-time", "parser-implementations"]
+categories = ["date-and-time", "parser-implementations", "no-std"]
 homepage = "https://github.com/hexagon/croner-rust"
 
 [lib]
@@ -17,12 +17,11 @@ path = "src/lib.rs"
 
 [dependencies]
 chrono = { version = "0.4.42", default-features = false, optional = true }
-derive_builder = "0.20.2"
 jiff = { version = "0.2.35", default-features = false, features = [
     "alloc",
 ], optional = true }
-serde = { version = "1.0", optional = true }
-strum = { version = "0.27.2", features = ["derive"] }
+serde = { version = "1.0", default-features = false, optional = true }
+strum = { version = "0.27.2", default-features = false, features = ["derive"] }
 
 [dev-dependencies]
 chrono = { version = "0.4.42", default-features = false, features = ["clock"] }
@@ -33,7 +32,9 @@ rstest = "0.26.1"
 serde_test = "1.0"
 
 [features]
-default = ["chrono"]
+default = ["std", "chrono"]
+# Links the Rust standard library. Disable default features for `no_std` (an allocator is still required).
+std = ["strum/std", "chrono?/std", "jiff?/std", "serde?/std"]
 # Support for `chrono::DateTime` and `chrono::NaiveDateTime`.
 chrono = ["dep:chrono"]
 # Support for `jiff::Zoned` and `jiff::civil::DateTime`.

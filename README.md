@@ -18,10 +18,12 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 - Supports optional alternative weekday mode to use Quartz-style weekdays instead of POSIX using `with_alternative_weekdays`
 - Allows for flexible combination of DOM and DOW conditions, enabling patterns to match specific days of the week in specific weeks of the month or the closest weekday to a specific day.
 - Compatible with `chrono`, (optionally) `chrono-tz`, and `jiff`.
+- Supports `no_std` environments (requires `alloc`).
 - Robust error handling.
 
 ## Crate Features
 
+- `std`: Links the Rust standard library and implements `std::error::Error` for `CronError`. Enabled by default; leave it out to use croner in `no_std` environments.
 - `jiff`: Enables support for [`jiff::Zoned`](https://docs.rs/jiff/latest/jiff/struct.Zoned.html) and [`jiff::civil::DateTime`](https://docs.rs/jiff/latest/jiff/civil/struct.DateTime.html). Disabled by default.
 - `chrono`: Enables support for [`chrono::DateTime`](https://docs.rs/chrono/latest/chrono/struct.DateTime.html) and [`chrono::NaiveDateTime`](https://docs.rs/chrono/latest/chrono/struct.NaiveDateTime.html). Enabled by default when default features are left on.
 - `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for [`Cron`](https://docs.rs/croner/latest/croner/struct.Cron.html). This feature is disabled by default.
@@ -76,6 +78,29 @@ If you want to use `jiff` instead of the default `chrono` backend:
 croner = { version = "4.0", default-features = false, features = ["jiff"] }
 jiff = "0.2"
 ```
+
+#### `no_std` (unreleased, planned for 5.0)
+
+Croner works without the standard library, as long as a global allocator is
+available (it uses `alloc` for `String` and `Vec`). Disable the default features
+and pick a backend:
+
+```toml
+[dependencies]
+croner = { version = "5.0", default-features = false, features = ["chrono"] }
+chrono = { version = "0.4", default-features = false }
+```
+
+Parsing, describing and searching behave exactly as with `std`. The differences are:
+
+- `CronError` does not implement `std::error::Error`.
+- `CronIterator` stops silently on an error instead of also printing it to stderr.
+  Call `CronIterator::last_error()` after it returns `None` to see why it stopped.
+- The time zones you can use are whatever your backend supports without `std`;
+  for example, `chrono-tz` and jiff's system time zone database need extra setup or `std`.
+
+With `default-features = false`, add the `std` feature if you want the standard
+library, e.g. `features = ["std", "jiff"]`.
 
 ### Migration guide (3.x -> 4.0)
 
