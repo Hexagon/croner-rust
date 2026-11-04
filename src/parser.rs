@@ -311,6 +311,7 @@ impl CronParser {
                 NTH_3RD_BIT,
                 NTH_4TH_BIT,
                 NTH_5TH_BIT,
+                LAST_BIT,
             ] {
                 if days_of_week.is_bit_set(7, nth_bit)? {
                     days_of_week.unset_bit(7, nth_bit)?;
@@ -709,6 +710,24 @@ mod tests {
         assert!(cron.pattern.days_of_week.is_bit_set(1, ALL_BIT).unwrap()); // Monday
         assert!(cron.pattern.days_of_week.is_bit_set(5, ALL_BIT).unwrap()); // Friday
         assert!(!cron.pattern.days_of_week.is_bit_set(6, ALL_BIT).unwrap()); // Saturday should not be set
+    }
+
+    #[test]
+    fn test_with_alternative_weekdays_wildcard_step() {
+        for (pattern, sloppy_ranges) in [("* * * * */2", false), ("* * * * /2", true)] {
+            let cron = CronParser::builder()
+                .alternative_weekdays(true)
+                .sloppy_ranges(sloppy_ranges)
+                .build()
+                .parse(pattern)
+                .unwrap();
+
+            // Steps count from 1 (Sunday), so this is 1,3,5,7: Sunday, Tuesday, Thursday, Saturday
+            assert_eq!(
+                cron.pattern.days_of_week.get_set_values(ALL_BIT),
+                vec![0, 2, 4, 6]
+            );
+        }
     }
 
     #[test]

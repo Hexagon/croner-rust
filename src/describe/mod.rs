@@ -45,6 +45,30 @@ pub trait Language {
 
     fn day_of_week_names(&self) -> [&'static str; 7];
     fn month_names(&self) -> [&'static str; 12];
+
+    // The methods below have English defaults so existing implementations keep compiling.
+
+    /// Formats a time of day, e.g. "14:00" or "14:00:30". Override for a 12-hour clock.
+    fn time_of_day(&self, hour: u16, minute: u16, second: Option<u16>) -> String {
+        match second {
+            Some(s) => format!("{hour:02}:{minute:02}:{s:02}"),
+            None => format!("{hour:02}:{minute:02}"),
+        }
+    }
+    /// Joins a repeating phrase with an hour description, e.g. "Every minute past hour 0".
+    fn every_past_phrase(&self, every: &str, hours: &str) -> String {
+        format!("{every} past {hours}")
+    }
+    /// The hour part of `every_past_phrase`, e.g. "hour 0 and 12".
+    fn past_hour_phrase(&self, s: &str) -> String {
+        format!("hour {s}")
+    }
+    fn every_x_months(&self, step: u16) -> String {
+        format!("every {step} months")
+    }
+    fn every_x_years(&self, step: u16) -> String {
+        self.year_phrase(&format!("every {step}"))
+    }
 }
 
 /// Generates a human-readable description for a `CronPattern`.
@@ -132,14 +156,18 @@ fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
         && pattern.minutes.step == 1
         && min_vals.len() == 1
     {
-        let time_str = format!("{:02}:{:02}", hour_vals[0], min_vals[0]);
+        let time_str = lang.time_of_day(hour_vals[0], min_vals[0], None);
 
         if !is_default_seconds {
             if is_stepped_from_start(pattern.seconds.step, &sec_vals, pattern.seconds.min) {
                 return lang.at_time_and_every_x_seconds(&time_str, pattern.seconds.step);
             }
             if sec_vals.len() == 1 {
-                return lang.at_time(&format!("{}:{:02}", time_str, sec_vals[0]));
+                return lang.at_time(&lang.time_of_day(
+                    hour_vals[0],
+                    min_vals[0],
+                    Some(sec_vals[0]),
+                ));
             }
             return lang.at_time_at_second(&time_str, &format_number_list(&sec_vals, lang));
         }
@@ -153,9 +181,9 @@ fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
         {
             lang.every_x_hours(pattern.hours.step)
         } else {
-            format!("hour {}", format_number_list(&hour_vals, lang))
+            lang.past_hour_phrase(&format_number_list(&hour_vals, lang))
         };
-        return format!("{} past {}", lang.every_minute(), hour_desc);
+        return lang.every_past_phrase(lang.every_minute(), &hour_desc);
     }
 
     // Special case: "* * 0 * * *" -> "Every second past hour 0"
@@ -165,9 +193,9 @@ fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
         {
             lang.every_x_hours(pattern.hours.step)
         } else {
-            format!("hour {}", format_number_list(&hour_vals, lang))
+            lang.past_hour_phrase(&format_number_list(&hour_vals, lang))
         };
-        return format!("{} past {}", lang.every_second_phrase(), hour_desc);
+        return lang.every_past_phrase(lang.every_second_phrase(), &hour_desc);
     }
 
     // Handle all other complex combinations
@@ -381,7 +409,7 @@ fn describe_month<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     let month_names = lang.month_names();
 
     if pattern.months.step > 1 {
-        return lang.in_phrase(&format!("every {} months", pattern.months.step));
+        return lang.in_phrase(&lang.every_x_months(pattern.months.step));
     }
 
     let values = pattern.months.get_set_values(ALL_BIT);
@@ -398,7 +426,7 @@ fn describe_year<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     }
 
     if pattern.years.step > 1 {
-        return lang.in_phrase(&lang.year_phrase(&format!("every {}", pattern.years.step)));
+        return lang.in_phrase(&lang.every_x_years(pattern.years.step));
     }
 
     let values = pattern.years.get_set_values(ALL_BIT);
@@ -640,6 +668,150 @@ mod tests {
             get_description("* 0 * * MON"),
             "Every minute past hour 0, on Monday."
         );
+    }
+
+    // Issue #62: all phrases and the time format must go through `Language`.
+    #[test]
+    fn test_issue_62_phrases_use_language() {
+        let swedish = |p: &str| {
+            get_description_lang_config(
+                p,
+                super::lang::swedish::Swedish,
+                Seconds::Optional,
+                Year::Optional,
+                false,
+            )
+        };
+        assert_eq!(swedish("* 0 * * *"), "Varje minut under timme 0.");
+        assert_eq!(
+            swedish("* * 0,12 * * *"),
+            "Varje sekund under timme 0 och 12."
+        );
+        assert_eq!(
+            swedish("0 0 1 */2 *"),
+            "Klockan 00:00, på dag 1, i var 2:e månad."
+        );
+        assert_eq!(
+            swedish("0 0 0 1 1 * 2025-2035/2"),
+            "Klockan 00:00, på dag 1, i januari, i var 2:e år."
+        );
+        // English output is unchanged
+        assert_eq!(
+            get_description("0 0 1 */2 *"),
+            "At 00:00, on day 1, in every 2 months."
+        );
+    }
+
+    #[test]
+    fn test_issue_62_custom_time_format() {
+        // English with a 12-hour clock, delegating everything else.
+        #[derive(Default)]
+        struct TwelveHour;
+        impl Language for TwelveHour {
+            fn time_of_day(&self, hour: u16, minute: u16, second: Option<u16>) -> String {
+                let suffix = if hour < 12 { "AM" } else { "PM" };
+                let h = match hour % 12 {
+                    0 => 12,
+                    h => h,
+                };
+                match second {
+                    Some(s) => format!("{h}:{minute:02}:{s:02} {suffix}"),
+                    None => format!("{h}:{minute:02} {suffix}"),
+                }
+            }
+            fn every_minute(&self) -> &'static str {
+                English.every_minute()
+            }
+            fn every_second_phrase(&self) -> &'static str {
+                English.every_second_phrase()
+            }
+            fn every_x_minutes(&self, s: u16) -> String {
+                English.every_x_minutes(s)
+            }
+            fn every_x_seconds(&self, s: u16) -> String {
+                English.every_x_seconds(s)
+            }
+            fn every_x_hours(&self, s: u16) -> String {
+                English.every_x_hours(s)
+            }
+            fn every_minute_of_every_x_hours(&self, s: u16) -> String {
+                English.every_minute_of_every_x_hours(s)
+            }
+            fn at_time(&self, t: &str) -> String {
+                English.at_time(t)
+            }
+            fn at_time_and_every_x_seconds(&self, t: &str, s: u16) -> String {
+                English.at_time_and_every_x_seconds(t, s)
+            }
+            fn at_time_at_second(&self, t: &str, s: &str) -> String {
+                English.at_time_at_second(t, s)
+            }
+            fn at_phrase(&self, p: &str) -> String {
+                English.at_phrase(p)
+            }
+            fn on_phrase(&self, p: &str) -> String {
+                English.on_phrase(p)
+            }
+            fn in_phrase(&self, p: &str) -> String {
+                English.in_phrase(p)
+            }
+            fn second_phrase(&self, s: &str) -> String {
+                English.second_phrase(s)
+            }
+            fn minute_phrase(&self, s: &str) -> String {
+                English.minute_phrase(s)
+            }
+            fn minute_past_every_hour_phrase(&self, s: &str) -> String {
+                English.minute_past_every_hour_phrase(s)
+            }
+            fn hour_phrase(&self, s: &str) -> String {
+                English.hour_phrase(s)
+            }
+            fn year_phrase(&self, s: &str) -> String {
+                English.year_phrase(s)
+            }
+            fn day_phrase(&self, s: &str) -> String {
+                English.day_phrase(s)
+            }
+            fn the_last_day_of_the_month(&self) -> &'static str {
+                English.the_last_day_of_the_month()
+            }
+            fn the_weekday_nearest_day(&self, d: &str) -> String {
+                English.the_weekday_nearest_day(d)
+            }
+            fn the_last_weekday_of_the_month(&self, d: &str) -> String {
+                English.the_last_weekday_of_the_month(d)
+            }
+            fn the_nth_weekday_of_the_month(&self, n: u8, d: &str) -> String {
+                English.the_nth_weekday_of_the_month(n, d)
+            }
+            fn dom_and_dow_if_also(&self, d: &str) -> String {
+                English.dom_and_dow_if_also(d)
+            }
+            fn dom_and_dow_if_also_one_of(&self, d: &str) -> String {
+                English.dom_and_dow_if_also_one_of(d)
+            }
+            fn list_conjunction_and(&self) -> &'static str {
+                English.list_conjunction_and()
+            }
+            fn list_conjunction_or(&self) -> &'static str {
+                English.list_conjunction_or()
+            }
+            fn list_conjunction_and_comma(&self) -> &'static str {
+                English.list_conjunction_and_comma()
+            }
+            fn day_of_week_names(&self) -> [&'static str; 7] {
+                English.day_of_week_names()
+            }
+            fn month_names(&self) -> [&'static str; 12] {
+                English.month_names()
+            }
+        }
+        let desc = |p: &str| {
+            get_description_lang_config(p, TwelveHour, Seconds::Optional, Year::Optional, false)
+        };
+        assert_eq!(desc("0 14 * * *"), "At 2:00 PM.");
+        assert_eq!(desc("30 0 0 * * *"), "At 12:00:30 AM.");
     }
 
     #[test]
