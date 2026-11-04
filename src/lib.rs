@@ -526,7 +526,12 @@ impl Cron {
                 }
                 Resolution::Gap => {
                     // DST Gap (Spring Forward)
-                    if fixed_time {
+                    // Only a wall clock time the pattern actually schedules is
+                    // carried past the gap. The cursor can also land in a gap
+                    // after rolling over from a non-matching hour (e.g. the
+                    // hour before the gap for a daily job); that time is
+                    // simply skipped like any other non-matching one.
+                    if fixed_time && self.is_cursor_matching(cursor)? {
                         // For fixed-time jobs that fall into a gap, the scheduled
                         // run is the first real instant after that gap.
                         // Find the very first valid wall clock time after the current
@@ -612,8 +617,9 @@ impl Cron {
                             cursor = after_gap;
                         }
                     } else {
-                        // Interval/Wildcard Job in DST Gap
-                        // Existing logic: simply advance by one second/minute
+                        // Interval/Wildcard Job in DST Gap, or a wall clock
+                        // time that the pattern does not schedule:
+                        // simply advance by one second
                         cursor = cursor
                             .checked_add_seconds(direction.step())
                             .ok_or(CronError::InvalidTime)?;
