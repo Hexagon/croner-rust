@@ -475,7 +475,7 @@ impl CronComponent {
 
         let (start, end) = if range_part == "*" {
             self.from_wildcard = true;
-            (self.min, self.max)
+            (self.min + self.input_offset, self.max)
         } else if range_part.contains('-') {
             let bounds: Vec<&str> = range_part.split('-').collect();
             if bounds.len() != 2 {
@@ -496,7 +496,7 @@ impl CronComponent {
             if self.sloppy_ranges {
                 // In sloppy mode, treat /10 as */10
                 self.from_wildcard = true;
-                (self.min, self.max)
+                (self.min + self.input_offset, self.max)
             } else {
                 return Err(CronError::ComponentError(
                     format!("Invalid step syntax: omitting the starting point like \"/{0}\" is not allowed. Use \"*/{0}\" for wildcard steps or \"X-Y/{0}\" for range steps.", step_str)
