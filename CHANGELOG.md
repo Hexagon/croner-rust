@@ -4,6 +4,7 @@
 
 ### Fixed
 - Fixed fixed-time jobs scheduled in the hour before a spring-forward DST gap also running at the first instant after the gap (e.g. a daily `0 0 * * *` job in `Europe/London` running at both 00:00 and 02:00 on the transition day). Only a scheduled wall clock time that falls inside the gap is moved past it, as documented. Regression since 3.0.0 ([#67](https://github.com/Hexagon/croner-rust/issues/67)).
+- Fixed `*/n` (and `/n` with `sloppy_ranges`) being rejected in the day-of-week field when `alternative_weekdays` is enabled.
 - `describe_lang` now routes every phrase through `Language`: "hour N", "X past Y", "every N months" and "every N years" were hard-coded English. Added `Language` methods with English defaults (`every_past_phrase`, `past_hour_phrase`, `every_x_months`, `every_x_years`), so existing implementations still compile, and translated them for Swedish.
 
 ### Added
