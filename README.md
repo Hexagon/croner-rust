@@ -1,5 +1,7 @@
 # Croner
 
+Croner is available for [JavaScript/TypeScript](https://github.com/Hexagon/croner) · **Rust** · [Python](https://github.com/Hexagon/croner-py) · [.NET](https://github.com/Hexagon/croner-dotnet) · [C++](https://github.com/Hexagon/croner-cpp)
+
 Croner is a fully-featured, lightweight, and efficient Rust library designed for parsing and evaluating cron patterns.
 
 This is the Rust flavor of the popular JavaScript/TypeScript cron parser
