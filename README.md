@@ -449,6 +449,16 @@ To start developing in the Croner project:
 We welcome contributions! Please feel free to submit a pull request or open an
 issue.
 
+## Other implementations
+
+Croner is available in several languages. The implementations share pattern syntax, DST rules and test cases:
+
+- **JavaScript / TypeScript**: [croner](https://github.com/Hexagon/croner), Node, Deno, Bun and browsers, on [npm](https://www.npmjs.com/package/croner) and [JSR](https://jsr.io/@hexagon/croner)
+- **Rust**: croner-rust (this repository)
+- **Python**: [croner-py](https://github.com/Hexagon/croner-py), on [PyPI](https://pypi.org/project/croner/)
+- **.NET**: [croner-dotnet](https://github.com/Hexagon/croner-dotnet), on [NuGet](https://www.nuget.org/packages/Croner)
+- **C++**: [croner-cpp](https://github.com/Hexagon/croner-cpp), header-only, C++17
+
 ## License
 
 This project is licensed under the MIT License - see the
