@@ -40,9 +40,14 @@ mod chrono_tests {
 
     impl Overlap {
         fn at(&self, pass: Pass) -> DateTime<Tz> {
-            let repeated = self
-                .zone
-                .with_ymd_and_hms(self.year, self.month, self.day, self.hour, self.minute, 0);
+            let repeated = self.zone.with_ymd_and_hms(
+                self.year,
+                self.month,
+                self.day,
+                self.hour,
+                self.minute,
+                0,
+            );
             let LocalResult::Ambiguous(first, second) = repeated else {
                 panic!("{}: the test time must happen twice", self.name)
             };
@@ -113,13 +118,21 @@ mod chrono_tests {
             let next = cron
                 .find_next_occurrence(&second, false)
                 .expect("the search must succeed");
-            assert!(next > second, "{}: forward search from {second} answered {next}", overlap.name);
+            assert!(
+                next > second,
+                "{}: forward search from {second} answered {next}",
+                overlap.name
+            );
 
             let first = overlap.at(Pass::First);
             let previous = cron
                 .find_previous_occurrence(&first, false)
                 .expect("the search must succeed");
-            assert!(previous < first, "{}: backward search from {first} answered {previous}", overlap.name);
+            assert!(
+                previous < first,
+                "{}: backward search from {first} answered {previous}",
+                overlap.name
+            );
         }
     }
 
@@ -134,7 +147,12 @@ mod chrono_tests {
             let mut backward: Vec<_> = cron.iter_before(last).take(199).collect();
             assert_moves_one_way(&backward, Direction::Backward, overlap.name);
             backward.reverse();
-            assert_eq!(backward, forward[..199], "{}: the two directions disagree", overlap.name);
+            assert_eq!(
+                backward,
+                forward[..199],
+                "{}: the two directions disagree",
+                overlap.name
+            );
         }
     }
 
@@ -150,7 +168,11 @@ mod chrono_tests {
                 .take(201)
                 .filter(|time| time.naive_local() == wanted)
                 .count();
-            assert_eq!(hits, 2, "{}: {wanted} came round {hits} times, not twice", overlap.name);
+            assert_eq!(
+                hits, 2,
+                "{}: {wanted} came round {hits} times, not twice",
+                overlap.name
+            );
         }
     }
 
@@ -161,10 +183,15 @@ mod chrono_tests {
             .with_ymd_and_hms(2024, 10, 27, 2, 45, 0)
             .latest()
             .expect("the test time must exist");
-        let next = cron.find_next_occurrence(&start, false).expect("search must succeed");
+        let next = cron
+            .find_next_occurrence(&start, false)
+            .expect("search must succeed");
         assert_eq!(
             next,
-            Paris.with_ymd_and_hms(2025, 10, 26, 2, 0, 0).earliest().expect("test time must exist")
+            Paris
+                .with_ymd_and_hms(2025, 10, 26, 2, 0, 0)
+                .earliest()
+                .expect("test time must exist")
         );
     }
 }
@@ -175,10 +202,10 @@ mod chrono_tests {
 
 #[cfg(feature = "jiff")]
 mod jiff_tests {
+    use croner::{Cron, Direction};
     use jiff::civil::date;
     use jiff::tz::TimeZone;
     use jiff::Zoned;
-    use croner::{Cron, Direction};
 
     use super::every_minute;
 
@@ -196,7 +223,12 @@ mod jiff_tests {
         fn at(&self, pass: Pass) -> Zoned {
             let ambiguous = self
                 .zone
-                .to_ambiguous_zoned(date(self.year, self.month, self.day).at(self.hour, self.minute, 0, 0));
+                .to_ambiguous_zoned(date(self.year, self.month, self.day).at(
+                    self.hour,
+                    self.minute,
+                    0,
+                    0,
+                ));
             match pass {
                 Pass::First => ambiguous.earlier().expect("the time must be ambiguous"),
                 Pass::Second => ambiguous.later().expect("the time must be ambiguous"),
@@ -245,8 +277,8 @@ mod jiff_tests {
     fn assert_moves_one_way(times: &[Zoned], direction: Direction, zone: &str) {
         for step in times.windows(2) {
             let moved = match direction {
-Direction::Forward => step[0].timestamp() < step[1].timestamp(),
-                Direction::Backward => step[0].timestamp() > step[1].timestamp()
+                Direction::Forward => step[0].timestamp() < step[1].timestamp(),
+                Direction::Backward => step[0].timestamp() > step[1].timestamp(),
             };
             assert!(
                 moved,
@@ -264,13 +296,21 @@ Direction::Forward => step[0].timestamp() < step[1].timestamp(),
             let next = cron
                 .find_next_occurrence(&second, false)
                 .expect("the search must succeed");
-            assert!(next > second, "{}: forward search from {second} answered {next}", overlap.name);
+            assert!(
+                next > second,
+                "{}: forward search from {second} answered {next}",
+                overlap.name
+            );
 
             let first = overlap.at(Pass::First);
             let previous = cron
                 .find_previous_occurrence(&first, false)
                 .expect("the search must succeed");
-            assert!(previous < first, "{}: backward search from {first} answered {previous}", overlap.name);
+            assert!(
+                previous < first,
+                "{}: backward search from {first} answered {previous}",
+                overlap.name
+            );
         }
     }
 
@@ -285,7 +325,12 @@ Direction::Forward => step[0].timestamp() < step[1].timestamp(),
             let mut backward: Vec<_> = cron.iter_before(last).take(199).collect();
             assert_moves_one_way(&backward, Direction::Backward, overlap.name);
             backward.reverse();
-            assert_eq!(backward, forward[..199], "{}: the two directions disagree", overlap.name);
+            assert_eq!(
+                backward,
+                forward[..199],
+                "{}: the two directions disagree",
+                overlap.name
+            );
         }
     }
 
@@ -301,7 +346,11 @@ Direction::Forward => step[0].timestamp() < step[1].timestamp(),
                 .take(201)
                 .filter(|time| time.datetime() == wanted)
                 .count();
-            assert_eq!(hits, 2, "{}: {wanted} came round {hits} times, not twice", overlap.name);
+            assert_eq!(
+                hits, 2,
+                "{}: {wanted} came round {hits} times, not twice",
+                overlap.name
+            );
         }
     }
 
@@ -314,7 +363,9 @@ Direction::Forward => step[0].timestamp() < step[1].timestamp(),
             .to_ambiguous_zoned(date(2024, 10, 27).at(2, 45, 0, 0))
             .later()
             .expect("the time must be ambiguous");
-        let next = cron.find_next_occurrence(&start, false).expect("search must succeed");
+        let next = cron
+            .find_next_occurrence(&start, false)
+            .expect("search must succeed");
 
         let expected = paris
             .to_ambiguous_zoned(date(2025, 10, 26).at(2, 0, 0, 0))

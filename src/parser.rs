@@ -123,9 +123,31 @@ impl CronParser {
             .to_string();
         }
 
-        // Handle day-of-week and month aliases (MON... and JAN...)
-        pattern = Self::replace_alpha_weekdays(&pattern, self.alternative_weekdays).to_string();
-        pattern = Self::replace_alpha_months(&pattern).to_string();
+        // Handle day-of-week and month aliases (MON... and JAN...). Names are
+        // only replaced in their own field, so a name in any other field is
+        // rejected as an illegal character instead of being read as a number.
+        {
+            let mut fields: Vec<String> = pattern.split_whitespace().map(str::to_string).collect();
+            let (month_idx, dow_idx) = match fields.len() {
+                5 => (Some(3), Some(4)),
+                6 | 7 => (Some(4), Some(5)),
+                _ => (None, None),
+            };
+            let mut changed = false;
+            if let Some(i) = month_idx {
+                let replaced = Self::replace_alpha_months(&fields[i]);
+                changed |= replaced != fields[i];
+                fields[i] = replaced;
+            }
+            if let Some(i) = dow_idx {
+                let replaced = Self::replace_alpha_weekdays(&fields[i], self.alternative_weekdays);
+                changed |= replaced != fields[i];
+                fields[i] = replaced;
+            }
+            if changed {
+                pattern = fields.join(" ");
+            }
+        }
 
         // Split the pattern into parts
         let mut parts: Vec<&str> = pattern.split_whitespace().collect();
@@ -1129,5 +1151,73 @@ mod tests {
             matches!(result, Err(CronError::InvalidPattern(_))),
             "Should fail when year is required but not provided."
         );
+    }
+
+    #[test]
+    fn test_names_only_accepted_in_their_own_field() {
+        // Weekday names outside the day-of-week field (#72)
+        for pattern in [
+            "mon * * * *",
+            "* mon * * *",
+            "* * mon * *",
+            "0 0 * mon *",
+            "0 0 0 * mon * *",
+            "* * * * * * mon",
+        ] {
+            assert!(
+                matches!(
+                    CronParser::builder()
+                        .seconds(Seconds::Optional)
+                        .year(Year::Optional)
+                        .build()
+                        .parse(pattern),
+                    Err(CronError::IllegalCharacters(_))
+                ),
+                "{pattern} should be rejected"
+            );
+        }
+        // Month names outside the month field
+        for pattern in [
+            "jan * * * *",
+            "0 jan * * *",
+            "0 0 jan * *",
+            "0 0 * * jan",
+            "0 0 0 * * jan",
+        ] {
+            assert!(
+                matches!(
+                    Cron::from_str(pattern),
+                    Err(CronError::IllegalCharacters(_))
+                ),
+                "{pattern} should be rejected"
+            );
+        }
+        // Alternative weekdays don't change that
+        let alt = CronParser::builder().alternative_weekdays(true).build();
+        assert!(alt.parse("0 0 * mon *").is_err());
+        assert!(alt.parse("0 0 * * jan").is_err());
+    }
+
+    #[test]
+    fn test_names_accepted_in_their_own_field() {
+        let cron = Cron::from_str("0 0 * jan-mar,dec mon-fri").unwrap();
+        assert_eq!(cron.pattern.pattern, "0 0 * 1-3,12 1-5");
+
+        let cron = Cron::from_str("0 0 0 * feb sun 2030").unwrap();
+        assert_eq!(cron.pattern.pattern, "0 0 0 * 2 0 2030");
+
+        let cron = Cron::from_str("0 0 * * fri-sun").unwrap();
+        assert_eq!(cron.pattern.pattern, "0 0 * * 5-7");
+
+        let cron = CronParser::builder()
+            .alternative_weekdays(true)
+            .build()
+            .parse("0 0 0 * dec mon")
+            .unwrap();
+        assert_eq!(cron.pattern.pattern, "0 0 0 * 12 2");
+
+        // Plain patterns keep their original spacing
+        let cron = Cron::from_str("0  0 * * *").unwrap();
+        assert_eq!(cron.pattern.pattern, "0  0 * * *");
     }
 }
