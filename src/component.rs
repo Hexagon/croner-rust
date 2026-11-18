@@ -341,7 +341,41 @@ impl CronComponent {
 
     /// Iterates the values whose bit is set in the component for a given bitflag.
     fn set_values(&self, bit: u8) -> impl Iterator<Item = u16> + '_ {
-        (self.min..=self.max).filter(move |i| self.is_bit_set(*i, bit).unwrap_or(false))
+        // An unsupported bit is never set, and only values from min to max
+        // that the bitfields hold can be, so scan that slice directly.
+        let supported = self.features & bit == bit;
+        let span = if supported {
+            (self.max as usize + 1).saturating_sub(self.min as usize)
+        } else {
+            0
+        };
+        self.bitfields
+            .get(self.min as usize..)
+            .unwrap_or(&[])
+            .iter()
+            .take(span)
+            .zip(self.min..)
+            .filter(move |(bits, _)| *bits & bit != 0)
+            .map(|(_, value)| value)
+    }
+
+    /// Returns the first value from `from` up to max whose `bit` is set.
+    pub(crate) fn next_set_value(&self, from: u16, bit: u8) -> Option<u16> {
+        let start = from.max(self.min);
+        self.bitfields
+            .get(start as usize..=self.max as usize)?
+            .iter()
+            .position(|bits| bits & bit != 0)
+            .map(|offset| start + offset as u16)
+    }
+
+    /// Returns the last value from min up to `upto` whose `bit` is set.
+    pub(crate) fn previous_set_value(&self, upto: u16, bit: u8) -> Option<u16> {
+        self.bitfields
+            .get(self.min as usize..=upto as usize)?
+            .iter()
+            .rposition(|bits| bits & bit != 0)
+            .map(|offset| self.min + offset as u16)
     }
 
     fn get_nth_bit(value: &str) -> Result<u8, CronError> {
