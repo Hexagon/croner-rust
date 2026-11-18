@@ -240,6 +240,18 @@ impl CronComponent {
     pub fn parse(&mut self, field: &str) -> Result<(), CronError> {
         if field == "*" {
             self.from_wildcard = true;
+            // Every value from min to max passes the checks in set_bit, so when
+            // the bitfields cover that range, set the bits directly. The year
+            // field alone has thousands of values.
+            if let Some(bits) = self
+                .bitfields
+                .get_mut(self.min as usize..=self.max as usize)
+            {
+                for bits in bits {
+                    *bits |= ALL_BIT;
+                }
+                return Ok(());
+            }
             for value in self.min..=self.max {
                 self.set_bit(value + self.input_offset, ALL_BIT)?;
             }
