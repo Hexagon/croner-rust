@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- Parsing is about 8x faster, because a `*` field now sets its bits in one pass, and finding the next or previous occurrence scans the bits of a field directly ([#77](https://github.com/Hexagon/croner-rust/pull/77)).
+
 ### Fixed
 - Weekday names (`MON`…`SUN`) are now only accepted in the day-of-week field and month names (`JAN`…`DEC`) only in the month field. Names in any other field were silently read as the number they stand for (e.g. `0 0 * * jan` ran on Mondays and `mon * * * *` at minute 1); such patterns now fail with `CronError::IllegalCharacters` ([#72](https://github.com/Hexagon/croner-rust/issues/72)).
 
