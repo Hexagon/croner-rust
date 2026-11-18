@@ -261,6 +261,14 @@ impl CronComponent {
             } else if parsed_part.contains('W') {
                 self.handle_closest_weekday(&parsed_part)?;
             } else if parsed_part.eq_ignore_ascii_case("L") {
+                // A bare "L" only means something in day-of-month. In day-of-week
+                // (the field that allows "#"), "L" must follow a weekday, like "5L".
+                if self.is_feature_allowed(NTH_ALL) {
+                    return Err(CronError::ComponentError(
+                        "L in the day-of-week field must follow a weekday, like 5L or 5#L."
+                            .to_string(),
+                    ));
+                }
                 // Handle "L" for the last bit
                 self.enable_feature(LAST_BIT)?;
             } else {
