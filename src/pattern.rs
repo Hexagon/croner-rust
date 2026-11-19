@@ -294,23 +294,13 @@ impl CronPattern {
             )));
         }
 
-        match direction {
-            Direction::Forward => {
-                for next_value in value_u16..=component.max {
-                    if component.is_bit_set(next_value, ALL_BIT)? {
-                        return Ok(Some(next_value as u32));
-                    }
-                }
-            }
-            Direction::Backward => {
-                for prev_value in (component.min..=value_u16).rev() {
-                    if component.is_bit_set(prev_value, ALL_BIT)? {
-                        return Ok(Some(prev_value as u32));
-                    }
-                }
-            }
+        // Seconds, minutes and hours all start at 0 and hold a bit for every
+        // value up to max, so the scan reads the bits without bounds checks.
+        Ok(match direction {
+            Direction::Forward => component.next_set_value(value_u16, ALL_BIT),
+            Direction::Backward => component.previous_set_value(value_u16, ALL_BIT),
         }
-        Ok(None)
+        .map(u32::from))
     }
 
     /// Returns a human-readable description of the cron pattern.
