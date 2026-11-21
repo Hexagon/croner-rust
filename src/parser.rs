@@ -41,7 +41,6 @@
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use strum::EnumIs;
 
 use crate::{
     component::{
@@ -53,7 +52,7 @@ use crate::{
     Cron, YEAR_LOWER_LIMIT, YEAR_UPPER_LIMIT,
 };
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, EnumIs)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Seconds {
     #[default]
     Optional,
@@ -61,12 +60,40 @@ pub enum Seconds {
     Disallowed,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, EnumIs)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Year {
     #[default]
     Optional,
     Required,
     Disallowed,
+}
+
+impl Seconds {
+    pub const fn is_optional(&self) -> bool {
+        matches!(self, Self::Optional)
+    }
+
+    pub const fn is_required(&self) -> bool {
+        matches!(self, Self::Required)
+    }
+
+    pub const fn is_disallowed(&self) -> bool {
+        matches!(self, Self::Disallowed)
+    }
+}
+
+impl Year {
+    pub const fn is_optional(&self) -> bool {
+        matches!(self, Self::Optional)
+    }
+
+    pub const fn is_required(&self) -> bool {
+        matches!(self, Self::Required)
+    }
+
+    pub const fn is_disallowed(&self) -> bool {
+        matches!(self, Self::Disallowed)
+    }
 }
 
 /// Parser for Cron patterns.
