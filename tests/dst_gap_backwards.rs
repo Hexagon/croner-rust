@@ -99,7 +99,7 @@ mod jiff_tests {
     use croner::errors::CronError;
     use jiff::civil::date;
     use jiff::tz::TimeZone;
-    use jiff::Zoned;
+    use jiff::ZonedDateTime;
 
     use super::*;
 
@@ -107,9 +107,9 @@ mod jiff_tests {
         TimeZone::get("Europe/Stockholm").expect("known zone")
     }
 
-    fn zoned(year: i16, month: i8, day: i8, hour: i8, minute: i8, second: i8) -> Zoned {
+    fn zoned(year: i16, month: i8, day: i8, hour: i8, minute: i8, second: i8) -> ZonedDateTime {
         stockholm()
-            .to_zoned(date(year, month, day).at(hour, minute, second, 0))
+            .to_zoned_datetime(date(year, month, day).at(hour, minute, second, 0))
             .unwrap()
     }
 
@@ -160,13 +160,13 @@ mod jiff_tests {
             let cron = Cron::from_str("0 45 23 30 3 *").expect("valid pattern");
             let backward = cron.find_previous_occurrence(
                 &toronto
-                    .to_zoned(date(1919, 4, 15).at(12, 0, 0, 0))
+                    .to_zoned_datetime(date(1919, 4, 15).at(12, 0, 0, 0))
                     .expect("valid instant"),
                 false,
             );
             let forward = cron.find_next_occurrence(
                 &toronto
-                    .to_zoned(date(1919, 3, 25).at(12, 0, 0, 0))
+                    .to_zoned_datetime(date(1919, 3, 25).at(12, 0, 0, 0))
                     .expect("valid instant"),
                 false,
             );
@@ -181,13 +181,13 @@ mod jiff_tests {
         assert_eq!(
             backward?,
             toronto
-                .to_zoned(date(1918, 3, 30).at(23, 45, 0, 0))
+                .to_zoned_datetime(date(1918, 3, 30).at(23, 45, 0, 0))
                 .expect("valid instant")
         );
         assert_eq!(
             forward?,
             toronto
-                .to_zoned(date(1920, 3, 30).at(23, 45, 0, 0))
+                .to_zoned_datetime(date(1920, 3, 30).at(23, 45, 0, 0))
                 .expect("valid instant")
         );
         Ok(())

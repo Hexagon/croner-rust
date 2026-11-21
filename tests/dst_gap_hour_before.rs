@@ -105,16 +105,16 @@ mod chrono_tests {
 #[cfg(feature = "jiff")]
 mod jiff_tests {
     use super::*;
-    use jiff::{civil::date, tz::TimeZone, Zoned};
+    use jiff::{civil::date, tz::TimeZone, ZonedDateTime};
 
-    fn at(tz: &str, y: i16, m: i8, d: i8, h: i8, mi: i8) -> Zoned {
+    fn at(tz: &str, y: i16, m: i8, d: i8, h: i8, mi: i8) -> ZonedDateTime {
         date(y, m, d)
             .at(h, mi, 0, 0)
-            .to_zoned(TimeZone::get(tz).unwrap())
+            .to_zoned_datetime(TimeZone::get(tz).unwrap())
             .unwrap()
     }
 
-    fn next_three(cron: &Cron, mut t: Zoned) -> Vec<Zoned> {
+    fn next_three(cron: &Cron, mut t: ZonedDateTime) -> Vec<ZonedDateTime> {
         (0..3)
             .map(|_| {
                 t = cron.find_next_occurrence(&t, false).unwrap();

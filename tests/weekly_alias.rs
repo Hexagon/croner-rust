@@ -58,8 +58,14 @@ fn weekly_alias_chrono(#[case] alternative_weekdays: bool) {
 fn weekly_alias_jiff(#[case] alternative_weekdays: bool) {
     check_weekly_alias(
         alternative_weekdays,
-        "2026-09-26T00:00:00Z[UTC]".parse::<jiff::Zoned>().unwrap(),
-        "2026-09-27T00:00:00Z[UTC]".parse::<jiff::Zoned>().unwrap(),
-        "2026-10-04T00:00:00Z[UTC]".parse::<jiff::Zoned>().unwrap(),
+        "2026-09-26T00:00:00Z[UTC]"
+            .parse::<jiff::ZonedDateTime>()
+            .unwrap(),
+        "2026-09-27T00:00:00Z[UTC]"
+            .parse::<jiff::ZonedDateTime>()
+            .unwrap(),
+        "2026-10-04T00:00:00Z[UTC]"
+            .parse::<jiff::ZonedDateTime>()
+            .unwrap(),
     );
 }
