@@ -4,7 +4,7 @@ use core::cmp::Ordering;
 
 use jiff::civil::DateTime;
 use jiff::tz::AmbiguousOffset;
-use jiff::{SignedDuration, Zoned};
+use jiff::{SignedDuration, ZonedDateTime};
 
 use crate::errors::CronError;
 use crate::time::{CivilDate, CivilDateTime, CivilTime, CronDateTime, Resolution, Weekday};
@@ -54,7 +54,7 @@ fn to_weekday(weekday: jiff::civil::Weekday) -> Weekday {
     Weekday::from_days_from_sunday(weekday.to_sunday_zero_offset() as u32)
 }
 
-impl CronDateTime for Zoned {
+impl CronDateTime for ZonedDateTime {
     #[inline]
     fn to_civil(&self) -> CivilDateTime {
         to_civil(self.datetime())
@@ -68,7 +68,7 @@ impl CronDateTime for Zoned {
     #[inline]
     fn resolve_civil(&self, civil: CivilDateTime) -> Result<Resolution<Self>, CronError> {
         let datetime = to_jiff(civil)?;
-        let ambiguous = self.time_zone().to_ambiguous_zoned(datetime);
+        let ambiguous = self.time_zone().to_ambiguous_zoned_datetime(datetime);
         Ok(match ambiguous.offset() {
             AmbiguousOffset::Unambiguous { .. } => Resolution::Single(
                 ambiguous
@@ -94,7 +94,7 @@ impl CronDateTime for Zoned {
 
     #[inline]
     fn cmp_instant(&self, other: &Self) -> Ordering {
-        // The timestamp is the instant a `Zoned` names, so the two halves
+        // The timestamp is the instant a `ZonedDateTime` names, so the two halves
         // of a repeated wall clock range compare unequal.
         self.timestamp().cmp(&other.timestamp())
     }

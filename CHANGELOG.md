@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changed
+- **Breaking:** the `jiff` feature now uses jiff 1.0 instead of jiff 0.2. jiff 1.0 renamed `jiff::Zoned` to `jiff::ZonedDateTime`, so croner now takes and returns `jiff::ZonedDateTime`, and code using the `jiff` feature must upgrade to jiff 1.0 as well. jiff 1.0 requires Rust 1.85, so the `jiff` feature now needs Rust 1.85 or newer. See [MIGRATION.md](MIGRATION.md) ([#76](https://github.com/Hexagon/croner-rust/issues/76)).
 - Parsing is about 8x faster, because a `*` field now sets its bits in one pass, and finding the next or previous occurrence scans the bits of a field directly ([#77](https://github.com/Hexagon/croner-rust/pull/77)).
 
 ### Fixed

@@ -10,8 +10,8 @@
 //! |------|---------------|
 //! | [`chrono::DateTime<Tz>`](https://docs.rs/chrono/0.4/chrono/struct.DateTime.html) | `chrono` (default) |
 //! | [`chrono::NaiveDateTime`](https://docs.rs/chrono/0.4/chrono/struct.NaiveDateTime.html) | `chrono` (default) |
-//! | [`jiff::Zoned`](https://docs.rs/jiff/0.2/jiff/struct.Zoned.html) | `jiff` |
-//! | [`jiff::civil::DateTime`](https://docs.rs/jiff/0.2/jiff/civil/struct.DateTime.html) | `jiff` |
+//! | [`jiff::ZonedDateTime`](https://docs.rs/jiff/1/jiff/struct.ZonedDateTime.html) | `jiff` |
+//! | [`jiff::civil::DateTime`](https://docs.rs/jiff/1/jiff/civil/struct.DateTime.html) | `jiff` |
 //!
 //! Implement [`CronDateTime`] for your own type to use a different library.
 
