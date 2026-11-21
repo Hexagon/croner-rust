@@ -11,6 +11,8 @@
 //! - Compatible with the `chrono` library for dealing with date and time in Rust.
 //!
 //! ## Crate Features
+//! - `std` *(enabled by default)*: Links the Rust standard library. Disable default features
+//!   to use croner in `no_std` environments; a global allocator (`alloc`) is still required.
 //! - `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and
 //!   [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for
 //!   [`Cron`](struct.Cron.html). This feature is disabled by default.
@@ -89,7 +91,10 @@
 //!
 //! For more information, refer to the full [README](https://github.com/hexagon/croner-rust).
 
+#![cfg_attr(not(any(feature = "std", test)), no_std)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+
+extern crate alloc;
 
 pub mod describe;
 pub mod errors;
@@ -154,12 +159,13 @@ pub enum JobType {
     IntervalWildcard,
 }
 
+use alloc::string::String;
 pub use component::CronComponent;
+use core::str::FromStr;
 use errors::CronError;
 pub use iterator::CronIterator;
 use parser::CronParser;
 pub use pattern::CronPattern;
-use std::str::FromStr;
 
 use time::{fold_of, other_fold_edge, Cursor, Fold};
 pub use time::{CivilDate, CivilDateTime, CivilTime, CronDateTime, Resolution, Weekday};
@@ -886,8 +892,8 @@ impl Cron {
     }
 }
 
-impl std::fmt::Display for Cron {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Cron {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "{}", self.pattern)
     }
 }
@@ -1613,6 +1619,40 @@ mod tests {
         }
 
         Ok(())
+    }
+
+    #[test]
+    fn test_bare_l_in_day_of_week_is_rejected() {
+        // A bare `L` has no weekday to apply to, so it used to be dropped: `0 0 * * L`
+        // never matched and `0 0 * * 1,L` ran on Mondays only.
+        for expr in [
+            "0 0 * * L",
+            "0 0 * * 1,L",
+            "0 0 1 * L",
+            "0 0 L * L",
+            "0 0 * * l",
+        ] {
+            assert!(Cron::from_str(expr).is_err(), "{expr}");
+            assert!(
+                CronParser::builder()
+                    .alternative_weekdays(true)
+                    .build()
+                    .parse(expr)
+                    .is_err(),
+                "{expr} (alternative weekdays)"
+            );
+        }
+
+        // `L` keeps working in day-of-month and after a weekday
+        for expr in [
+            "0 0 L * *",
+            "0 0 L * 5",
+            "0 0 * * 5L",
+            "0 0 * * 5#L",
+            "0 0 * * FRI#L",
+        ] {
+            assert!(Cron::from_str(expr).is_ok(), "{expr}");
+        }
     }
 
     #[test]

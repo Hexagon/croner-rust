@@ -11,19 +11,27 @@ use croner::errors::CronError;
 use croner::{Cron, Direction};
 use jiff::civil::{date, DateTime};
 use jiff::tz::TimeZone;
-use jiff::Zoned;
+use jiff::ZonedDateTime;
 
 /// Builds a zoned time, using the earlier instant when the wall clock time
 /// happens twice.
-fn zoned(tz: &TimeZone, y: i16, m: i8, d: i8, hh: i8, mm: i8, ss: i8) -> Zoned {
-    tz.to_ambiguous_zoned(date(y, m, d).at(hh, mm, ss, 0))
+fn zoned(tz: &TimeZone, y: i16, m: i8, d: i8, hh: i8, mm: i8, ss: i8) -> ZonedDateTime {
+    tz.to_ambiguous_zoned_datetime(date(y, m, d).at(hh, mm, ss, 0))
         .earlier()
         .expect("a valid wall clock time")
 }
 
 /// Builds both instants of a wall clock time that happens twice.
-fn zoned_pair(tz: &TimeZone, y: i16, m: i8, d: i8, hh: i8, mm: i8, ss: i8) -> (Zoned, Zoned) {
-    let ambiguous = tz.to_ambiguous_zoned(date(y, m, d).at(hh, mm, ss, 0));
+fn zoned_pair(
+    tz: &TimeZone,
+    y: i16,
+    m: i8,
+    d: i8,
+    hh: i8,
+    mm: i8,
+    ss: i8,
+) -> (ZonedDateTime, ZonedDateTime) {
+    let ambiguous = tz.to_ambiguous_zoned_datetime(date(y, m, d).at(hh, mm, ss, 0));
     (
         ambiguous.clone().earlier().expect("an earlier instant"),
         ambiguous.later().expect("a later instant"),
@@ -67,7 +75,7 @@ fn iterates_forwards_and_backwards() -> Result<(), CronError> {
     let cron = Cron::from_str("0 0 * * MON")?;
     let start = zoned(&tz, 2022, 2, 28, 23, 59, 0);
 
-    let forward: Vec<Zoned> = cron.iter_after(start.clone()).take(3).collect();
+    let forward: Vec<ZonedDateTime> = cron.iter_after(start.clone()).take(3).collect();
     assert_eq!(
         forward,
         vec![
@@ -77,7 +85,7 @@ fn iterates_forwards_and_backwards() -> Result<(), CronError> {
         ]
     );
 
-    let backward: Vec<Zoned> = cron.iter_before(start).take(2).collect();
+    let backward: Vec<ZonedDateTime> = cron.iter_before(start).take(2).collect();
     assert_eq!(
         backward,
         vec![
@@ -187,7 +195,7 @@ fn dst_overlap_interval_job_runs_twice() -> Result<(), CronError> {
 
     let (earlier, later) = zoned_pair(&tz, 2025, 10, 26, 2, 0, 0);
 
-    let runs: Vec<Zoned> = cron.iter_from(start, Direction::Forward).take(4).collect();
+    let runs: Vec<ZonedDateTime> = cron.iter_from(start, Direction::Forward).take(4).collect();
     assert_eq!(runs[0], zoned(&tz, 2025, 10, 26, 0, 0, 0));
     assert_eq!(runs[1], earlier, "First 02:00, in CEST");
     assert_eq!(runs[2], later, "Second 02:00, in CET");
@@ -201,7 +209,7 @@ fn dst_overlap_interval_job_covers_every_minute_twice() -> Result<(), CronError>
     let cron = Cron::from_str("0 * 2 * * *")?; // Every minute of the 02:00 hour
     let start = zoned(&tz, 2025, 10, 26, 1, 59, 59);
 
-    let runs: Vec<Zoned> = cron.iter_after(start).take(120).collect();
+    let runs: Vec<ZonedDateTime> = cron.iter_after(start).take(120).collect();
     assert_eq!(runs.len(), 120);
 
     // The iterator runs in real order: the whole CEST hour first, then the
@@ -248,7 +256,7 @@ fn dst_overlap_iterators_run_through_both_halves_in_order() -> Result<(), CronEr
     // Forward from the last minute before the repeated range: 60 CEST
     // minutes, then 60 CET minutes, then 03:00.
     let start = zoned(&tz, 2025, 10, 26, 1, 59, 0);
-    let run: Vec<Zoned> = cron.iter_after(start).take(121).collect();
+    let run: Vec<ZonedDateTime> = cron.iter_after(start).take(121).collect();
     for step in run.windows(2) {
         assert!(
             step[0] < step[1],

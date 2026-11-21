@@ -38,6 +38,10 @@
 //!     .unwrap();
 //! ```
 
+use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+
 use crate::{
     component::{
         CronComponent, ALL_BIT, CLOSEST_WEEKDAY_BIT, LAST_BIT, NONE_BIT, NTH_1ST_BIT, NTH_2ND_BIT,
@@ -111,53 +115,11 @@ pub struct CronParser {
     sloppy_ranges: bool,
 }
 
-/// Builder for [`CronParser`].
-#[derive(Debug, Clone, Copy, Default)]
-pub struct CronParserBuilder(CronParser);
-
-impl CronParserBuilder {
-    /// Configure how seconds should be handled.
-    pub fn seconds(mut self, value: Seconds) -> Self {
-        self.0.seconds = value;
-        self
-    }
-
-    /// Configure how years should be handled.
-    pub fn year(mut self, value: Year) -> Self {
-        self.0.year = value;
-        self
-    }
-
-    /// Enable the combination of Day of Month (DOM) and Day of Week (DOW) conditions.
-    pub fn dom_and_dow(mut self, value: bool) -> Self {
-        self.0.dom_and_dow = value;
-        self
-    }
-
-    /// Use the Quartz-style weekday mode.
-    pub fn alternative_weekdays(mut self, value: bool) -> Self {
-        self.0.alternative_weekdays = value;
-        self
-    }
-
-    /// Allow sloppy range syntax (e.g., `0/10` or `/10`) for backward compatibility.
-    /// When enabled, patterns like `0/10` (start at 0, step by 10) and `/10` (same as `*/10`)
-    /// are accepted. This is not compliant with OCPS/vixie-cron standards.
-    pub fn sloppy_ranges(mut self, value: bool) -> Self {
-        self.0.sloppy_ranges = value;
-        self
-    }
-
-    pub fn build(self) -> CronParser {
-        self.0
-    }
-}
-
 impl CronParser {
     /// Create a new parser.
     ///
     /// You should probably be using [`Cron`]'s implementation of
-    /// [`FromStr`][std::str::FromStr] instead of invoking this.
+    /// [`FromStr`][core::str::FromStr] instead of invoking this.
     pub fn new() -> Self {
         Self::default()
     }
@@ -189,9 +151,31 @@ impl CronParser {
             .to_string();
         }
 
-        // Handle day-of-week and month aliases (MON... and JAN...)
-        pattern = Self::replace_alpha_weekdays(&pattern, self.alternative_weekdays).to_string();
-        pattern = Self::replace_alpha_months(&pattern).to_string();
+        // Handle day-of-week and month aliases (MON... and JAN...). Names are
+        // only replaced in their own field, so a name in any other field is
+        // rejected as an illegal character instead of being read as a number.
+        {
+            let mut fields: Vec<String> = pattern.split_whitespace().map(str::to_string).collect();
+            let (month_idx, dow_idx) = match fields.len() {
+                5 => (Some(3), Some(4)),
+                6 | 7 => (Some(4), Some(5)),
+                _ => (None, None),
+            };
+            let mut changed = false;
+            if let Some(i) = month_idx {
+                let replaced = Self::replace_alpha_months(&fields[i]);
+                changed |= replaced != fields[i];
+                fields[i] = replaced;
+            }
+            if let Some(i) = dow_idx {
+                let replaced = Self::replace_alpha_weekdays(&fields[i], self.alternative_weekdays);
+                changed |= replaced != fields[i];
+                fields[i] = replaced;
+            }
+            if changed {
+                pattern = fields.join(" ");
+            }
+        }
 
         // Split the pattern into parts
         let mut parts: Vec<&str> = pattern.split_whitespace().collect();
@@ -459,6 +443,55 @@ impl CronParser {
         }
 
         replaced
+    }
+}
+
+/// Builder for a custom [`CronParser`], created with [`CronParser::builder`].
+///
+/// Every option defaults to the same value as [`CronParser::new`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[must_use]
+pub struct CronParserBuilder {
+    parser: CronParser,
+}
+
+impl CronParserBuilder {
+    /// Configure how seconds should be handled.
+    pub fn seconds(mut self, value: Seconds) -> Self {
+        self.parser.seconds = value;
+        self
+    }
+
+    /// Configure how years should be handled.
+    pub fn year(mut self, value: Year) -> Self {
+        self.parser.year = value;
+        self
+    }
+
+    /// Enable the combination of Day of Month (DOM) and Day of Week (DOW) conditions.
+    pub fn dom_and_dow(mut self, value: bool) -> Self {
+        self.parser.dom_and_dow = value;
+        self
+    }
+
+    /// Use the Quartz-style weekday mode.
+    pub fn alternative_weekdays(mut self, value: bool) -> Self {
+        self.parser.alternative_weekdays = value;
+        self
+    }
+
+    /// Allow sloppy range syntax (e.g., `0/10` or `/10`) for backward compatibility.
+    ///
+    /// When enabled, patterns like `0/10` (start at 0, step by 10) and `/10` (same as `*/10`)
+    /// are accepted. This is not compliant with OCPS/vixie-cron standards.
+    pub fn sloppy_ranges(mut self, value: bool) -> Self {
+        self.parser.sloppy_ranges = value;
+        self
+    }
+
+    /// Build the configured [`CronParser`].
+    pub fn build(self) -> CronParser {
+        self.parser
     }
 }
 
@@ -1176,5 +1209,73 @@ mod tests {
             matches!(result, Err(CronError::InvalidPattern(_))),
             "Should fail when year is required but not provided."
         );
+    }
+
+    #[test]
+    fn test_names_only_accepted_in_their_own_field() {
+        // Weekday names outside the day-of-week field (#72)
+        for pattern in [
+            "mon * * * *",
+            "* mon * * *",
+            "* * mon * *",
+            "0 0 * mon *",
+            "0 0 0 * mon * *",
+            "* * * * * * mon",
+        ] {
+            assert!(
+                matches!(
+                    CronParser::builder()
+                        .seconds(Seconds::Optional)
+                        .year(Year::Optional)
+                        .build()
+                        .parse(pattern),
+                    Err(CronError::IllegalCharacters(_))
+                ),
+                "{pattern} should be rejected"
+            );
+        }
+        // Month names outside the month field
+        for pattern in [
+            "jan * * * *",
+            "0 jan * * *",
+            "0 0 jan * *",
+            "0 0 * * jan",
+            "0 0 0 * * jan",
+        ] {
+            assert!(
+                matches!(
+                    Cron::from_str(pattern),
+                    Err(CronError::IllegalCharacters(_))
+                ),
+                "{pattern} should be rejected"
+            );
+        }
+        // Alternative weekdays don't change that
+        let alt = CronParser::builder().alternative_weekdays(true).build();
+        assert!(alt.parse("0 0 * mon *").is_err());
+        assert!(alt.parse("0 0 * * jan").is_err());
+    }
+
+    #[test]
+    fn test_names_accepted_in_their_own_field() {
+        let cron = Cron::from_str("0 0 * jan-mar,dec mon-fri").unwrap();
+        assert_eq!(cron.pattern.pattern, "0 0 * 1-3,12 1-5");
+
+        let cron = Cron::from_str("0 0 0 * feb sun 2030").unwrap();
+        assert_eq!(cron.pattern.pattern, "0 0 0 * 2 0 2030");
+
+        let cron = Cron::from_str("0 0 * * fri-sun").unwrap();
+        assert_eq!(cron.pattern.pattern, "0 0 * * 5-7");
+
+        let cron = CronParser::builder()
+            .alternative_weekdays(true)
+            .build()
+            .parse("0 0 0 * dec mon")
+            .unwrap();
+        assert_eq!(cron.pattern.pattern, "0 0 0 * 12 2");
+
+        // Plain patterns keep their original spacing
+        let cron = Cron::from_str("0  0 * * *").unwrap();
+        assert_eq!(cron.pattern.pattern, "0  0 * * *");
     }
 }

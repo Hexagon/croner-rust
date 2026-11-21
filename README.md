@@ -1,5 +1,7 @@
 # Croner
 
+Croner is available for [JavaScript/TypeScript](https://github.com/Hexagon/croner) · **Rust** · [Python](https://github.com/Hexagon/croner-py) · [.NET](https://github.com/Hexagon/croner-dotnet) · [C++](https://github.com/Hexagon/croner-cpp)
+
 Croner is a fully-featured, lightweight, and efficient Rust library designed for parsing and evaluating cron patterns.
 
 This is the Rust flavor of the popular JavaScript/TypeScript cron parser
@@ -18,11 +20,13 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 - Supports optional alternative weekday mode to use Quartz-style weekdays instead of POSIX using `with_alternative_weekdays`
 - Allows for flexible combination of DOM and DOW conditions, enabling patterns to match specific days of the week in specific weeks of the month or the closest weekday to a specific day.
 - Compatible with `chrono`, (optionally) `chrono-tz`, and `jiff`.
+- Supports `no_std` environments (requires `alloc`).
 - Robust error handling.
 
 ## Crate Features
 
-- `jiff`: Enables support for [`jiff::Zoned`](https://docs.rs/jiff/latest/jiff/struct.Zoned.html) and [`jiff::civil::DateTime`](https://docs.rs/jiff/latest/jiff/civil/struct.DateTime.html). Disabled by default.
+- `std`: Links the Rust standard library and implements `std::error::Error` for `CronError`. Enabled by default; leave it out to use croner in `no_std` environments.
+- `jiff`: Enables support for [`jiff::ZonedDateTime`](https://docs.rs/jiff/latest/jiff/struct.ZonedDateTime.html) and [`jiff::civil::DateTime`](https://docs.rs/jiff/latest/jiff/civil/struct.DateTime.html). Disabled by default.
 - `chrono`: Enables support for [`chrono::DateTime`](https://docs.rs/chrono/latest/chrono/struct.DateTime.html) and [`chrono::NaiveDateTime`](https://docs.rs/chrono/latest/chrono/struct.NaiveDateTime.html). Enabled by default when default features are left on.
 - `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for [`Cron`](https://docs.rs/croner/latest/croner/struct.Cron.html). This feature is disabled by default.
 
@@ -66,20 +70,43 @@ Add `croner` to your `Cargo.toml` dependencies:
 
 ```toml
 [dependencies]
-croner = "4.0"
+croner = "5.0"
 ```
 
 If you want to use `jiff` instead of the default `chrono` backend:
 
 ```toml
 [dependencies]
-croner = { version = "4.0", default-features = false, features = ["jiff"] }
-jiff = "0.2"
+croner = { version = "5.0", default-features = false, features = ["jiff"] }
+jiff = "1"
 ```
 
-### Migration guide (3.x -> 4.0)
+#### `no_std` (unreleased, planned for 5.0)
 
-See [MIGRATION.md](MIGRATION.md) for a detailed guide covering all breaking changes, including chrono becoming optional, step syntax validation, generic `CronDateTime` method signatures, the new `jiff` backend, and more.
+Croner works without the standard library, as long as a global allocator is
+available (it uses `alloc` for `String` and `Vec`). Disable the default features
+and pick a backend:
+
+```toml
+[dependencies]
+croner = { version = "5.0", default-features = false, features = ["chrono"] }
+chrono = { version = "0.4", default-features = false }
+```
+
+Parsing, describing and searching behave exactly as with `std`. The differences are:
+
+- `CronError` does not implement `std::error::Error`.
+- `CronIterator` stops silently on an error instead of also printing it to stderr.
+  Call `CronIterator::last_error()` after it returns `None` to see why it stopped.
+- The time zones you can use are whatever your backend supports without `std`;
+  for example, `chrono-tz` and jiff's system time zone database need extra setup or `std`.
+
+With `default-features = false`, add the `std` feature if you want the standard
+library, e.g. `features = ["std", "jiff"]`.
+
+### Migration guide
+
+See [MIGRATION.md](MIGRATION.md). Version 5.0 moves the `jiff` backend to jiff 1.0, where `jiff::Zoned` is now `jiff::ZonedDateTime`. For 3.x -> 4.0 the guide covers all breaking changes, including chrono becoming optional, step syntax validation, generic `CronDateTime` method signatures, the new `jiff` backend, and more.
 
 ### Usage
 
@@ -117,7 +144,7 @@ If you prefer the `jiff` backend:
 
 ```rust
 use croner::Cron;
-use jiff::Zoned;
+use jiff::ZonedDateTime;
 use std::str::FromStr as _;
 
 fn main() {
@@ -127,7 +154,7 @@ fn main() {
       .expect("Couldn't parse cron string");
 
     // Compare cron pattern with current zoned time
-    let time = Zoned::now();
+    let time = ZonedDateTime::now();
     let matches_all = cron_all.is_time_matching(&time).unwrap();
 
     // Get next match
