@@ -8,11 +8,17 @@
 //! - Evaluates cron patterns to calculate upcoming and previous execution times.
 //! - Supports time zone-aware scheduling.
 //! - Offers granularity up to seconds for precise task scheduling.
-//! - Compatible with the `chrono` library for dealing with date and time in Rust.
+//! - Compatible with the `chrono` and `jiff` libraries for dealing with date and time in Rust.
+//! - Supports `no_std` environments (requires `alloc`).
 //!
 //! ## Crate Features
-//! - `std` *(enabled by default)*: Links the Rust standard library. Disable default features
+//! - `std` *(enabled by default)*: Links the Rust standard library and implements
+//!   `std::error::Error` for [`CronError`]. Disable default features
 //!   to use croner in `no_std` environments; a global allocator (`alloc`) is still required.
+//! - `chrono` *(enabled by default)*: Enables support for `chrono::DateTime` and
+//!   `chrono::NaiveDateTime`.
+//! - `jiff`: Enables support for `jiff::ZonedDateTime` and `jiff::civil::DateTime`
+//!   (jiff 1.0, which requires Rust 1.85 or newer).
 //! - `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and
 //!   [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for
 //!   [`Cron`](struct.Cron.html). This feature is disabled by default.

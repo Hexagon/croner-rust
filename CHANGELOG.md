@@ -1,9 +1,11 @@
 # Changelog
 
-## [Unreleased]
+## [5.0.0]
+
+This release has breaking changes. See [MIGRATION.md](MIGRATION.md) for how to upgrade from 4.x.
 
 ### Added
-- Added `no_std` support through a new `std` feature, enabled by default. Without it croner only needs `alloc`.
+- Added `no_std` support through a new `std` feature, enabled by default. Without it croner only needs `alloc` ([#69](https://github.com/Hexagon/croner-rust/pull/69)).
 - Added `CronIterator::last_error()`, which tells an iterator that stopped on an error (such as `TimeSearchLimitExceeded`) apart from one that ran out of occurrences.
 - `CronError` now implements `Clone`, `PartialEq` and `Eq`.
 - `CronParserBuilder` now implements `Debug`, `Clone`, `Copy`, `PartialEq` and `Eq`.
@@ -13,13 +15,14 @@
 - **Breaking:** the `jiff` feature now uses jiff 1.0 instead of jiff 0.2. jiff 1.0 renamed `jiff::Zoned` to `jiff::ZonedDateTime`, so croner now takes and returns `jiff::ZonedDateTime`, and code using the `jiff` feature must upgrade to jiff 1.0 as well. jiff 1.0 requires Rust 1.85, so the `jiff` feature now needs Rust 1.85 or newer. See [MIGRATION.md](MIGRATION.md) ([#76](https://github.com/Hexagon/croner-rust/issues/76)).
 - **Breaking:** with `default-features = false`, croner is now `no_std` and `CronError` no longer implements `std::error::Error`. Add the `std` feature to keep the previous behaviour, e.g. `features = ["std", "jiff"]`.
 - **Breaking:** removed the unused `parser::CronParserBuilderError` type. `CronParserBuilder` is now written by hand instead of with `derive_builder`, which is no longer a dependency; its methods are unchanged.
-- Removed the `strum` dependency. The `is_*` methods on `Seconds` and `Year` are now hand-written and unchanged.
+- **Breaking:** weekday and month names are only accepted in their own fields, and a bare `L` in the day-of-week field is rejected. Patterns that used to parse (and run on an unintended schedule) now return an error; see **Fixed** below.
+- Removed the `strum` dependency. The `is_*` methods on `Seconds` and `Year` are now hand-written, `const`, and otherwise unchanged ([#61](https://github.com/Hexagon/croner-rust/pull/61), [#80](https://github.com/Hexagon/croner-rust/pull/80)). Together with the `derive_builder` removal, a build with only the `jiff` feature now compiles 3 crates (croner, jiff, jiff-core) instead of 19.
 - `CronIterator`'s `PartialEq`, `PartialOrd` and `Hash` ignore `last_error`.
 - Parsing is about 8x faster, because a `*` field now sets its bits in one pass, and finding the next or previous occurrence scans the bits of a field directly ([#77](https://github.com/Hexagon/croner-rust/pull/77)).
 
 ### Fixed
-- Weekday names (`MON`…`SUN`) are now only accepted in the day-of-week field and month names (`JAN`…`DEC`) only in the month field. Names in any other field were silently read as the number they stand for (e.g. `0 0 * * jan` ran on Mondays and `mon * * * *` at minute 1); such patterns now fail with `CronError::IllegalCharacters` ([#72](https://github.com/Hexagon/croner-rust/issues/72)).
-- A bare `L` in the day-of-week field is now rejected. It has no weekday to apply to, so it was silently dropped: `0 0 * * L` never matched (`find_next_occurrence` ended in `TimeSearchLimitExceeded`) and `0 0 * * 1,L` ran on Mondays only. `L` after a weekday (`5L`, `5#L`) and in day-of-month is unchanged.
+- Weekday names (`MON`…`SUN`) are now only accepted in the day-of-week field and month names (`JAN`…`DEC`) only in the month field. Names in any other field were silently read as the number they stand for (e.g. `0 0 * * jan` ran on Mondays and `mon * * * *` at minute 1); such patterns now fail with `CronError::IllegalCharacters` ([#72](https://github.com/Hexagon/croner-rust/issues/72), [#73](https://github.com/Hexagon/croner-rust/pull/73)).
+- A bare `L` in the day-of-week field is now rejected. It has no weekday to apply to, so it was silently dropped: `0 0 * * L` never matched (`find_next_occurrence` ended in `TimeSearchLimitExceeded`) and `0 0 * * 1,L` ran on Mondays only. Such patterns now fail with `CronError::ComponentError`. `L` after a weekday (`5L`, `5#L`) and in day-of-month is unchanged ([#75](https://github.com/Hexagon/croner-rust/pull/75)).
 
 ## [4.0.3]
 
@@ -27,10 +30,10 @@
 - Fixed fixed-time jobs scheduled in the hour before a spring-forward DST gap also running at the first instant after the gap (e.g. a daily `0 0 * * *` job in `Europe/London` running at both 00:00 and 02:00 on the transition day). Only a scheduled wall clock time that falls inside the gap is moved past it, as documented. Regression since 3.0.0 ([#67](https://github.com/Hexagon/croner-rust/issues/67)).
 - Fixed `*/n` (and `/n` with `sloppy_ranges`) being rejected in the day-of-week field when `alternative_weekdays` is enabled.
 - `describe_lang` now routes every phrase through `Language`: "hour N", "X past Y", "every N months" and "every N years" were hard-coded English. Added `Language` methods with English defaults (`every_past_phrase`, `past_hour_phrase`, `every_x_months`, `every_x_years`), so existing implementations still compile, and translated them for Swedish.
+- Fixed `7L` and `7#L` (last Sunday using `7`) never matching in the day-of-week field.
 
 ### Added
 - Added `Language::time_of_day()` so a language can format times of day, e.g. with a 12-hour clock.
-- Fixed `7L` and `7#L` (last Sunday using `7`) never matching in the day-of-week field.
 
 ## [4.0.2]
 
