@@ -6,6 +6,9 @@ use crate::{Cron, CronError, Direction};
 
 /// Iterator over the occurrences of a [`Cron`] pattern.
 ///
+/// The iterator ends at the first error. It doesn't report or print the error;
+/// call [`last_error`](CronIterator::last_error) after it returns `None` to see it.
+///
 /// Equality, ordering and hashing consider the schedule and the iteration
 /// position only, not [`last_error`](CronIterator::last_error).
 #[derive(Debug, Clone)]
@@ -125,10 +128,6 @@ where
                 Some(found_time)
             }
             Err(e) => {
-                #[cfg(feature = "std")]
-                if !matches!(e, CronError::TimeSearchLimitExceeded) {
-                    std::eprintln!("CronIterator encountered an error: {e:?}");
-                }
                 self.last_error = Some(e);
                 None
             }

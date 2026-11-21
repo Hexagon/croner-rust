@@ -65,8 +65,7 @@ If your `Cargo.toml` sets `default-features = false`, croner is now built
 without `std`. `CronError` still implements `std::error::Error` (as
 `core::error::Error`, the same trait), so `?` into `Box<dyn Error>` or
 `anyhow::Error` keeps working. But serde is then built without its `std`
-feature (croner 4.x enabled it), and `CronIterator` no longer prints errors to
-stderr. Add `std` to keep the 4.x behaviour:
+feature, which croner 4.x enabled. Add `std` to keep the 4.x behaviour:
 
 ```toml
 # Before (4.x)
@@ -77,9 +76,6 @@ croner = { version = "4", default-features = false, features = ["chrono", "serde
 [dependencies]
 croner = { version = "5", default-features = false, features = ["std", "chrono", "serde"] }
 ```
-
-Without `std`, use the new `CronIterator::last_error()` to see why an iterator
-stopped.
 
 ---
 
@@ -125,6 +121,26 @@ dropped in 4.x:
 
 `L` in the day-of-month field (`0 0 L * *`, the last day of the month) is
 unchanged.
+
+---
+
+#### 5. `CronIterator` no longer prints errors to stderr
+
+In 4.x, a `CronIterator` that stopped on an error other than
+`TimeSearchLimitExceeded` also printed it to stderr. A library shouldn't write
+to stderr, so 5.0 doesn't, with or without `std`. Call the new
+`CronIterator::last_error()` after the iterator returns `None` to see why it
+stopped, and log it yourself if you want to:
+
+```rust
+let mut iter = cron.iter_after(start);
+for time in iter.by_ref().take(10) {
+    println!("{time}");
+}
+if let Some(err) = iter.last_error() {
+    eprintln!("CronIterator stopped: {err}");
+}
+```
 
 ---
 

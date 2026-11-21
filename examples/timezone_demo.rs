@@ -13,8 +13,8 @@ fn main() {
     let next_stockholm = cron.find_next_occurrence(&now_stockholm, false).unwrap();
 
     // Output results for Europe/Stockholm
-    println!("UTC time is: {}", &Utc::now());
-    println!("Time in Europe/Stockholm time is: {}", &now_stockholm);
+    println!("UTC time is: {}", Utc::now());
+    println!("Time in Europe/Stockholm time is: {}", now_stockholm);
     println!(
         "Pattern \"{}\" will match next time at (Europe/Stockholm): {}",
         cron.pattern, next_stockholm

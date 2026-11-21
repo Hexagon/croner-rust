@@ -98,8 +98,6 @@ chrono = { version = "0.4", default-features = false }
 
 Parsing, describing and searching behave exactly as with `std`. The differences are:
 
-- `CronIterator` stops silently on an error instead of also printing it to stderr.
-  Call `CronIterator::last_error()` after it returns `None` to see why it stopped.
 - There is no system clock, so `Utc::now()` and `ZonedDateTime::now()` are not
   available. Build the start time from whatever clock you have, such as an RTC:
 
@@ -129,7 +127,7 @@ library, e.g. `features = ["std", "jiff"]`.
 
 ### Migration guide
 
-See [MIGRATION.md](MIGRATION.md). For 4.x -> 5.0 it covers the move of the `jiff` backend to jiff 1.0 (where `jiff::Zoned` is now `jiff::ZonedDateTime`), the new `std` feature for users with `default-features = false`, the removed `CronParserBuilderError`, and the stricter parsing of weekday/month names and `L`. For 3.x -> 4.0 the guide covers all breaking changes, including chrono becoming optional, step syntax validation, generic `CronDateTime` method signatures, the new `jiff` backend, and more.
+See [MIGRATION.md](MIGRATION.md). For 4.x -> 5.0 it covers the move of the `jiff` backend to jiff 1.0 (where `jiff::Zoned` is now `jiff::ZonedDateTime`), the new `std` feature for users with `default-features = false`, the removed `CronParserBuilderError`, the stricter parsing of weekday/month names and `L`, and `CronIterator` no longer printing errors to stderr. For 3.x -> 4.0 the guide covers all breaking changes, including chrono becoming optional, step syntax validation, generic `CronDateTime` method signatures, the new `jiff` backend, and more.
 
 ### Usage
 
