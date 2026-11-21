@@ -1,8 +1,10 @@
+use alloc::string::String;
+
 /// Represents errors that can occur while parsing and evaluating cron patterns.
 ///
 /// `CronError` is used throughout the `croner` crate to indicate various types of failures
 /// and is exported for consuming programs to use.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CronError {
     /// The pattern string provided was empty.
     ///
@@ -42,8 +44,8 @@ pub enum CronError {
     /// such as "Position x is out of bounds for the current range (y-z).".
     ComponentError(String),
 }
-impl std::fmt::Display for CronError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for CronError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             CronError::TimeSearchLimitExceeded => {
                 write!(f, "CronScheduler time search limit exceeded.")
@@ -59,4 +61,5 @@ impl std::fmt::Display for CronError {
         }
     }
 }
+#[cfg(feature = "std")]
 impl std::error::Error for CronError {}
