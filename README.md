@@ -25,7 +25,7 @@ This is the Rust flavor of the popular JavaScript/TypeScript cron parser
 
 ## Crate Features
 
-- `std`: Links the Rust standard library and implements `std::error::Error` for `CronError`. Enabled by default; leave it out to use croner in `no_std` environments.
+- `std`: Links the Rust standard library and enables the `std` features of `chrono`, `jiff` and `serde`. Enabled by default; leave it out to use croner in `no_std` environments. `CronError` implements `std::error::Error` (`core::error::Error`) with or without it.
 - `jiff`: Enables support for [`jiff::ZonedDateTime`](https://docs.rs/jiff/latest/jiff/struct.ZonedDateTime.html) and [`jiff::civil::DateTime`](https://docs.rs/jiff/latest/jiff/civil/struct.DateTime.html). Disabled by default.
 - `chrono`: Enables support for [`chrono::DateTime`](https://docs.rs/chrono/latest/chrono/struct.DateTime.html) and [`chrono::NaiveDateTime`](https://docs.rs/chrono/latest/chrono/struct.NaiveDateTime.html). Enabled by default when default features are left on.
 - `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for [`Cron`](https://docs.rs/croner/latest/croner/struct.Cron.html). This feature is disabled by default.
@@ -61,7 +61,8 @@ Croner combines the features of cron and saffron, while following the POSIX/Vixi
 
 ### Prerequisites
 
-Ensure you have Rust installed on your machine. If not, you can get it from
+Croner requires Rust 1.85 or newer. If you don't
+have Rust installed, you can get it from
 [the official Rust website](https://www.rust-lang.org/).
 
 ### Installation
@@ -97,18 +98,36 @@ chrono = { version = "0.4", default-features = false }
 
 Parsing, describing and searching behave exactly as with `std`. The differences are:
 
-- `CronError` does not implement `std::error::Error`.
-- `CronIterator` stops silently on an error instead of also printing it to stderr.
-  Call `CronIterator::last_error()` after it returns `None` to see why it stopped.
-- The time zones you can use are whatever your backend supports without `std`;
-  for example, `chrono-tz` and jiff's system time zone database need extra setup or `std`.
+- There is no system clock, so `Utc::now()` and `ZonedDateTime::now()` are not
+  available. Build the start time from whatever clock you have, such as an RTC:
+
+  ```rust
+  use chrono::{TimeZone, Utc};
+
+  let now = Utc.timestamp_opt(rtc_unix_seconds, 0).unwrap();
+  let next = cron.find_next_occurrence(&now, false)?;
+  ```
+
+- Time zones: UTC and fixed offsets need nothing extra. With chrono, `chrono-tz`
+  works with `default-features = false`. With jiff, named zones need a time zone
+  database built into the binary: enable jiff's `tzdb-bundle-always` feature, or
+  use `jiff::tz::get!` with jiff's `static` feature.
+
+You don't need a backend at all: with no backend feature enabled, implement
+`croner::CronDateTime` for your own clock type and croner searches over it.
+
+Resource use: a parsed `Cron` keeps about 160 bytes of heap (about 5 KB more
+if its year field lists specific years or ranges), parsing peaks at about 0.5 KB,
+and searching and matching allocate nothing. On a Cortex-M3
+(`thumbv7m-none-eabi`, `opt-level = "s"`, LTO), parsing and searching with chrono
+take about 40 KB of flash, and `describe()` adds about 10 KB.
 
 With `default-features = false`, add the `std` feature if you want the standard
 library, e.g. `features = ["std", "jiff"]`.
 
 ### Migration guide
 
-See [MIGRATION.md](MIGRATION.md). For 4.x -> 5.0 it covers the move of the `jiff` backend to jiff 1.0 (where `jiff::Zoned` is now `jiff::ZonedDateTime`), the new `std` feature for users with `default-features = false`, the removed `CronParserBuilderError`, and the stricter parsing of weekday/month names and `L`. For 3.x -> 4.0 the guide covers all breaking changes, including chrono becoming optional, step syntax validation, generic `CronDateTime` method signatures, the new `jiff` backend, and more.
+See [MIGRATION.md](MIGRATION.md). For 4.x -> 5.0 it covers the move of the `jiff` backend to jiff 1.0 (where `jiff::Zoned` is now `jiff::ZonedDateTime`), the new `std` feature for users with `default-features = false`, the removed `CronParserBuilderError`, the stricter parsing of weekday/month names and `L`, and `CronIterator` no longer printing errors to stderr. For 3.x -> 4.0 the guide covers all breaking changes, including chrono becoming optional, step syntax validation, generic `CronDateTime` method signatures, the new `jiff` backend, and more.
 
 ### Usage
 

@@ -5,12 +5,13 @@
 
 #![cfg(any(feature = "chrono", feature = "jiff"))]
 
-use croner::{Cron, Direction};
+use croner::Cron;
 use std::str::FromStr;
 
 #[cfg(feature = "chrono")]
 mod chrono_tests {
     use super::*;
+    use croner::Direction;
     use chrono::{DateTime, TimeZone};
     use chrono_tz::Tz;
 

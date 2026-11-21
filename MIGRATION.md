@@ -4,6 +4,9 @@ Most code needs **no changes** if you use the default features (`std` and
 `chrono`) and your cron patterns only use weekday and month names in their own
 fields. The changes below cover every case that may need adjustment.
 
+Croner 5.0 requires **Rust 1.85** or newer (`rust-version` is set in
+`Cargo.toml`). Croner 4.x had no declared minimum and built on older versions.
+
 For the release summary, see `CHANGELOG.md`.
 
 ---
@@ -47,8 +50,8 @@ Methods that create one were renamed too, e.g. `to_zoned` is now
 [jiff 1.0 changelog](https://github.com/BurntSushi/jiff/blob/HEAD/CHANGELOG.md#100-2026-11-15)
 lists every change.
 
-jiff 1.0 requires Rust 1.85 or newer, so the `jiff` feature does too. The move
-to jiff 1.0 does not change which times croner finds.
+jiff 1.0 requires Rust 1.85 or newer, which is also croner 5.0's minimum. The
+move to jiff 1.0 does not change which times croner finds.
 
 ---
 
@@ -59,10 +62,10 @@ new `std` feature, which is part of the default features. If you keep the
 default features, nothing changes.
 
 If your `Cargo.toml` sets `default-features = false`, croner is now built
-without `std`, so `CronError` no longer implements `std::error::Error` (it
-still implements `Display` and `Debug`). Code that uses `?` to turn a
-`CronError` into `Box<dyn std::error::Error>`, `anyhow::Error` or similar then
-fails to compile. Add `std` to keep the 4.x behaviour:
+without `std`. `CronError` still implements `std::error::Error` (as
+`core::error::Error`, the same trait), so `?` into `Box<dyn Error>` or
+`anyhow::Error` keeps working. But serde is then built without its `std`
+feature, which croner 4.x enabled. Add `std` to keep the 4.x behaviour:
 
 ```toml
 # Before (4.x)
@@ -73,9 +76,6 @@ croner = { version = "4", default-features = false, features = ["chrono", "serde
 [dependencies]
 croner = { version = "5", default-features = false, features = ["std", "chrono", "serde"] }
 ```
-
-Without `std`, `CronIterator` also no longer prints errors to stderr. Use the
-new `CronIterator::last_error()` to see why an iterator stopped.
 
 ---
 
@@ -121,6 +121,26 @@ dropped in 4.x:
 
 `L` in the day-of-month field (`0 0 L * *`, the last day of the month) is
 unchanged.
+
+---
+
+#### 5. `CronIterator` no longer prints errors to stderr
+
+In 4.x, a `CronIterator` that stopped on an error other than
+`TimeSearchLimitExceeded` also printed it to stderr. A library shouldn't write
+to stderr, so 5.0 doesn't, with or without `std`. Call the new
+`CronIterator::last_error()` after the iterator returns `None` to see why it
+stopped, and log it yourself if you want to:
+
+```rust
+let mut iter = cron.iter_after(start);
+for time in iter.by_ref().take(10) {
+    println!("{time}");
+}
+if let Some(err) = iter.last_error() {
+    eprintln!("CronIterator stopped: {err}");
+}
+```
 
 ---
 

@@ -12,13 +12,17 @@
 //! - Supports `no_std` environments (requires `alloc`).
 //!
 //! ## Crate Features
-//! - `std` *(enabled by default)*: Links the Rust standard library and implements
-//!   `std::error::Error` for [`CronError`]. Disable default features
-//!   to use croner in `no_std` environments; a global allocator (`alloc`) is still required.
+//! - `std` *(enabled by default)*: Links the Rust standard library and enables the `std`
+//!   features of `chrono`, `jiff` and `serde`. Disable default features to use croner in
+//!   `no_std` environments; a global allocator (`alloc`) is still required.
+//!   [`CronError`] implements `core::error::Error` (the same trait as `std::error::Error`)
+//!   either way.
 //! - `chrono` *(enabled by default)*: Enables support for `chrono::DateTime` and
 //!   `chrono::NaiveDateTime`.
 //! - `jiff`: Enables support for `jiff::ZonedDateTime` and `jiff::civil::DateTime`
-//!   (jiff 1.0, which requires Rust 1.85 or newer).
+//!   (jiff 1.0).
+//!
+//! Croner requires Rust 1.85 or newer.
 //! - `serde`: Enables [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and
 //!   [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html) implementations for
 //!   [`Cron`](struct.Cron.html). This feature is disabled by default.
@@ -168,7 +172,7 @@ pub enum JobType {
 use alloc::string::String;
 pub use component::CronComponent;
 use core::str::FromStr;
-use errors::CronError;
+pub use errors::CronError;
 pub use iterator::CronIterator;
 use parser::CronParser;
 pub use pattern::CronPattern;
