@@ -205,7 +205,7 @@ mod jiff_tests {
     use croner::{Cron, Direction};
     use jiff::civil::date;
     use jiff::tz::TimeZone;
-    use jiff::Zoned;
+    use jiff::ZonedDateTime;
 
     use super::every_minute;
 
@@ -220,15 +220,15 @@ mod jiff_tests {
     }
 
     impl Overlap {
-        fn at(&self, pass: Pass) -> Zoned {
-            let ambiguous = self
-                .zone
-                .to_ambiguous_zoned(date(self.year, self.month, self.day).at(
-                    self.hour,
-                    self.minute,
-                    0,
-                    0,
-                ));
+        fn at(&self, pass: Pass) -> ZonedDateTime {
+            let ambiguous =
+                self.zone
+                    .to_ambiguous_zoned_datetime(date(self.year, self.month, self.day).at(
+                        self.hour,
+                        self.minute,
+                        0,
+                        0,
+                    ));
             match pass {
                 Pass::First => ambiguous.earlier().expect("the time must be ambiguous"),
                 Pass::Second => ambiguous.later().expect("the time must be ambiguous"),
@@ -274,7 +274,7 @@ mod jiff_tests {
     }
 
     #[track_caller]
-    fn assert_moves_one_way(times: &[Zoned], direction: Direction, zone: &str) {
+    fn assert_moves_one_way(times: &[ZonedDateTime], direction: Direction, zone: &str) {
         for step in times.windows(2) {
             let moved = match direction {
                 Direction::Forward => step[0].timestamp() < step[1].timestamp(),
@@ -360,7 +360,7 @@ mod jiff_tests {
         let cron: Cron = "*/30 2 26-27 10 *".parse().expect("the pattern must parse");
 
         let start = paris
-            .to_ambiguous_zoned(date(2024, 10, 27).at(2, 45, 0, 0))
+            .to_ambiguous_zoned_datetime(date(2024, 10, 27).at(2, 45, 0, 0))
             .later()
             .expect("the time must be ambiguous");
         let next = cron
@@ -368,7 +368,7 @@ mod jiff_tests {
             .expect("search must succeed");
 
         let expected = paris
-            .to_ambiguous_zoned(date(2025, 10, 26).at(2, 0, 0, 0))
+            .to_ambiguous_zoned_datetime(date(2025, 10, 26).at(2, 0, 0, 0))
             .earlier()
             .expect("the time must be ambiguous");
         assert_eq!(next, expected);
