@@ -77,11 +77,13 @@ If you want to use `jiff` instead of the default `chrono` backend:
 
 ```toml
 [dependencies]
-croner = { version = "5.0", default-features = false, features = ["jiff"] }
+croner = { version = "5.0", default-features = false, features = ["std", "jiff"] }
 jiff = "1"
 ```
 
-#### `no_std` (unreleased, planned for 5.0)
+With `default-features = false`, remember to list `std` unless you target `no_std` (see below).
+
+#### `no_std`
 
 Croner works without the standard library, as long as a global allocator is
 available (it uses `alloc` for `String` and `Vec`). Disable the default features
@@ -106,7 +108,7 @@ library, e.g. `features = ["std", "jiff"]`.
 
 ### Migration guide
 
-See [MIGRATION.md](MIGRATION.md). Version 5.0 moves the `jiff` backend to jiff 1.0, where `jiff::Zoned` is now `jiff::ZonedDateTime`. For 3.x -> 4.0 the guide covers all breaking changes, including chrono becoming optional, step syntax validation, generic `CronDateTime` method signatures, the new `jiff` backend, and more.
+See [MIGRATION.md](MIGRATION.md). For 4.x -> 5.0 it covers the move of the `jiff` backend to jiff 1.0 (where `jiff::Zoned` is now `jiff::ZonedDateTime`), the new `std` feature for users with `default-features = false`, the removed `CronParserBuilderError`, and the stricter parsing of weekday/month names and `L`. For 3.x -> 4.0 the guide covers all breaking changes, including chrono becoming optional, step syntax validation, generic `CronDateTime` method signatures, the new `jiff` backend, and more.
 
 ### Usage
 
@@ -249,9 +251,10 @@ a few additions and changes as outlined below:
     day-of-week field behaves just as `*`. This allow for legacy cron patterns
     to be used.
   - _L_: The letter 'L' can be used in the day of the month field to indicate
-    the last day of the month. When used in the day of the week field in
-    conjunction with the # character, it denotes the last specific weekday of
-    the month. For example, `5#L` represents the last Friday of the month.
+    the last day of the month. In the day of the week field it must follow a
+    weekday (`5L` or `5#L`) and denotes the last specific weekday of the month.
+    For example, `5#L` represents the last Friday of the month. A bare `L` in
+    the day of the week field is rejected.
   - _#_: The # character specifies the "nth" occurrence of a particular day
     within a month. For example, supplying `5#2` in the day of week field
     signifies the second Friday of the month. This can be combined with ranges
@@ -279,8 +282,9 @@ a few additions and changes as outlined below:
 
 > [!NOTE]
 > Weekday and month names are case-insensitive. Both `MON` and `mon`
-> work. When using `L` in the Day of Week field, it affects all specified
-> weekdays. For example, `5-6#L` means the last Friday and Saturday in the
+> work. Weekday names are only accepted in the Day of Week field, and month
+> names only in the Month field; a name in any other field is a parse error.
+> When using `L` in the Day of Week field, it affects all specified weekdays. For example, `5-6#L` means the last Friday and Saturday in the
 > month." The # character can be used to specify the "nth" weekday of the month.
 > For example, 5#2 represents the second Friday of the month.
 
