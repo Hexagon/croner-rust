@@ -61,5 +61,5 @@ impl core::fmt::Display for CronError {
         }
     }
 }
-#[cfg(feature = "std")]
-impl std::error::Error for CronError {}
+/// `std::error::Error` is the same trait, so this impl also serves `std` users.
+impl core::error::Error for CronError {}

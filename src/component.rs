@@ -37,9 +37,17 @@ pub const LAST_BIT: u8 = 1 << 6;
 /// // This sets specific bits in the component according to the cron syntax
 /// minute_component.parse("*/15").expect("Parsing failed");
 /// // Sets the minute component to trigger at every 15th minute
-#[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+//
+// `PartialEq`, `Ord` and `Hash` are implemented below on the field's values, so a
+// field compares the same whether or not its bitfields are allocated.
+#[derive(Debug, Default, Clone)]
 pub struct CronComponent {
-    bitfields: Vec<u8>,      // Vector of u8 to act as multiple bitfields
+    // One u8 of flags per value, indexed by value, allocated on the first set bit.
+    bitfields: Vec<u8>,
+    // A plain `*` stored without bitfields: every value from min to max has
+    // ALL_BIT and nothing else. This keeps the year field, which has thousands
+    // of values, from allocating anything in the common case.
+    all_values: bool,
     pub min: u16,            // Minimum value this component can take
     pub max: u16,            // Maximum value this component can take
     pub step: u16,           // Steps to skip in this component
@@ -66,12 +74,13 @@ impl CronComponent {
     ///
     /// Returns a new instance of `CronComponent`.
     pub fn new(min: u16, max: u16, features: u8, input_offset: u16) -> Self {
-        // Handle the case where max might make usize overflow if not checked
-        let bitfields_size = if max > 0 { max as usize + 1 } else { 0 };
         Self {
             // Vector of u8 to act as multiple bitfields.
-            // - Initialized with NONE_BIT for each element.
-            bitfields: vec![NONE_BIT; bitfields_size],
+            // - Allocated on the first set bit, see `ensure_bitfields`.
+            bitfields: Vec::new(),
+
+            // Set by parsing a plain `*`, see `all_values`.
+            all_values: false,
 
             // Minimum value this component can take.
             // - Example: 0 for the minute-field
@@ -97,6 +106,36 @@ impl CronComponent {
             from_wildcard: false, // Used by .describe()
 
             sloppy_ranges: false, // Disabled by default for OCPS/vixie-cron compliance
+        }
+    }
+
+    /// Allocates the bitfields, filling in ALL_BIT for a compact `*`.
+    fn ensure_bitfields(&mut self) {
+        if !self.bitfields.is_empty() {
+            return;
+        }
+        self.bitfields = vec![NONE_BIT; self.max as usize + 1];
+        if self.all_values {
+            self.all_values = false;
+            for bits in &mut self.bitfields[self.min as usize..] {
+                *bits = ALL_BIT;
+            }
+        }
+    }
+
+    /// Drops the bitfields of a wildcard field that ended up matching every value
+    /// with ALL_BIT only, like `*/1`, so it is stored and compared like `*`.
+    fn compact_if_full_wildcard(&mut self) {
+        if !self.from_wildcard || self.enabled_features != NONE_BIT {
+            return;
+        }
+        let min = self.min as usize;
+        let full = self.bitfields.len() == self.max as usize + 1
+            && self.bitfields[..min].iter().all(|&bits| bits == NONE_BIT)
+            && self.bitfields[min..].iter().all(|&bits| bits == ALL_BIT);
+        if full {
+            self.bitfields = Vec::new();
+            self.all_values = true;
         }
     }
 
@@ -126,6 +165,7 @@ impl CronComponent {
                 bit, self.features
             )));
         }
+        self.ensure_bitfields();
         let index = pos as usize; // Convert the position to an index
         if index >= self.bitfields.len() {
             // In case the index is somehow out of the vector's bounds
@@ -158,6 +198,7 @@ impl CronComponent {
                 bit, self.features
             )));
         }
+        self.ensure_bitfields();
         let index = pos as usize; // Convert the position to an index
         if index >= self.bitfields.len() {
             // In case the index is somehow out of the vector's bounds
@@ -181,6 +222,11 @@ impl CronComponent {
                 "Bit 0b{:08b} is not supported by the current features 0b{:08b}.",
                 bit, self.features
             )))
+        } else if self.all_values {
+            Ok((ALL_BIT & bit) != 0)
+        } else if self.bitfields.is_empty() {
+            // Nothing has been set yet.
+            Ok(false)
         } else {
             let index = pos as usize;
             if index >= self.bitfields.len() {
@@ -244,21 +290,16 @@ impl CronComponent {
     pub fn parse(&mut self, field: &str) -> Result<(), CronError> {
         if field == "*" {
             self.from_wildcard = true;
-            // Every value from min to max passes the checks in set_bit, so when
-            // the bitfields cover that range, set the bits directly. The year
-            // field alone has thousands of values.
-            if let Some(bits) = self
-                .bitfields
-                .get_mut(self.min as usize..=self.max as usize)
-            {
-                for bits in bits {
-                    *bits |= ALL_BIT;
-                }
+            // Every value from min to max matches, with ALL_BIT only. When
+            // nothing else has been set, store that without bitfields.
+            if self.bitfields.is_empty() {
+                self.all_values = true;
                 return Ok(());
             }
-            for value in self.min..=self.max {
-                self.set_bit(value + self.input_offset, ALL_BIT)?;
+            for bits in &mut self.bitfields[self.min as usize..] {
+                *bits |= ALL_BIT;
             }
+            self.compact_if_full_wildcard();
             return Ok(());
         }
 
@@ -311,6 +352,7 @@ impl CronComponent {
             }
         }
 
+        self.compact_if_full_wildcard();
         Ok(())
     }
 
@@ -361,19 +403,30 @@ impl CronComponent {
         } else {
             0
         };
-        self.bitfields
-            .get(self.min as usize..)
-            .unwrap_or(&[])
-            .iter()
-            .take(span)
-            .zip(self.min..)
-            .filter(move |(bits, _)| *bits & bit != 0)
-            .map(|(_, value)| value)
+        // A compact `*` has ALL_BIT, and only that, on every value.
+        let compact = if self.all_values && bit & ALL_BIT != 0 {
+            span
+        } else {
+            0
+        };
+        (self.min..).take(compact).chain(
+            self.bitfields
+                .get(self.min as usize..)
+                .unwrap_or(&[])
+                .iter()
+                .take(span)
+                .zip(self.min..)
+                .filter(move |(bits, _)| *bits & bit != 0)
+                .map(|(_, value)| value),
+        )
     }
 
     /// Returns the first value from `from` up to max whose `bit` is set.
     pub(crate) fn next_set_value(&self, from: u16, bit: u8) -> Option<u16> {
         let start = from.max(self.min);
+        if self.all_values {
+            return (start <= self.max && bit & ALL_BIT != 0).then_some(start);
+        }
         self.bitfields
             .get(start as usize..=self.max as usize)?
             .iter()
@@ -383,6 +436,9 @@ impl CronComponent {
 
     /// Returns the last value from min up to `upto` whose `bit` is set.
     pub(crate) fn previous_set_value(&self, upto: u16, bit: u8) -> Option<u16> {
+        if self.all_values {
+            return (self.min <= upto && upto <= self.max && bit & ALL_BIT != 0).then_some(upto);
+        }
         self.bitfields
             .get(self.min as usize..=upto as usize)?
             .iter()
@@ -595,6 +651,77 @@ impl CronComponent {
     }
 }
 
+impl CronComponent {
+    /// The flags of every value from 0 to max, whether or not they are allocated.
+    fn logical_bitfields(&self) -> impl Iterator<Item = u8> + '_ {
+        let min = self.min as usize;
+        // Unallocated, this is the length `new` used to allocate.
+        let len = if self.bitfields.is_empty() {
+            if self.max > 0 {
+                self.max as usize + 1
+            } else {
+                0
+            }
+        } else {
+            self.bitfields.len()
+        };
+        (0..len).map(move |index| match self.bitfields.get(index) {
+            Some(&bits) => bits,
+            None if self.all_values && index >= min => ALL_BIT,
+            None => NONE_BIT,
+        })
+    }
+}
+
+impl PartialEq for CronComponent {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other).is_eq()
+    }
+}
+
+impl Eq for CronComponent {}
+
+impl PartialOrd for CronComponent {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for CronComponent {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        let bitfields = if !self.bitfields.is_empty() && !other.bitfields.is_empty() {
+            self.bitfields.cmp(&other.bitfields)
+        } else {
+            self.logical_bitfields().cmp(other.logical_bitfields())
+        };
+        bitfields
+            .then_with(|| self.min.cmp(&other.min))
+            .then_with(|| self.max.cmp(&other.max))
+            .then_with(|| self.step.cmp(&other.step))
+            .then_with(|| self.from_wildcard.cmp(&other.from_wildcard))
+            .then_with(|| self.features.cmp(&other.features))
+            .then_with(|| self.enabled_features.cmp(&other.enabled_features))
+            .then_with(|| self.input_offset.cmp(&other.input_offset))
+            .then_with(|| self.sloppy_ranges.cmp(&other.sloppy_ranges))
+    }
+}
+
+impl core::hash::Hash for CronComponent {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        for bits in self.logical_bitfields() {
+            state.write_u8(bits);
+        }
+        self.min.hash(state);
+        self.max.hash(state);
+        self.step.hash(state);
+        self.from_wildcard.hash(state);
+        self.features.hash(state);
+        self.enabled_features.hash(state);
+        self.input_offset.hash(state);
+        self.sloppy_ranges.hash(state);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -694,6 +821,90 @@ mod tests {
         assert!(component.parse("10-").is_err());
         assert!(component.parse("*/").is_err());
         assert!(component.parse("60").is_err()); // out of bounds for the minute field
+    }
+
+    fn year_component() -> CronComponent {
+        CronComponent::new(1, 5000, NONE_BIT, 0)
+    }
+
+    #[test]
+    fn test_wildcard_allocates_no_bitfields() {
+        let mut years = year_component();
+        assert!(years.bitfields.is_empty());
+        years.parse("*").unwrap();
+        assert!(years.bitfields.is_empty());
+
+        // `*/1` matches the same values and is stored and compared like `*`.
+        let mut stepped = year_component();
+        stepped.parse("*/1").unwrap();
+        assert!(stepped.bitfields.is_empty());
+        assert_eq!(years, stepped);
+
+        // A step that skips values still needs the bitfields.
+        let mut every_other = year_component();
+        every_other.parse("*/2").unwrap();
+        assert_eq!(every_other.bitfields.len(), 5001);
+        assert_ne!(years, every_other);
+    }
+
+    #[test]
+    fn test_compact_wildcard_matches_like_allocated_bitfields() {
+        let mut compact = CronComponent::new(1, 31, LAST_BIT | CLOSEST_WEEKDAY_BIT, 0);
+        compact.parse("*").unwrap();
+        assert!(compact.bitfields.is_empty());
+
+        // The same field, with its bits written out.
+        let mut allocated = compact.clone();
+        allocated.ensure_bitfields();
+        assert_eq!(allocated.bitfields.len(), 32);
+        assert_eq!(compact, allocated);
+        assert_eq!(compact.cmp(&allocated), core::cmp::Ordering::Equal);
+        let hash = |c: &CronComponent| {
+            use core::hash::{Hash, Hasher};
+            let mut hasher = std::hash::DefaultHasher::new();
+            c.hash(&mut hasher);
+            hasher.finish()
+        };
+        assert_eq!(hash(&compact), hash(&allocated));
+
+        for bit in [ALL_BIT, LAST_BIT, CLOSEST_WEEKDAY_BIT] {
+            assert_eq!(compact.get_set_values(bit), allocated.get_set_values(bit));
+            assert_eq!(
+                compact.count_set_values(bit),
+                allocated.count_set_values(bit)
+            );
+            for pos in 0..=40 {
+                assert_eq!(
+                    compact.is_bit_set(pos, bit).ok(),
+                    allocated.is_bit_set(pos, bit).ok()
+                );
+                assert_eq!(
+                    compact.next_set_value(pos, bit),
+                    allocated.next_set_value(pos, bit),
+                    "next from {pos}, bit {bit}"
+                );
+                assert_eq!(
+                    compact.previous_set_value(pos, bit),
+                    allocated.previous_set_value(pos, bit),
+                    "previous up to {pos}, bit {bit}"
+                );
+            }
+        }
+        assert_eq!(compact.values(), (1..=31).collect::<Vec<_>>());
+        assert!(!compact.has_modifiers());
+    }
+
+    #[test]
+    fn test_set_bit_after_compact_wildcard() {
+        let mut days = CronComponent::new(1, 31, CLOSEST_WEEKDAY_BIT, 0);
+        days.parse("*").unwrap();
+        days.set_bit(15, CLOSEST_WEEKDAY_BIT).unwrap();
+        assert!(days.is_bit_set(1, ALL_BIT).unwrap());
+        assert!(days.is_bit_set(15, CLOSEST_WEEKDAY_BIT).unwrap());
+        assert!(!days.is_bit_set(16, CLOSEST_WEEKDAY_BIT).unwrap());
+        days.unset_bit(1, ALL_BIT).unwrap();
+        assert!(!days.is_bit_set(1, ALL_BIT).unwrap());
+        assert!(days.is_bit_set(2, ALL_BIT).unwrap());
     }
 
     #[test]

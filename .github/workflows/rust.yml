@@ -27,5 +27,22 @@ jobs:
     - name: Build no_std (thumbv7m-none-eabi)
       run: |
         rustup target add thumbv7m-none-eabi
+        cargo build --verbose --target thumbv7m-none-eabi --no-default-features
+        cargo build --verbose --target thumbv7m-none-eabi --no-default-features --features chrono
+        cargo build --verbose --target thumbv7m-none-eabi --no-default-features --features serde
         cargo build --verbose --target thumbv7m-none-eabi --no-default-features --features chrono,serde
         cargo build --verbose --target thumbv7m-none-eabi --no-default-features --features jiff
+
+  msrv:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    # The minimum supported Rust version, `rust-version` in Cargo.toml.
+    - name: Test with Rust 1.85
+      run: |
+        rustup toolchain install 1.85 --profile minimal
+        cargo +1.85 test --verbose
+        cargo +1.85 test --verbose --all-features
+        cargo +1.85 test --verbose --no-default-features --features jiff

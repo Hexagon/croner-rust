@@ -8,16 +8,20 @@ This release has breaking changes. See [MIGRATION.md](MIGRATION.md) for how to u
 - Added `no_std` support through a new `std` feature, enabled by default. Without it croner only needs `alloc` ([#69](https://github.com/Hexagon/croner-rust/pull/69)).
 - Added `CronIterator::last_error()`, which tells an iterator that stopped on an error (such as `TimeSearchLimitExceeded`) apart from one that ran out of occurrences.
 - `CronError` now implements `Clone`, `PartialEq` and `Eq`.
+- `CronError` implements `core::error::Error`, also without `std`. `std::error::Error` is the same trait, so nothing changes for `std` users.
+- `CronError` is re-exported at the crate root as `croner::CronError`. `croner::errors::CronError` still works.
 - `CronParserBuilder` now implements `Debug`, `Clone`, `Copy`, `PartialEq` and `Eq`.
 - Added the `no-std` crates.io category.
 
 ### Changed
-- **Breaking:** the `jiff` feature now uses jiff 1.0 instead of jiff 0.2. jiff 1.0 renamed `jiff::Zoned` to `jiff::ZonedDateTime`, so croner now takes and returns `jiff::ZonedDateTime`, and code using the `jiff` feature must upgrade to jiff 1.0 as well. jiff 1.0 requires Rust 1.85, so the `jiff` feature now needs Rust 1.85 or newer. See [MIGRATION.md](MIGRATION.md) ([#76](https://github.com/Hexagon/croner-rust/issues/76)).
-- **Breaking:** with `default-features = false`, croner is now `no_std` and `CronError` no longer implements `std::error::Error`. Add the `std` feature to keep the previous behaviour, e.g. `features = ["std", "jiff"]`.
+- **Breaking:** the `jiff` feature now uses jiff 1.0 instead of jiff 0.2. jiff 1.0 renamed `jiff::Zoned` to `jiff::ZonedDateTime`, so croner now takes and returns `jiff::ZonedDateTime`, and code using the `jiff` feature must upgrade to jiff 1.0 as well. jiff 1.0 requires Rust 1.85. See [MIGRATION.md](MIGRATION.md) ([#76](https://github.com/Hexagon/croner-rust/issues/76)).
+- **Breaking:** croner now requires Rust 1.85 or newer (`rust-version` is set in `Cargo.toml`), with or without the `jiff` feature. This matches jiff 1.0's minimum.
+- **Breaking:** with `default-features = false`, croner is now `no_std`. `CronError` keeps its `Error` impl, but `serde` is built without its `std` feature and `CronIterator` no longer prints errors to stderr. Add the `std` feature to keep the previous behaviour, e.g. `features = ["std", "jiff"]`.
 - **Breaking:** removed the unused `parser::CronParserBuilderError` type. `CronParserBuilder` is now written by hand instead of with `derive_builder`, which is no longer a dependency; its methods are unchanged.
 - **Breaking:** weekday and month names are only accepted in their own fields, and a bare `L` in the day-of-week field is rejected. Patterns that used to parse (and run on an unintended schedule) now return an error; see **Fixed** below.
 - Removed the `strum` dependency. The `is_*` methods on `Seconds` and `Year` are now hand-written, `const`, and otherwise unchanged ([#61](https://github.com/Hexagon/croner-rust/pull/61), [#80](https://github.com/Hexagon/croner-rust/pull/80)). Together with the `derive_builder` removal, a build with only the `jiff` feature now compiles 3 crates (croner, jiff, jiff-core) instead of 19.
 - `CronIterator`'s `PartialEq`, `PartialOrd` and `Hash` ignore `last_error`.
+- A parsed `Cron` keeps much less heap: about 160 bytes instead of 5.2 KB for a pattern like `0 0 * * MON-FRI`, and parsing peaks at about 0.5 KB instead of 5.5 KB. A year field that is `*` (or left out) no longer stores one byte per year up to `YEAR_UPPER_LIMIT`. A pattern with an explicit year list or range still does. Equality, ordering and hashing of `Cron`, `CronPattern` and `CronComponent` are unchanged.
 - Parsing is about 8x faster, because a `*` field now sets its bits in one pass, and finding the next or previous occurrence scans the bits of a field directly ([#77](https://github.com/Hexagon/croner-rust/pull/77)).
 
 ### Fixed
