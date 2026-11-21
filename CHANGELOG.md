@@ -1,6 +1,6 @@
 # Changelog
 
-## [5.0.0]
+## [5.0.0] - 2026-11-22
 
 This release has breaking changes. See [MIGRATION.md](MIGRATION.md) for how to upgrade from 4.x.
 

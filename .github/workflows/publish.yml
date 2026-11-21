@@ -1,11 +1,14 @@
 on:
   push:
     # Pattern matched against refs/tags
-    tags:        
+    tags:
       - 'v*'           # Push events to every tag containing v
   workflow_dispatch:
 
 name: Publish
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
   publish:
@@ -13,14 +16,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Install stable toolchain
-        uses: actions-rs/toolchain@v1
+        uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
-          toolchain: stable
-          override: true
+          targets: thumbv7m-none-eabi
 
       - name: Run tests
         run: cargo test
@@ -31,7 +32,12 @@ jobs:
       - name: Run tests (jiff standalone)
         run: cargo test --no-default-features --features jiff
 
+      - name: Build no_std (thumbv7m-none-eabi)
+        run: |
+          cargo build --target thumbv7m-none-eabi --no-default-features --features chrono,serde
+          cargo build --target thumbv7m-none-eabi --no-default-features --features jiff
+
       - name: Publish
-        run: cargo publish --token ${CRATES_TOKEN} --allow-dirty
+        run: cargo publish
         env:
-          CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_TOKEN }}
