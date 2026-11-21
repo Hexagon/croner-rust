@@ -28,9 +28,11 @@ This release has breaking changes. See [MIGRATION.md](MIGRATION.md) for how to u
 ### Fixed
 - Weekday names (`MON`…`SUN`) are now only accepted in the day-of-week field and month names (`JAN`…`DEC`) only in the month field. Names in any other field were silently read as the number they stand for (e.g. `0 0 * * jan` ran on Mondays and `mon * * * *` at minute 1); such patterns now fail with `CronError::IllegalCharacters` ([#72](https://github.com/Hexagon/croner-rust/issues/72), [#73](https://github.com/Hexagon/croner-rust/pull/73)).
 - A bare `L` in the day-of-week field is now rejected. It has no weekday to apply to, so it was silently dropped: `0 0 * * L` never matched (`find_next_occurrence` ended in `TimeSearchLimitExceeded`) and `0 0 * * 1,L` ran on Mondays only. Such patterns now fail with `CronError::ComponentError`. `L` after a weekday (`5L`, `5#L`) and in day-of-month is unchanged ([#75](https://github.com/Hexagon/croner-rust/pull/75)).
+- Fixed fixed-time jobs failing with `CronError::TimeSearchLimitExceeded` when their wall clock time fell in a gap longer than two hours, such as the whole day `Pacific/Apia` skipped on 2011-12-30. The end of a gap was searched one second at a time with a two-hour cap; it is now found by stepping out of the gap and bisecting back, so a gap of any length is crossed in a few dozen time zone lookups, and the documented gap rule applies (e.g. `0 12 * * *` runs at 2011-12-31 00:00 +14:00, and `0 12 30 * *` skips to 2012-01-30) ([#84](https://github.com/Hexagon/croner-rust/issues/84)).
 
 ### Documentation
 - Corrected the README's description of fixed-time jobs in a spring-forward DST gap. They run at the first valid time after the gap only if that time still matches the day, month and year fields. When the gap ends at midnight, that time is on the next calendar day: a daily job runs there, and a job restricted to the gap's day skips that occurrence (e.g. `30 23 30 * *` in `America/Nuuk` has no run in March 2024) ([#74](https://github.com/Hexagon/croner-rust/issues/74)).
+- The README's DST gap section now notes that the gap rule holds for gaps of any length, with `Pacific/Apia` on 2011-12-30 as an example ([#84](https://github.com/Hexagon/croner-rust/issues/84)).
 
 ## [4.0.3]
 
