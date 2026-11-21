@@ -1,3 +1,46 @@
+# Migration from 4.x to 5.0
+
+Version 5.0 moves the optional `jiff` backend from jiff 0.2 to jiff 1.0.
+This does not affect the `chrono` backend.
+
+If you use the `jiff` feature, upgrade `jiff` in your own dependencies as well:
+
+```toml
+# Before (4.x)
+[dependencies]
+croner = { version = "4", default-features = false, features = ["jiff"] }
+jiff = "0.2"
+
+# After (5.0)
+[dependencies]
+croner = { version = "5", default-features = false, features = ["jiff"] }
+jiff = "1"
+```
+
+jiff 1.0 renamed `Zoned` to `ZonedDateTime`, so croner now takes and returns
+`jiff::ZonedDateTime`. `jiff::civil::DateTime` keeps its name.
+
+```rust
+// Before (4.x)
+use jiff::Zoned;
+let next: Zoned = cron.find_next_occurrence(&Zoned::now(), false).unwrap();
+
+// After (5.0)
+use jiff::ZonedDateTime;
+let next: ZonedDateTime = cron.find_next_occurrence(&ZonedDateTime::now(), false).unwrap();
+```
+
+Methods that create one were renamed too, e.g. `to_zoned` is now
+`to_zoned_datetime` and `TimeZone::to_ambiguous_zoned` is now
+`TimeZone::to_ambiguous_zoned_datetime`. The
+[jiff 1.0 changelog](https://github.com/BurntSushi/jiff/blob/HEAD/CHANGELOG.md#100-2026-11-15)
+lists every change.
+
+jiff 1.0 requires Rust 1.85 or newer, so the `jiff` feature does too. The move
+to jiff 1.0 does not change which times croner finds.
+
+---
+
 # Migration from 3.x to 4.0
 
 Version 4.0 introduces a generic `CronDateTime` trait and an optional `jiff` backend.

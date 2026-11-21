@@ -1,6 +1,6 @@
 [package]
 name = "croner"
-version = "4.0.3"
+version = "5.0.0"
 edition = "2021"
 license = "MIT"
 description = "Fully-featured, lightweight, and efficient Rust library designed for parsing and evaluating cron patterns"
@@ -17,7 +17,7 @@ path = "src/lib.rs"
 
 [dependencies]
 chrono = { version = "0.4.42", default-features = false, optional = true }
-jiff = { version = "0.2.35", default-features = false, features = [
+jiff = { version = "1.0.1", default-features = false, features = [
     "alloc",
 ], optional = true }
 serde = { version = "1.0", default-features = false, optional = true }
@@ -27,7 +27,7 @@ strum = { version = "0.27.2", default-features = false, features = ["derive"] }
 chrono = { version = "0.4.42", default-features = false, features = ["clock"] }
 chrono-tz = "0.10.4"
 criterion = "0.7.0"
-jiff = "0.2.35"
+jiff = "1.0.1"
 rstest = "0.26.1"
 serde_test = "1.0"
 
@@ -37,7 +37,7 @@ default = ["std", "chrono"]
 std = ["strum/std", "chrono?/std", "jiff?/std", "serde?/std"]
 # Support for `chrono::DateTime` and `chrono::NaiveDateTime`.
 chrono = ["dep:chrono"]
-# Support for `jiff::Zoned` and `jiff::civil::DateTime`.
+# Support for `jiff::ZonedDateTime` and `jiff::civil::DateTime`.
 jiff = ["dep:jiff"]
 serde = ["dep:serde"]
 

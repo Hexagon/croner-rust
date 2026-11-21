@@ -10,9 +10,15 @@
 - Added the `no-std` crates.io category.
 
 ### Changed
+- **Breaking:** the `jiff` feature now uses jiff 1.0 instead of jiff 0.2. jiff 1.0 renamed `jiff::Zoned` to `jiff::ZonedDateTime`, so croner now takes and returns `jiff::ZonedDateTime`, and code using the `jiff` feature must upgrade to jiff 1.0 as well. jiff 1.0 requires Rust 1.85, so the `jiff` feature now needs Rust 1.85 or newer. See [MIGRATION.md](MIGRATION.md) ([#76](https://github.com/Hexagon/croner-rust/issues/76)).
 - **Breaking:** with `default-features = false`, croner is now `no_std` and `CronError` no longer implements `std::error::Error`. Add the `std` feature to keep the previous behaviour, e.g. `features = ["std", "jiff"]`.
 - **Breaking:** removed the unused `parser::CronParserBuilderError` type. `CronParserBuilder` is now written by hand instead of with `derive_builder`, which is no longer a dependency; its methods are unchanged.
 - `CronIterator`'s `PartialEq`, `PartialOrd` and `Hash` ignore `last_error`.
+- Parsing is about 8x faster, because a `*` field now sets its bits in one pass, and finding the next or previous occurrence scans the bits of a field directly ([#77](https://github.com/Hexagon/croner-rust/pull/77)).
+
+### Fixed
+- Weekday names (`MON`…`SUN`) are now only accepted in the day-of-week field and month names (`JAN`…`DEC`) only in the month field. Names in any other field were silently read as the number they stand for (e.g. `0 0 * * jan` ran on Mondays and `mon * * * *` at minute 1); such patterns now fail with `CronError::IllegalCharacters` ([#72](https://github.com/Hexagon/croner-rust/issues/72)).
+- A bare `L` in the day-of-week field is now rejected. It has no weekday to apply to, so it was silently dropped: `0 0 * * L` never matched (`find_next_occurrence` ended in `TimeSearchLimitExceeded`) and `0 0 * * 1,L` ran on Mondays only. `L` after a weekday (`5L`, `5#L`) and in day-of-month is unchanged.
 
 ## [4.0.3]
 

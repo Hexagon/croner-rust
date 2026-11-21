@@ -1622,6 +1622,40 @@ mod tests {
     }
 
     #[test]
+    fn test_bare_l_in_day_of_week_is_rejected() {
+        // A bare `L` has no weekday to apply to, so it used to be dropped: `0 0 * * L`
+        // never matched and `0 0 * * 1,L` ran on Mondays only.
+        for expr in [
+            "0 0 * * L",
+            "0 0 * * 1,L",
+            "0 0 1 * L",
+            "0 0 L * L",
+            "0 0 * * l",
+        ] {
+            assert!(Cron::from_str(expr).is_err(), "{expr}");
+            assert!(
+                CronParser::builder()
+                    .alternative_weekdays(true)
+                    .build()
+                    .parse(expr)
+                    .is_err(),
+                "{expr} (alternative weekdays)"
+            );
+        }
+
+        // `L` keeps working in day-of-month and after a weekday
+        for expr in [
+            "0 0 L * *",
+            "0 0 L * 5",
+            "0 0 * * 5L",
+            "0 0 * * 5#L",
+            "0 0 * * FRI#L",
+        ] {
+            assert!(Cron::from_str(expr).is_ok(), "{expr}");
+        }
+    }
+
+    #[test]
     fn test_specific_and_wildcard_entries() -> Result<(), CronError> {
         let cron = Cron::from_str("15 */2 * 3,5 FRI")?;
         let matching_time = Local.with_ymd_and_hms(2023, 3, 3, 2, 15, 0).unwrap();
