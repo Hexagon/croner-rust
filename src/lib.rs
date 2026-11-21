@@ -552,39 +552,8 @@ impl Cron {
                         // run is the first real instant after that gap.
                         // Find the very first valid wall clock time after the current
                         // cursor that can be successfully resolved to a real instant.
-                        let mut after_gap = cursor;
-                        let mut before_gap = cursor;
-                        let mut gap_adjust_count = 0;
-                        const MAX_GAP_SEARCH_SECONDS: u32 = 3600 * 2; // Max 2 hours for a typical gap
-
-                        let resolved_dt_after_gap: T;
-
-                        loop {
-                            after_gap = after_gap
-                                .checked_add_seconds(1)
-                                .ok_or(CronError::InvalidTime)?;
-                            gap_adjust_count += 1;
-                            if gap_adjust_count > MAX_GAP_SEARCH_SECONDS {
-                                return Err(CronError::TimeSearchLimitExceeded);
-                            }
-
-                            // Try to resolve this wall clock time into a real instant.
-                            match after_gap.resolve_in(origin)? {
-                                Resolution::Single(dt) => {
-                                    resolved_dt_after_gap = dt;
-                                    break;
-                                }
-                                // A gap and a repeated range never touch, so
-                                // this arm is unreachable in a real time zone;
-                                // take the earlier instant either way.
-                                Resolution::Ambiguous(earlier, _) => {
-                                    resolved_dt_after_gap = earlier;
-                                    break;
-                                }
-                                // Keep looping if still in the gap or search limit exceeded
-                                Resolution::Gap => {}
-                            }
-                        }
+                        let (after_gap, resolved_dt_after_gap) =
+                            Self::gap_edge(cursor, Direction::Forward, origin)?;
 
                         // `resolved_dt_after_gap` is now the first valid wall-clock time after the gap,
                         // and by the `resolve_civil` contract it carries `after_gap`.
@@ -611,24 +580,7 @@ impl Cron {
                         }
 
                         if direction == Direction::Backward {
-                            gap_adjust_count = 0;
-                            loop {
-                                before_gap = before_gap
-                                    .checked_add_seconds(-1)
-                                    .ok_or(CronError::InvalidTime)?;
-                                gap_adjust_count += 1;
-                                if gap_adjust_count > MAX_GAP_SEARCH_SECONDS {
-                                    return Err(CronError::TimeSearchLimitExceeded);
-                                }
-
-                                match before_gap.resolve_in(origin)? {
-                                    Resolution::Single(_) | Resolution::Ambiguous(_, _) => {
-                                        cursor = before_gap;
-                                        break;
-                                    }
-                                    Resolution::Gap => {}
-                                }
-                            }
+                            cursor = Self::gap_edge(cursor, Direction::Backward, origin)?.0;
                         } else {
                             cursor = after_gap;
                         }
@@ -643,6 +595,71 @@ impl Cron {
                 }
             }
         }
+    }
+
+    /// Finds the first wall clock time past the gap that `in_gap` lies in,
+    /// searching in `direction`, and the instant it resolves to.
+    ///
+    /// The search gallops out of the gap with steps that double up to an
+    /// hour, then bisects back to the exact second, so a gap of any length
+    /// (such as the whole day `Pacific/Apia` skipped on 2011-12-30) costs a
+    /// few dozen time zone lookups. Steps never exceed an hour, far shorter
+    /// than the time between two transitions, so the bisection only ever
+    /// sees the one edge.
+    fn gap_edge<T: CronDateTime>(
+        in_gap: Cursor,
+        direction: Direction,
+        origin: &T,
+    ) -> Result<(Cursor, T), CronError> {
+        // No real transition skips more than a few days; past this the time
+        // zone data is not behaving like a time zone.
+        const MAX_GAP_SECONDS: i64 = 7 * 24 * 3600;
+        const MAX_STEP_SECONDS: i64 = 3600;
+
+        let probe = |offset: i64| -> Result<(Cursor, Resolution<T>), CronError> {
+            let at = in_gap
+                .checked_add_seconds(offset * direction.step())
+                .ok_or(CronError::InvalidTime)?;
+            Ok((at, at.resolve_in(origin)?))
+        };
+
+        // `inside` is always in the gap; `outside` is the first offset found
+        // past it.
+        let mut inside = 0;
+        let mut step = 1;
+        let mut outside = loop {
+            let offset = inside + step;
+            if offset > MAX_GAP_SECONDS {
+                return Err(CronError::TimeSearchLimitExceeded);
+            }
+            match probe(offset)? {
+                (_, Resolution::Gap) => inside = offset,
+                found => break (offset, found),
+            }
+            step = (step * 2).min(MAX_STEP_SECONDS);
+        };
+
+        while outside.0 - inside > 1 {
+            let mid = inside + (outside.0 - inside) / 2;
+            match probe(mid)? {
+                (_, Resolution::Gap) => inside = mid,
+                found => outside = (mid, found),
+            }
+        }
+
+        let (at, resolution) = outside.1;
+        let instant = match resolution {
+            Resolution::Single(dt) => dt,
+            // A gap and a repeated range never touch, so this arm is
+            // unreachable in a real time zone; take the instant nearest the
+            // gap either way.
+            Resolution::Ambiguous(earlier, later) => match direction {
+                Direction::Forward => earlier,
+                Direction::Backward => later,
+            },
+            Resolution::Gap => unreachable!("the bisection only keeps probes outside the gap"),
+        };
+        Ok((at, instant))
     }
 
     /// Creates a `CronIterator` starting from the specified time.
