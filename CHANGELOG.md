@@ -5,6 +5,9 @@
 ### Changed
 - Parsing a pattern without letters is about 2x faster, because the weekday and month name replacement is skipped for it.
 
+### Fixed
+- With `alternative_weekdays` (Quartz-style, `SUN` = 1), day-of-week ranges ending in `SUN` such as `SAT-SUN` and `MON-SUN` failed with "Range out of bounds.", because they became `7-1` and `2-1`. As in Quartz, a day-of-week range whose end is before its start now wraps around the week in this mode, so `SAT-SUN` is Saturday and Sunday and `FRI-MON` is Friday to Monday. Numeric and stepped ranges wrap too (`7-1`, `FRI-TUE/2`). Standard mode and other fields are unchanged ([#89](https://github.com/Hexagon/croner-rust/pull/89)).
+
 ## [5.0.0] - 2026-11-22
 
 This release has breaking changes. See [MIGRATION.md](MIGRATION.md) for how to upgrade from 4.x.
