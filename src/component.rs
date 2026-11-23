@@ -56,6 +56,7 @@ pub struct CronComponent {
     enabled_features: u8,    // Bitfield to hold component-wide special bits like LAST_BIT
     input_offset: u16,       // Offset for numerical representation
     sloppy_ranges: bool,     // Allow sloppy range syntax for backward compatibility
+    wrap_ranges: bool,       // Let a range whose end is before its start wrap around, like FRI-MON
 }
 
 impl CronComponent {
@@ -106,6 +107,8 @@ impl CronComponent {
             from_wildcard: false, // Used by .describe()
 
             sloppy_ranges: false, // Disabled by default for OCPS/vixie-cron compliance
+
+            wrap_ranges: false, // Only the Quartz-style day-of-week field wraps
         }
     }
 
@@ -142,6 +145,45 @@ impl CronComponent {
     /// Sets whether to allow sloppy range syntax.
     pub fn set_sloppy_ranges(&mut self, sloppy: bool) {
         self.sloppy_ranges = sloppy;
+    }
+
+    /// Lets a range whose end is before its start wrap around past the maximum,
+    /// as Quartz does for day-of-week ranges like `FRI-MON` or `SAT-SUN` (`7-1`).
+    pub(crate) fn set_wrap_ranges(&mut self, wrap: bool) {
+        self.wrap_ranges = wrap;
+    }
+
+    /// The lowest and highest values a pattern can write for this component.
+    fn input_bounds(&self) -> (u16, u16) {
+        (self.min + self.input_offset, self.max)
+    }
+
+    /// Whether `start-end` with `start > end` should wrap around rather than fail.
+    fn wraps(&self, start: u16, end: u16) -> bool {
+        let (low, high) = self.input_bounds();
+        self.wrap_ranges && start > end && start <= high && end >= low
+    }
+
+    /// Sets `bit` on every `step`th value from `start` to `end`, wrapping
+    /// around from the highest value to the lowest when `start > end`.
+    fn set_wrapped_range(
+        &mut self,
+        start: u16,
+        end: u16,
+        step: u16,
+        bit: u8,
+    ) -> Result<(), CronError> {
+        let (low, high) = self.input_bounds();
+        let span = high - low + 1;
+        let mut value = start;
+        while value <= end + span {
+            let wrapped = if value > high { value - span } else { value };
+            self.set_bit(wrapped, bit)?;
+            value = value.checked_add(step).ok_or_else(|| {
+                CronError::ComponentError("Value exceeded max after stepping.".to_string())
+            })?;
+        }
+        Ok(())
     }
 
     // Set a bit at a given position (e.g., 0 to 9999 for year)
@@ -534,6 +576,10 @@ impl CronComponent {
             .parse::<u16>()
             .map_err(|_| CronError::ComponentError("Invalid end of range.".to_string()))?;
 
+        if self.wraps(start, end) {
+            return self.set_wrapped_range(start, end, 1, bit_to_set);
+        }
+
         if start > end || start < self.min || end > self.max {
             return Err(CronError::ComponentError(
                 "Range out of bounds.".to_string(),
@@ -632,6 +678,10 @@ impl CronComponent {
             }
         };
 
+        if self.wraps(start, end) {
+            return self.set_wrapped_range(start, end, step, bit_to_set);
+        }
+
         if start < self.min || end > self.max || start > end {
             return Err(CronError::ComponentError(
                 "Range is out of bounds in stepping.".to_string(),
@@ -703,6 +753,7 @@ impl Ord for CronComponent {
             .then_with(|| self.enabled_features.cmp(&other.enabled_features))
             .then_with(|| self.input_offset.cmp(&other.input_offset))
             .then_with(|| self.sloppy_ranges.cmp(&other.sloppy_ranges))
+            .then_with(|| self.wrap_ranges.cmp(&other.wrap_ranges))
     }
 }
 
@@ -719,6 +770,7 @@ impl core::hash::Hash for CronComponent {
         self.enabled_features.hash(state);
         self.input_offset.hash(state);
         self.sloppy_ranges.hash(state);
+        self.wrap_ranges.hash(state);
     }
 }
 
