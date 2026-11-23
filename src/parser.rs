@@ -411,6 +411,12 @@ impl CronParser {
         };
         let mut replaced = pattern.to_string();
 
+        // `-SUN` maps to 7 so that ranges like SAT-SUN work, but SUN-SUN would then
+        // become 0-7 (every day). Treat SUN-SUN as Sunday only.
+        if !alternative_weekdays {
+            replaced = replaced.replace("SUN-SUN", "0-0");
+        }
+
         // Replace nicknames with their numeric values
         for &(nickname, value) in &nicknames {
             replaced = replaced.replace(nickname, value);
@@ -667,6 +673,52 @@ mod tests {
         let cron = Cron::from_str("0 0 * * SAT-SUN").unwrap();
         assert!(cron.pattern.days_of_week.is_bit_set(0, ALL_BIT).unwrap()); // Sunday
         assert!(cron.pattern.days_of_week.is_bit_set(6, ALL_BIT).unwrap()); // Saturday
+    }
+
+    #[test]
+    fn test_weekday_range_sun_sun_is_sunday_only() {
+        for (named, numeric) in [
+            ("0 0 * * SUN-SUN", "0 0 * * 0"),
+            ("0 0 * * sun-sun,WED", "0 0 * * 0,3"),
+            ("0 0 * * SUN-SUN#2", "0 0 * * 0#2"),
+            ("0 0 * * SUN-SUN/2", "0 0 * * 0-0/2"),
+            ("0 0 * * SUN-TUE,FRI", "0 0 * * 0-2,5"),
+            ("0 0 * * SAT-SUN", "0 0 * * 6-7"),
+        ] {
+            let named_cron = Cron::from_str(named).unwrap();
+            let numeric_cron = Cron::from_str(numeric).unwrap();
+            assert_eq!(
+                named_cron.pattern.days_of_week, numeric_cron.pattern.days_of_week,
+                "{named} should equal {numeric}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_weekday_range_sun_sun_next_runs() {
+        use chrono::{TimeZone, Utc};
+        let cron = Cron::from_str("0 0 * * SUN-SUN").unwrap();
+        let start = Utc.with_ymd_and_hms(2026, 11, 23, 0, 0, 0).unwrap();
+        let runs: Vec<_> = cron.iter_after(start).take(3).collect();
+        assert_eq!(
+            runs,
+            vec![
+                Utc.with_ymd_and_hms(2026, 11, 29, 0, 0, 0).unwrap(),
+                Utc.with_ymd_and_hms(2026, 12, 6, 0, 0, 0).unwrap(),
+                Utc.with_ymd_and_hms(2026, 12, 13, 0, 0, 0).unwrap(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_weekday_range_sun_sun_alternative_weekdays() {
+        let parser = CronParser::builder()
+            .seconds(Seconds::Optional)
+            .alternative_weekdays(true)
+            .build();
+        let named = parser.parse("0 0 0 ? * SUN-SUN").unwrap();
+        let numeric = parser.parse("0 0 0 ? * 1").unwrap();
+        assert_eq!(named.pattern.days_of_week, numeric.pattern.days_of_week);
     }
 
     #[test]
