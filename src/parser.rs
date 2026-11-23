@@ -276,6 +276,9 @@ impl CronParser {
             CronComponent::new(0, 7, LAST_BIT | NTH_ALL, 0)
         };
         days_of_week.set_sloppy_ranges(self.sloppy_ranges);
+        // Quartz wraps day-of-week ranges around the week, so SAT-SUN (7-1)
+        // is Saturday and Sunday, and FRI-MON (6-2) is Friday to Monday.
+        days_of_week.set_wrap_ranges(self.alternative_weekdays);
         days_of_week.parse(parts[5])?;
 
         let mut years = CronComponent::new(
@@ -399,6 +402,7 @@ impl CronParser {
             ]
         } else {
             [
+                // SUN is 1 here, so X-SUN is a range that wraps around the week
                 ("-SUN", "-1"),
                 ("SUN", "1"),
                 ("MON", "2"),
@@ -667,6 +671,119 @@ mod tests {
         let cron = Cron::from_str("0 0 * * SAT-SUN").unwrap();
         assert!(cron.pattern.days_of_week.is_bit_set(0, ALL_BIT).unwrap()); // Sunday
         assert!(cron.pattern.days_of_week.is_bit_set(6, ALL_BIT).unwrap()); // Saturday
+    }
+
+    fn weekday_parser(alternative_weekdays: bool) -> CronParser {
+        CronParser::builder()
+            .alternative_weekdays(alternative_weekdays)
+            .build()
+    }
+
+    #[cfg(feature = "chrono")]
+    /// The weekdays a pattern runs on during one week, Monday first.
+    fn weekdays_in_week(cron: &Cron) -> Vec<chrono::Weekday> {
+        use chrono::{TimeZone, Utc};
+        // 2026-11-23 is a Monday
+        let before = Utc.with_ymd_and_hms(2026, 11, 22, 23, 59, 59).unwrap();
+        let next_week = Utc.with_ymd_and_hms(2026, 11, 30, 0, 0, 0).unwrap();
+        cron.iter_after(before)
+            .take_while(|run| *run < next_week)
+            .map(|run| chrono::Datelike::weekday(&run))
+            .collect()
+    }
+
+    #[cfg(feature = "chrono")]
+    #[test]
+    fn test_weekday_ranges_ending_in_sun_both_modes() {
+        use chrono::Weekday::*;
+        let all = vec![Mon, Tue, Wed, Thu, Fri, Sat, Sun];
+        for alternative_weekdays in [false, true] {
+            let parser = weekday_parser(alternative_weekdays);
+            for (field, expected) in [
+                ("SAT-SUN", vec![Sat, Sun]),
+                ("FRI-SUN", vec![Fri, Sat, Sun]),
+                ("MON-SUN", all.clone()),
+                ("SUN-SAT", all.clone()),
+                ("MON-FRI", vec![Mon, Tue, Wed, Thu, Fri]),
+                ("SAT-SUN,WED", vec![Wed, Sat, Sun]),
+                ("sat-sun", vec![Sat, Sun]),
+            ] {
+                let pattern = format!("0 0 * * {field}");
+                let cron = parser.parse(&pattern).unwrap_or_else(|e| {
+                    panic!("{pattern} (alternative_weekdays={alternative_weekdays}): {e:?}")
+                });
+                assert_eq!(
+                    weekdays_in_week(&cron),
+                    expected,
+                    "{pattern} (alternative_weekdays={alternative_weekdays})"
+                );
+            }
+        }
+    }
+
+    #[cfg(feature = "chrono")]
+    #[test]
+    fn test_weekday_range_sat_sun_nth_both_modes() {
+        use chrono::{TimeZone, Utc};
+        for alternative_weekdays in [false, true] {
+            let cron = weekday_parser(alternative_weekdays)
+                .parse("0 0 * * SAT-SUN#2")
+                .unwrap();
+            let start = Utc.with_ymd_and_hms(2026, 12, 1, 0, 0, 0).unwrap();
+            let runs: Vec<_> = cron.iter_after(start).take(4).collect();
+            assert_eq!(
+                runs,
+                vec![
+                    Utc.with_ymd_and_hms(2026, 12, 12, 0, 0, 0).unwrap(),
+                    Utc.with_ymd_and_hms(2026, 12, 13, 0, 0, 0).unwrap(),
+                    Utc.with_ymd_and_hms(2027, 1, 9, 0, 0, 0).unwrap(),
+                    Utc.with_ymd_and_hms(2027, 1, 10, 0, 0, 0).unwrap(),
+                ],
+                "alternative_weekdays={alternative_weekdays}"
+            );
+        }
+    }
+
+    #[cfg(feature = "chrono")]
+    #[test]
+    fn test_weekday_wrapping_ranges_quartz_only() {
+        use chrono::Weekday::*;
+        let quartz = weekday_parser(true);
+        for (field, expected) in [
+            ("FRI-MON", vec![Mon, Fri, Sat, Sun]),
+            ("7-1", vec![Sat, Sun]),
+            ("6-2", vec![Mon, Fri, Sat, Sun]),
+            ("FRI-TUE/2", vec![Tue, Fri, Sun]),
+            ("7-1/1", vec![Sat, Sun]),
+        ] {
+            let cron = quartz.parse(&format!("0 0 * * {field}")).unwrap();
+            assert_eq!(weekdays_in_week(&cron), expected, "Quartz {field}");
+        }
+
+        // Out-of-range ends are still rejected, wrapping or not
+        for field in ["8-1", "7-0", "0-7"] {
+            assert!(
+                quartz.parse(&format!("0 0 * * {field}")).is_err(),
+                "Quartz {field} should fail"
+            );
+        }
+
+        // Standard mode does not wrap
+        let standard = weekday_parser(false);
+        for field in ["FRI-MON", "6-0", "5-1", "FRI-TUE/2"] {
+            assert!(
+                standard.parse(&format!("0 0 * * {field}")).is_err(),
+                "standard {field} should fail"
+            );
+        }
+    }
+
+    #[test]
+    fn test_wrapping_only_applies_to_quartz_weekdays() {
+        let quartz = weekday_parser(true);
+        for pattern in ["0 23-1 * * *", "0 0 30-2 * *", "0 0 * 12-1 *"] {
+            assert!(quartz.parse(pattern).is_err(), "{pattern} should fail");
+        }
     }
 
     #[test]
