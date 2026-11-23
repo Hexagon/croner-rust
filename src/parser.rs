@@ -694,6 +694,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "chrono")]
     #[test]
     fn test_weekday_range_sun_sun_next_runs() {
         use chrono::{TimeZone, Utc};
