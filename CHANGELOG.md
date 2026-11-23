@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- Parsing a pattern without letters is about 2x faster, because the weekday and month name replacement is skipped for it.
+
 ## [5.0.0] - 2026-11-22
 
 This release has breaking changes. See [MIGRATION.md](MIGRATION.md) for how to upgrade from 4.x.

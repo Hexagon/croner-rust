@@ -154,7 +154,8 @@ impl CronParser {
         // Handle day-of-week and month aliases (MON... and JAN...). Names are
         // only replaced in their own field, so a name in any other field is
         // rejected as an illegal character instead of being read as a number.
-        {
+        // A pattern without letters has no names to replace, so skip the work.
+        if pattern.bytes().any(|b| b.is_ascii_alphabetic()) {
             let mut fields: Vec<String> = pattern.split_whitespace().map(str::to_string).collect();
             let (month_idx, dow_idx) = match fields.len() {
                 5 => (Some(3), Some(4)),
