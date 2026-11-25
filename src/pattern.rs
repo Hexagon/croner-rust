@@ -8,6 +8,7 @@ use crate::component::{
     NTH_3RD_BIT, NTH_4TH_BIT, NTH_5TH_BIT, NTH_ALL,
 };
 use crate::errors::CronError;
+use crate::parser::FixedTimeRule;
 use crate::time::{days_in_month, Weekday};
 use crate::{Direction, TimeComponent, YEAR_LOWER_LIMIT, YEAR_UPPER_LIMIT};
 
@@ -28,6 +29,8 @@ pub struct CronPattern {
     pub(crate) star_dow: bool,
 
     pub(crate) dom_and_dow: bool,
+
+    pub(crate) fixed_time_rule: FixedTimeRule,
 }
 
 // Implementation block for CronPattern struct
@@ -50,7 +53,14 @@ impl CronPattern {
             star_dom: false,
             star_dow: false,
             dom_and_dow: false,
+            fixed_time_rule: FixedTimeRule::SingleValue,
         }
+    }
+
+    /// Returns which jobs count as fixed-time jobs in DST handling, as set
+    /// with [`crate::parser::CronParserBuilder::fixed_time_rule`].
+    pub fn fixed_time_rule(&self) -> FixedTimeRule {
+        self.fixed_time_rule
     }
 
     /// Returns whether the day-of-month field is `*`.
@@ -355,6 +365,7 @@ impl PartialEq for CronPattern {
             && self.star_dom == other.star_dom
             && self.star_dow == other.star_dow
             && self.dom_and_dow == other.dom_and_dow
+            && self.fixed_time_rule == other.fixed_time_rule
     }
 }
 
@@ -391,6 +402,7 @@ impl Ord for CronPattern {
             .then_with(|| self.star_dom.cmp(&other.star_dom))
             .then_with(|| self.star_dow.cmp(&other.star_dow))
             .then_with(|| self.dom_and_dow.cmp(&other.dom_and_dow))
+            .then_with(|| self.fixed_time_rule.cmp(&other.fixed_time_rule))
     }
 }
 
@@ -411,6 +423,7 @@ impl core::hash::Hash for CronPattern {
         self.star_dom.hash(state);
         self.star_dow.hash(state);
         self.dom_and_dow.hash(state);
+        self.fixed_time_rule.hash(state);
     }
 }
 

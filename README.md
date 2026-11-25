@@ -425,7 +425,31 @@ let cron2 = parser
     .expect("Valid with sloppy_ranges enabled");
 ```
 
-#### 6. Quartz Compatibility
+#### 6. `fixed_time_rule`
+
+Chooses which jobs count as fixed-time jobs in [DST handling](#daylight-saving-time-dst-handling). Matches the `fixedTimeRule` option of croner for JavaScript.
+
+- `FixedTimeRule::SingleValue` (default): seconds, minutes and hours each hold a single value, such as `0 30 2 * * *`.
+- `FixedTimeRule::NoWildcard` (closer to Vixie cron): seconds, minutes and hours hold no wildcard (`*`) and no step (`/`), so lists and ranges such as `0 30 2,14 * * *` count too. Steps without `*` (e.g. `0 0-23/2 * * *`) are still interval jobs, and times in a gap that meet at its end run once.
+
+**Example Usage**:
+
+```rust
+use croner::parser::{CronParser, FixedTimeRule};
+
+let parser = CronParser::builder()
+    .fixed_time_rule(FixedTimeRule::NoWildcard)
+    .build();
+
+// Runs once at 01:00 on a day when 01:00 happens twice, then at 13:00.
+let cron = parser
+    .parse("0 1,13 * * *")
+    .expect("Invalid cron pattern");
+```
+
+**Note**: the rule is not part of the pattern string, so serializing a `Cron` with `serde` and reading it back restores the default rule.
+
+#### 7. Quartz Compatibility
 
 If you're migrating from Quartz or need croner-rust to behave like the Quartz scheduler, you can configure the parser to match Quartz's behavior. The main differences between Quartz and standard POSIX cron are:
 
@@ -466,7 +490,9 @@ For stability and practical use, Croner supports dates from **year 1 AD/CE** up 
 Croner-rust provides robust and predictable handling of Daylight Saving Time (DST) transitions, aligning with the Open Cron Pattern Specification (OCPS) and Vixie-cron's time-tested behavior. Jobs are categorized based on their time-unit field specifications:
 
 * **Fixed-Time Jobs**: Jobs with specific numerical values for seconds, minutes, and hours (e.g., `0 30 2 * * *`).
-* **Interval/Wildcard Jobs**: Jobs using wildcards (`*`) or step values (`*/N`) in their seconds, minutes, or hours fields (e.g., `*/5 * * * * *`).
+* **Interval/Wildcard Jobs**: Jobs using wildcards (`*`), step values (`*/N`), ranges or lists in their seconds, minutes, or hours fields (e.g., `*/5 * * * * *` or `0 30 1,2 * * *`).
+
+Which jobs are fixed-time jobs differs from Vixie cron, which treats a job as an interval job only when its minute or hour field starts with `*`. There, a list or range (e.g. `30 2,14 * * *`) is a fixed-time job. Set the parser option [`fixed_time_rule`](#6-fixed_time_rule) to `FixedTimeRule::NoWildcard` to treat every job without a wildcard or step in seconds, minutes and hours as a fixed-time job, as croner for JavaScript does with `fixedTimeRule: "no-wildcard"`.
 
 During DST transitions, Croner-rust behaves as follows:
 
