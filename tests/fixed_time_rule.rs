@@ -190,3 +190,74 @@ fn rule_is_part_of_equality() {
     assert_ne!(a, b);
     assert_eq!(b, parse("0 1,13 * * *", FixedTimeRule::NoWildcard));
 }
+
+// `FixedTimeRule::All` keeps the croner 2.x behaviour (#70).
+
+#[test]
+fn all_rule_makes_every_job_fixed_time() {
+    for pattern in ["* * * * *", "*/30 * * * *", "0 */2 * * *", "*/10 * * * * *"] {
+        assert_eq!(
+            parse(pattern, FixedTimeRule::All).determine_job_type(),
+            JobType::FixedTime,
+            "{pattern}"
+        );
+    }
+}
+
+#[test]
+fn all_rule_runs_repeated_hour_once() {
+    // Clocks in America/New_York go back from 02:00 EDT to 01:00 EST on 2026-11-01.
+    let cron = parse("*/30 * * * *", FixedTimeRule::All);
+    let start = New_York.with_ymd_and_hms(2026, 11, 1, 0, 50, 0).unwrap();
+    assert_eq!(
+        runs(&cron, start, 5),
+        [
+            "2026-11-01 01:00:00 EDT",
+            "2026-11-01 01:30:00 EDT",
+            "2026-11-01 02:00:00 EST",
+            "2026-11-01 02:30:00 EST",
+            "2026-11-01 03:00:00 EST",
+        ]
+    );
+}
+
+#[test]
+fn all_rule_never_returns_a_past_time_from_second_pass() {
+    // 01:05 EST is on the second pass; croner 2.x returned 01:30 EDT here,
+    // which lies before the start.
+    let cron = parse("*/30 * * * *", FixedTimeRule::All);
+    let start = New_York
+        .with_ymd_and_hms(2026, 11, 1, 1, 5, 0)
+        .latest()
+        .unwrap();
+    assert_eq!(
+        runs(&cron, start, 2),
+        ["2026-11-01 02:00:00 EST", "2026-11-01 02:30:00 EST"]
+    );
+}
+
+#[test]
+fn all_rule_runs_once_after_gap() {
+    // Clocks in America/New_York jump from 02:00 EST to 03:00 EDT on 2026-03-08.
+    let cron = parse("*/30 2 * * *", FixedTimeRule::All);
+    let start = New_York.with_ymd_and_hms(2026, 3, 7, 12, 0, 0).unwrap();
+    assert_eq!(
+        runs(&cron, start, 3),
+        [
+            "2026-03-08 03:00:00 EDT",
+            "2026-03-09 02:00:00 EDT",
+            "2026-03-09 02:30:00 EDT",
+        ]
+    );
+
+    let cron = parse("*/30 * * * *", FixedTimeRule::All);
+    let start = New_York.with_ymd_and_hms(2026, 3, 8, 1, 10, 0).unwrap();
+    assert_eq!(
+        runs(&cron, start, 3),
+        [
+            "2026-03-08 01:30:00 EST",
+            "2026-03-08 03:00:00 EDT",
+            "2026-03-08 03:30:00 EDT",
+        ]
+    );
+}

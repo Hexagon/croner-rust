@@ -431,6 +431,7 @@ Chooses which jobs count as fixed-time jobs in [DST handling](#daylight-saving-t
 
 - `FixedTimeRule::SingleValue` (default): seconds, minutes and hours each hold a single value, such as `0 30 2 * * *`.
 - `FixedTimeRule::NoWildcard` (closer to Vixie cron): seconds, minutes and hours hold no wildcard (`*`) and no step (`/`), so lists and ranges such as `0 30 2,14 * * *` count too. Steps without `*` (e.g. `0 0-23/2 * * *`) are still interval jobs, and times in a gap that meet at its end run once.
+- `FixedTimeRule::All` (croner 2.x): every job is a fixed-time job, so `*/30 * * * *` runs a repeated hour once and `*/30 2 * * *` runs once right after a gap. Use it to keep schedules from croner 2.x unchanged. Unlike croner 2.x, a forward search never returns a time before its start. croner for JavaScript has no matching value.
 
 **Example Usage**:
 
