@@ -1,6 +1,10 @@
 # Changelog
 
-## [Unreleased]
+## [5.0.1] - 2026-11-25
+
+### Added
+- Added the parser option `fixed_time_rule` with `parser::FixedTimeRule`, matching the `fixedTimeRule` option of croner for JavaScript. It decides which jobs count as fixed-time jobs in DST handling. The default, `FixedTimeRule::SingleValue`, keeps the current rule: a single value in each of seconds, minutes and hours. `FixedTimeRule::NoWildcard` also counts lists and ranges without a wildcard or step, closer to Vixie cron, so `0 1,13 * * *` runs once in a repeated (fall-back) hour instead of on both passes ([#91](https://github.com/Hexagon/croner-rust/issues/91)).
+- Added `CronPattern::fixed_time_rule()`.
 
 ### Changed
 - Parsing a pattern without letters is about 2x faster, because the weekday and month name replacement is skipped for it.

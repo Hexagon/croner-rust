@@ -68,6 +68,30 @@ pub enum Year {
     Disallowed,
 }
 
+/// Which jobs count as fixed-time jobs in Daylight Saving Time (DST) handling.
+///
+/// A fixed-time job runs once when its wall clock time happens twice (fall
+/// back), and runs at the first valid time after a gap (spring forward). Any
+/// other job is an interval job, which runs on both passes of a repeated time
+/// and skips times in a gap. See the README's DST section.
+///
+/// Matches the `fixedTimeRule` option of croner for JavaScript.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FixedTimeRule {
+    /// Seconds, minutes and hours each hold a single value, such as
+    /// `0 30 2 * * *`. A list or range, such as `0 30 1,13 * * *`, makes an
+    /// interval job.
+    #[default]
+    SingleValue,
+    /// Seconds, minutes and hours hold no wildcard (`*`) and no step (`/`),
+    /// so lists and ranges such as `0 30 2,14 * * *` count as fixed-time too.
+    ///
+    /// This is closer to Vixie cron, which treats a job as an interval job
+    /// only when its minute or hour field starts with `*`. Unlike Vixie cron,
+    /// a step without `*` (e.g. `0 0-23/2 * * *`) still makes an interval job.
+    NoWildcard,
+}
+
 impl Seconds {
     pub const fn is_optional(&self) -> bool {
         matches!(self, Self::Optional)
@@ -113,6 +137,8 @@ pub struct CronParser {
     /// When enabled, patterns like `0/10` (start at 0, step by 10) and `/10` (same as `*/10`)
     /// are accepted. This is not compliant with OCPS/vixie-cron standards.
     sloppy_ranges: bool,
+    /// Which jobs count as fixed-time jobs in DST handling.
+    fixed_time_rule: FixedTimeRule,
 }
 
 impl CronParser {
@@ -321,6 +347,7 @@ impl CronParser {
                 star_dom,
                 star_dow,
                 dom_and_dow: self.dom_and_dow || dom_and_dow_from_pattern,
+                fixed_time_rule: self.fixed_time_rule,
             },
         })
     }
@@ -497,6 +524,16 @@ impl CronParserBuilder {
     /// are accepted. This is not compliant with OCPS/vixie-cron standards.
     pub fn sloppy_ranges(mut self, value: bool) -> Self {
         self.parser.sloppy_ranges = value;
+        self
+    }
+
+    /// Choose which jobs count as fixed-time jobs in Daylight Saving Time
+    /// handling. Defaults to [`FixedTimeRule::SingleValue`].
+    ///
+    /// With [`FixedTimeRule::NoWildcard`], a job like `0 1,13 * * *` runs once
+    /// in a repeated hour, as in Vixie cron, instead of on both passes.
+    pub fn fixed_time_rule(mut self, value: FixedTimeRule) -> Self {
+        self.parser.fixed_time_rule = value;
         self
     }
 
