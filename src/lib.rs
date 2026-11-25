@@ -740,8 +740,12 @@ impl Cron {
     /// With the default [`parser::FixedTimeRule::SingleValue`], a Fixed-Time Job has fixed
     /// (non-wildcard, non-stepped, single-value) Seconds, Minute, and Hour fields. With
     /// [`parser::FixedTimeRule::NoWildcard`], those fields only need to be free of wildcards
-    /// and steps, so lists and ranges count too. Otherwise, it's an Interval/Wildcard Job.
+    /// and steps, so lists and ranges count too. With [`parser::FixedTimeRule::All`], every
+    /// job is a Fixed-Time Job. Otherwise, it's an Interval/Wildcard Job.
     pub fn determine_job_type(&self) -> JobType {
+        if self.pattern.fixed_time_rule == parser::FixedTimeRule::All {
+            return JobType::FixedTime;
+        }
         let single_value = self.pattern.fixed_time_rule == parser::FixedTimeRule::SingleValue;
         let is_fixed = |field: &component::CronComponent| {
             field.step == 1

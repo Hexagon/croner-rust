@@ -90,6 +90,17 @@ pub enum FixedTimeRule {
     /// only when its minute or hour field starts with `*`. Unlike Vixie cron,
     /// a step without `*` (e.g. `0 0-23/2 * * *`) still makes an interval job.
     NoWildcard,
+    /// Every job is a fixed-time job, including `*/30 * * * *`. A repeated
+    /// hour runs once, on its first pass, and times in a gap run once at its
+    /// end.
+    ///
+    /// This is the DST behaviour of croner 2.x, for keeping schedules saved
+    /// under it unchanged. A forward search still never returns a time before
+    /// its start, which croner 2.x could do when started on the second pass
+    /// of a repeated hour.
+    ///
+    /// croner for JavaScript has no matching `fixedTimeRule` value.
+    All,
 }
 
 impl Seconds {
