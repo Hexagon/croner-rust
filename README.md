@@ -303,6 +303,10 @@ a few additions and changes as outlined below:
 > Weekday and month names are case-insensitive. Both `MON` and `mon`
 > work. Weekday names are only accepted in the Day of Week field, and month
 > names only in the Month field; a name in any other field is a parse error.
+> A name also has to stand alone: it can not be joined to a letter, digit,
+> `/` or `#` before it, or to a digit or letter (other than `L`, as in `FRIL`)
+> after it. `MON-FRI/2`, `JAN,FEB` and `FRI#2` work, while `SUN6`, `JANFEB`,
+> `*/FRI` and `5#FRI` are parse errors.
 > When using `L` in the Day of Week field, it affects all specified weekdays. For example, `5-6#L` means the last Friday and Saturday in the
 > month." The # character can be used to specify the "nth" weekday of the month.
 > For example, 5#2 represents the second Friday of the month.

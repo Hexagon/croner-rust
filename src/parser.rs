@@ -201,12 +201,12 @@ impl CronParser {
             };
             let mut changed = false;
             if let Some(i) = month_idx {
-                let replaced = Self::replace_alpha_months(&fields[i]);
+                let replaced = Self::replace_alpha_months(&fields[i])?;
                 changed |= replaced != fields[i];
                 fields[i] = replaced;
             }
             if let Some(i) = dow_idx {
-                let replaced = Self::replace_alpha_weekdays(&fields[i], self.alternative_weekdays);
+                let replaced = Self::replace_alpha_weekdays(&fields[i], self.alternative_weekdays)?;
                 changed |= replaced != fields[i];
                 fields[i] = replaced;
             }
@@ -425,73 +425,95 @@ impl CronParser {
         final_pattern
     }
 
-    // Converts day-of-week nicknames into their equivalent standard cron pattern.
-    fn replace_alpha_weekdays(pattern: &str, alternative_weekdays: bool) -> String {
-        let nicknames = if !alternative_weekdays {
-            [
-                ("-SUN", "-7"),
-                ("SUN", "0"),
-                ("MON", "1"),
-                ("TUE", "2"),
-                ("WED", "3"),
-                ("THU", "4"),
-                ("FRI", "5"),
-                ("SAT", "6"),
-            ]
+    // Converts day-of-week names into their numeric values.
+    fn replace_alpha_weekdays(
+        pattern: &str,
+        alternative_weekdays: bool,
+    ) -> Result<String, CronError> {
+        const NAMES: [&str; 7] = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+        const STANDARD: [&str; 7] = ["0", "1", "2", "3", "4", "5", "6"];
+        const ALTERNATIVE: [&str; 7] = ["1", "2", "3", "4", "5", "6", "7"];
+        let values = if alternative_weekdays {
+            &ALTERNATIVE
         } else {
-            [
-                // SUN is 1 here, so X-SUN is a range that wraps around the week
-                ("-SUN", "-1"),
-                ("SUN", "1"),
-                ("MON", "2"),
-                ("TUE", "3"),
-                ("WED", "4"),
-                ("THU", "5"),
-                ("FRI", "6"),
-                ("SAT", "7"),
-            ]
+            &STANDARD
         };
-        let mut replaced = pattern.to_string();
-
-        // `-SUN` maps to 7 so that ranges like SAT-SUN work, but SUN-SUN would then
-        // become 0-7 (every day). Treat SUN-SUN as Sunday only.
-        if !alternative_weekdays {
-            replaced = replaced.replace("SUN-SUN", "0-0");
-        }
-
-        // Replace nicknames with their numeric values
-        for &(nickname, value) in &nicknames {
-            replaced = replaced.replace(nickname, value);
-        }
-
-        replaced
+        let bytes = pattern.as_bytes();
+        Self::replace_alpha(pattern, "day-of-week", &NAMES, |i, start| {
+            // `-SUN` ends a range, so in standard mode it is read as 7 to make
+            // ranges like SAT-SUN work. SUN-SUN stays Sunday only. In Quartz mode
+            // SUN is 1 and X-SUN is a range that wraps around the week.
+            if i == 0
+                && !alternative_weekdays
+                && start > 0
+                && bytes[start - 1] == b'-'
+                && !(start >= 4 && &bytes[start - 4..start - 1] == b"SUN")
+            {
+                "7"
+            } else {
+                values[i]
+            }
+        })
     }
 
-    // Converts month nicknames into their equivalent standard cron pattern.
-    fn replace_alpha_months(pattern: &str) -> String {
-        let nicknames = [
-            ("JAN", "1"),
-            ("FEB", "2"),
-            ("MAR", "3"),
-            ("APR", "4"),
-            ("MAY", "5"),
-            ("JUN", "6"),
-            ("JUL", "7"),
-            ("AUG", "8"),
-            ("SEP", "9"),
-            ("OCT", "10"),
-            ("NOV", "11"),
-            ("DEC", "12"),
+    // Converts month names into their numeric values.
+    fn replace_alpha_months(pattern: &str) -> Result<String, CronError> {
+        const NAMES: [&str; 12] = [
+            "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
         ];
+        const VALUES: [&str; 12] = [
+            "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12",
+        ];
+        Self::replace_alpha(pattern, "month", &NAMES, |i, _| VALUES[i])
+    }
 
-        let mut replaced = pattern.to_string();
-
-        // Replace nicknames with their numeric values
-        for &(nickname, value) in &nicknames {
-            replaced = replaced.replace(nickname, value);
+    // Replaces three-letter names in an upper-cased field with their numbers.
+    //
+    // As in croner for JavaScript (`replaceAlpha`), a name has to stand alone:
+    // it may not follow a letter, digit, `/` or `#`, and may not be followed by
+    // a digit or a letter other than `L` (as in `FRIL`). So `SUN6`, `JANFEB`,
+    // `*/FRI` and `5#FRI` are rejected instead of being read as numbers.
+    // `value` gets the index of the name and its byte offset in `pattern`.
+    fn replace_alpha<'a>(
+        pattern: &str,
+        field: &str,
+        names: &[&str],
+        value: impl Fn(usize, usize) -> &'a str,
+    ) -> Result<String, CronError> {
+        let bytes = pattern.as_bytes();
+        let mut out = String::with_capacity(pattern.len());
+        let mut pos = 0;
+        while pos < bytes.len() {
+            let found = bytes
+                .get(pos..pos + 3)
+                .and_then(|word| names.iter().position(|n| n.as_bytes() == word));
+            let Some(i) = found else {
+                // Not a name. Copy the character as is; anything illegal is
+                // rejected later.
+                let ch = pattern[pos..].chars().next().unwrap_or_default();
+                out.push(ch);
+                pos += ch.len_utf8().max(1);
+                continue;
+            };
+            let before_ok = pos == 0 || {
+                let b = bytes[pos - 1];
+                !(b.is_ascii_alphanumeric() || b == b'/' || b == b'#')
+            };
+            let after_ok = match bytes.get(pos + 3) {
+                Some(&b) => !(b.is_ascii_digit() || (b.is_ascii_alphabetic() && b != b'L')),
+                None => true,
+            };
+            if !before_ok || !after_ok {
+                return Err(CronError::IllegalCharacters(format!(
+                    "The {field} name '{}' in part '{pattern}' has to stand alone: \
+                     it can not be joined to a letter, digit, '/' or '#'",
+                    names[i]
+                )));
+            }
+            out.push_str(value(i, pos));
+            pos += 3;
         }
-
-        replaced
+        Ok(out)
     }
 }
 
@@ -1496,5 +1518,81 @@ mod tests {
         // Plain patterns keep their original spacing
         let cron = Cron::from_str("0  0 * * *").unwrap();
         assert_eq!(cron.pattern.pattern, "0  0 * * *");
+    }
+
+    // A name has to stand alone, as in croner for JavaScript (Hexagon/croner#455).
+    // https://github.com/Hexagon/croner-rust/issues/96
+    #[test]
+    fn test_names_have_to_stand_alone() {
+        let standard = CronParser::new();
+        let quartz = CronParser::builder().alternative_weekdays(true).build();
+        for parser in [standard, quartz] {
+            for pattern in [
+                "0 0 * * SUN6",
+                "0 0 * JANFEB *",
+                "0 0 * * */FRI",
+                "0 0 * * 5#FRI",
+                "0 0 * DEC1 *",
+                "0 0 * * MONTUE",
+                "0 0 * * mon2",
+                "0 0 * */jan *",
+                "0 0 * 1#jan *",
+                "0 0 * * 1MON",
+                "0 0 * * XMON",
+                "0 0 * * MONX",
+                "0 0 * 1JAN *",
+            ] {
+                let result = parser.parse(pattern);
+                assert!(
+                    matches!(result, Err(CronError::IllegalCharacters(_))),
+                    "{pattern} should be rejected, got {result:?}"
+                );
+            }
+            let message = parser.parse("0 0 * * SUN6").unwrap_err().to_string();
+            assert!(message.contains("stand alone"), "{message}");
+        }
+    }
+
+    #[test]
+    fn test_standalone_names_still_parse() {
+        let standard = CronParser::new();
+        for (pattern, expected) in [
+            ("0 0 * * MON-FRI", "0 0 * * 1-5"),
+            ("0 0 * * mon-fri", "0 0 * * 1-5"),
+            ("0 0 * * FRI-SUN", "0 0 * * 5-7"),
+            ("0 0 * * SAT-SUN", "0 0 * * 6-7"),
+            ("0 0 * * SUN-SUN", "0 0 * * 0-0"),
+            ("0 0 * JAN,FEB *", "0 0 * 1,2 *"),
+            ("0 0 * Jan-Mar *", "0 0 * 1-3 *"),
+            ("0 0 * * FRIL", "0 0 * * 5L"),
+            ("0 0 * * FRI#2", "0 0 * * 5#2"),
+            ("0 0 * * FRI#L", "0 0 * * 5#L"),
+            ("0 0 * * MON-FRI/2", "0 0 * * 1-5/2"),
+            ("0 0 * JAN-DEC/3 *", "0 0 * 1-12/3 *"),
+            ("0 0 * * SUN,MON", "0 0 * * 0,1"),
+        ] {
+            let cron = standard
+                .parse(pattern)
+                .unwrap_or_else(|e| panic!("{pattern}: {e}"));
+            assert_eq!(cron.pattern.pattern, expected, "{pattern}");
+        }
+
+        let quartz = CronParser::builder().alternative_weekdays(true).build();
+        for (pattern, expected) in [
+            ("0 0 0 * * MON-FRI", "0 0 0 * * 2-6"),
+            ("0 0 0 * * SAT-SUN", "0 0 0 * * 7-1"),
+            ("0 0 0 * * SUN-SUN", "0 0 0 * * 1-1"),
+            ("0 0 0 * * FRI-TUE/2", "0 0 0 * * 6-3/2"),
+            ("0 0 0 * * FRIL", "0 0 0 * * 6L"),
+            ("0 0 0 * * FRI#2", "0 0 0 * * 6#2"),
+            ("0 0 0 * * FRI#L", "0 0 0 * * 6#L"),
+            ("0 0 0 * * MON-FRI/2", "0 0 0 * * 2-6/2"),
+            ("0 0 0 * JAN,FEB ?", "0 0 0 * 1,2 ?"),
+        ] {
+            let cron = quartz
+                .parse(pattern)
+                .unwrap_or_else(|e| panic!("{pattern}: {e}"));
+            assert_eq!(cron.pattern.pattern, expected, "{pattern}");
+        }
     }
 }
