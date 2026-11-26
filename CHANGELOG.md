@@ -5,6 +5,9 @@
 ### Added
 - Added `FixedTimeRule::All`, which makes every job a fixed-time job in DST handling, as in croner 2.x. Interval jobs such as `*/30 * * * *` then run a repeated (fall-back) hour once, and `*/30 2 * * *` runs once right after a spring-forward gap instead of skipping that day. A forward search still never returns a time before its start, which croner 2.x could do when started on the second pass of a repeated hour. croner for JavaScript has no matching value ([#70](https://github.com/Hexagon/croner-rust/issues/70)).
 
+### Fixed
+- `describe()` no longer calls a stepped field "every N" when its values are not those of `*/N`. A stepped range that starts at the field minimum (`0-10/2 * * * *` was "At every 2 minutes.") and a list with a step (`*/15,7 * * * *` dropped the 7) are now described by their values, e.g. "At minute 0, 2, 4, 6, 8, and 10 past every hour.". In the month field any step gave "every N months", so `0 0 * 6-12/2 *` is now "in June, August, October, and December". The year field is unchanged.
+
 ## [5.0.1] - 2026-11-25
 
 ### Added
