@@ -131,10 +131,8 @@ impl CronPattern {
         let mut day_matches = self.days.is_bit_set(day as u16, ALL_BIT)?; // Use u16
         let mut dow_matches = false;
 
-        // Check for LW (last weekday) - both LAST_BIT and CLOSEST_WEEKDAY_BIT enabled
-        // This must be checked BEFORE the plain LAST_BIT check to avoid matching both
+        // Check for LW (last weekday of the month)
         if !day_matches
-            && self.days.is_feature_enabled(LAST_BIT)
             && self.days.is_feature_enabled(CLOSEST_WEEKDAY_BIT)
             && day
                 == Self::last_weekday_of_month(
@@ -143,12 +141,10 @@ impl CronPattern {
                 )
         {
             day_matches = true;
-        } else if !day_matches
-            && self.days.is_feature_enabled(LAST_BIT)
-            && !self.days.is_feature_enabled(CLOSEST_WEEKDAY_BIT)
-            && day == month_length
-        {
-            // Check for L (last day of month) - only if CLOSEST_WEEKDAY_BIT is not enabled
+        }
+
+        // Check for L (last day of month)
+        if !day_matches && self.days.is_feature_enabled(LAST_BIT) && day == month_length {
             day_matches = true;
         }
 
