@@ -8,6 +8,7 @@
 ### Fixed
 - `describe()` now calls `LW` "the last weekday of the month". It said "the last day of the month", the text for `L`. `Language` has a new method, `the_last_working_day_of_the_month`, with an English default.
 - A day-of-month list with both `L` and `LW`, such as `0 0 L,LW * *`, now matches the last day of the month too. `LW` was stored as `L` plus a weekday flag, so the pair was read as `LW` alone: in a month ending on a weekend only the last weekday matched.
+- `describe()` no longer calls a stepped field "every N" when its values are not those of `*/N`. A stepped range that starts at the field minimum (`0-10/2 * * * *` was "At every 2 minutes.") and a list with a step (`*/15,7 * * * *` dropped the 7) are now described by their values, e.g. "At minute 0, 2, 4, 6, 8, and 10 past every hour.". In the month field any step gave "every N months", so `0 0 * 6-12/2 *` is now "in June, August, October, and December". The year field is unchanged.
 
 ## [5.0.1] - 2026-11-25
 
