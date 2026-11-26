@@ -309,6 +309,21 @@ mod ocps_1_3_tests {
                 }
             }
         } // closes test_lw_find_next_occurrences
+
+        #[test]
+        fn test_last_day_and_last_weekday_in_one_list() {
+            // August 2025 ends on Sunday the 31st, so its last weekday is Friday the 29th.
+            // A list of L and LW must match both days, in either order.
+            for pattern in ["0 0 L,LW * *", "0 0 LW,L * *"] {
+                let cron = Cron::from_str(pattern).unwrap();
+                let runs: Vec<_> = cron
+                    .iter_after(Local.with_ymd_and_hms(2025, 8, 1, 0, 0, 0).unwrap())
+                    .take(3)
+                    .map(|t| (t.month(), t.day()))
+                    .collect();
+                assert_eq!(runs, vec![(8, 29), (8, 31), (9, 30)], "{pattern}");
+            }
+        }
     } // closes chrono_tests
 
     #[cfg(feature = "jiff")]

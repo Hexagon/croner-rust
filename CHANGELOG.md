@@ -5,6 +5,10 @@
 ### Added
 - Added `FixedTimeRule::All`, which makes every job a fixed-time job in DST handling, as in croner 2.x. Interval jobs such as `*/30 * * * *` then run a repeated (fall-back) hour once, and `*/30 2 * * *` runs once right after a spring-forward gap instead of skipping that day. A forward search still never returns a time before its start, which croner 2.x could do when started on the second pass of a repeated hour. croner for JavaScript has no matching value ([#70](https://github.com/Hexagon/croner-rust/issues/70)).
 
+### Fixed
+- `describe()` now calls `LW` "the last weekday of the month". It said "the last day of the month", the text for `L`. `Language` has a new method, `the_last_working_day_of_the_month`, with an English default.
+- A day-of-month list with both `L` and `LW`, such as `0 0 L,LW * *`, now matches the last day of the month too. `LW` was stored as `L` plus a weekday flag, so the pair was read as `LW` alone: in a month ending on a weekend only the last weekday matched.
+
 ## [5.0.1] - 2026-11-25
 
 ### Added

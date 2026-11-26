@@ -531,8 +531,8 @@ impl CronComponent {
 
             // Check for "LW" - last weekday of the month
             if day_str.eq_ignore_ascii_case("L") {
-                // Enable both LAST_BIT and CLOSEST_WEEKDAY_BIT to indicate "last weekday"
-                self.enable_feature(LAST_BIT)?;
+                // CLOSEST_WEEKDAY_BIT as a component-wide feature means "last weekday".
+                // It is kept apart from LAST_BIT, so "L,LW" keeps both meanings.
                 self.enable_feature(CLOSEST_WEEKDAY_BIT)?;
                 return Ok(());
             }

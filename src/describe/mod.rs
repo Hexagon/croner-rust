@@ -73,6 +73,10 @@ pub trait Language {
     fn every_x_years(&self, step: u16) -> String {
         self.year_phrase(&format!("every {step}"))
     }
+    /// `LW` in the day-of-month field: the last Monday to Friday of the month.
+    fn the_last_working_day_of_the_month(&self) -> &'static str {
+        "the last weekday of the month"
+    }
 }
 
 /// Generates a human-readable description for a `CronPattern`.
@@ -339,6 +343,9 @@ fn describe_dom<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     if pattern.days.is_feature_enabled(LAST_BIT) {
         parts.push(lang.the_last_day_of_the_month().to_string());
     }
+    if pattern.days.is_feature_enabled(CLOSEST_WEEKDAY_BIT) {
+        parts.push(lang.the_last_working_day_of_the_month().to_string());
+    }
     let weekday_values = pattern.days.get_set_values(CLOSEST_WEEKDAY_BIT);
     if !weekday_values.is_empty() {
         parts.push(lang.the_weekday_nearest_day(&format_number_list(&weekday_values, lang)));
@@ -564,6 +571,28 @@ mod tests {
         assert_eq!(
             get_description("* * 15W * *"),
             "Every minute, on the weekday nearest day 15."
+        );
+    }
+
+    #[test]
+    fn test_last_weekday_of_month_descriptions() {
+        assert_eq!(
+            get_description("0 12 LW * *"),
+            "At 12:00, on the last weekday of the month."
+        );
+        assert_eq!(
+            get_description("0 12 L,LW * *"),
+            "At 12:00, on the last day of the month and the last weekday of the month."
+        );
+        assert_eq!(
+            get_description_lang_config(
+                "0 12 LW * *",
+                super::lang::swedish::Swedish,
+                Seconds::Optional,
+                Year::Optional,
+                false,
+            ),
+            "Klockan 12:00, på sista vardagen i månaden."
         );
     }
 

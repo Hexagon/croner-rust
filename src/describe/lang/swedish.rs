@@ -121,6 +121,9 @@ impl Language for Swedish {
     fn every_x_years(&self, step: u16) -> String {
         format!("var {step}:e år")
     }
+    fn the_last_working_day_of_the_month(&self) -> &'static str {
+        "sista vardagen i månaden"
+    }
 
     fn month_names(&self) -> [&'static str; 12] {
         [
