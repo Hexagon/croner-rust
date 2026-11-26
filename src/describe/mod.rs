@@ -127,6 +127,17 @@ fn is_all_set(component: &CronComponent) -> bool {
     total_values == set_values
 }
 
+/// Whether the values of a component are exactly those of `*/step`, so the
+/// component can be described as "every `step`". `0-10/2` and `*/15,7` also
+/// have a step but other values, so they are described by their values.
+fn is_every_step(component: &CronComponent, vals: &[u16]) -> bool {
+    component.step > 1
+        && vals
+            .iter()
+            .copied()
+            .eq((component.min..=component.max).step_by(component.step as usize))
+}
+
 fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     let sec_vals = pattern.seconds.get_set_values(ALL_BIT);
     let min_vals = pattern.minutes.get_set_values(ALL_BIT);
@@ -134,10 +145,6 @@ fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
 
     let is_default_seconds = pattern.seconds.step == 1 && sec_vals.len() == 1 && sec_vals[0] == 0;
     let is_every_second = is_all_set(&pattern.seconds);
-
-    // Heuristic to detect `*/step` patterns, replacing `from_wildcard`.
-    let is_stepped_from_start =
-        |step: u16, vals: &[u16], min: u16| step > 1 && !vals.is_empty() && vals[0] == min;
 
     // Handle simplest cases first
     if is_every_second && is_all_set(&pattern.minutes) && is_all_set(&pattern.hours) {
@@ -147,7 +154,7 @@ fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
         return lang.every_minute().to_string();
     }
     if is_default_seconds
-        && is_stepped_from_start(pattern.minutes.step, &min_vals, pattern.minutes.min)
+        && is_every_step(&pattern.minutes, &min_vals)
         && is_all_set(&pattern.hours)
     {
         return lang.at_phrase(&lang.every_x_minutes(pattern.minutes.step));
@@ -163,7 +170,7 @@ fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
         let time_str = lang.time_of_day(hour_vals[0], min_vals[0], None);
 
         if !is_default_seconds {
-            if is_stepped_from_start(pattern.seconds.step, &sec_vals, pattern.seconds.min) {
+            if is_every_step(&pattern.seconds, &sec_vals) {
                 return lang.at_time_and_every_x_seconds(&time_str, pattern.seconds.step);
             }
             if sec_vals.len() == 1 {
@@ -181,8 +188,7 @@ fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     // Special case: "* 0 * * *" -> "Every minute past hour 0"
     // When minutes are all set (wildcard) and hours are specific (not all set)
     if is_default_seconds && is_all_set(&pattern.minutes) && !is_all_set(&pattern.hours) {
-        let hour_desc = if is_stepped_from_start(pattern.hours.step, &hour_vals, pattern.hours.min)
-        {
+        let hour_desc = if is_every_step(&pattern.hours, &hour_vals) {
             lang.every_x_hours(pattern.hours.step)
         } else {
             lang.past_hour_phrase(&format_number_list(&hour_vals, lang))
@@ -193,8 +199,7 @@ fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     // Special case: "* * 0 * * *" -> "Every second past hour 0"
     // When seconds and minutes are all set (wildcard) and hours are specific (not all set)
     if is_every_second && is_all_set(&pattern.minutes) && !is_all_set(&pattern.hours) {
-        let hour_desc = if is_stepped_from_start(pattern.hours.step, &hour_vals, pattern.hours.min)
-        {
+        let hour_desc = if is_every_step(&pattern.hours, &hour_vals) {
             lang.every_x_hours(pattern.hours.step)
         } else {
             lang.past_hour_phrase(&format_number_list(&hour_vals, lang))
@@ -208,14 +213,14 @@ fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     if is_every_second {
         parts.push(lang.every_second_phrase().to_string());
     } else if !is_default_seconds {
-        if is_stepped_from_start(pattern.seconds.step, &sec_vals, pattern.seconds.min) {
+        if is_every_step(&pattern.seconds, &sec_vals) {
             parts.push(lang.every_x_seconds(pattern.seconds.step));
         } else {
             parts.push(lang.second_phrase(&format_number_list(&sec_vals, lang)));
         }
     }
 
-    if is_stepped_from_start(pattern.minutes.step, &min_vals, pattern.minutes.min) {
+    if is_every_step(&pattern.minutes, &min_vals) {
         parts.push(lang.every_x_minutes(pattern.minutes.step));
     } else if !is_all_set(&pattern.minutes) {
         let min_desc = lang.minute_phrase(&format_number_list(&min_vals, lang));
@@ -227,7 +232,7 @@ fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     }
 
     if !is_all_set(&pattern.hours) {
-        if is_stepped_from_start(pattern.hours.step, &hour_vals, pattern.hours.min) {
+        if is_every_step(&pattern.hours, &hour_vals) {
             parts.push(lang.every_x_hours(pattern.hours.step));
         } else {
             parts.push(lang.hour_phrase(&format_number_list(&hour_vals, lang)));
@@ -412,11 +417,11 @@ fn describe_month<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     }
     let month_names = lang.month_names();
 
-    if pattern.months.step > 1 {
+    let values = pattern.months.get_set_values(ALL_BIT);
+    if is_every_step(&pattern.months, &values) {
         return lang.in_phrase(&lang.every_x_months(pattern.months.step));
     }
 
-    let values = pattern.months.get_set_values(ALL_BIT);
     let list = values
         .iter()
         .map(|v| month_names[*v as usize - 1].to_string()) // Corrected
@@ -617,6 +622,50 @@ mod tests {
         assert_eq!(
             get_description("18-28/2 * * * * *"),
             "At second 18, 20, 22, 24, 26, and 28."
+        );
+    }
+
+    #[test]
+    fn test_steps_that_are_not_the_whole_field() {
+        // A stepped range that starts at the field minimum but ends early.
+        assert_eq!(
+            get_description("0-10/2 * * * *"),
+            "At minute 0, 2, 4, 6, 8, and 10 past every hour."
+        );
+        assert_eq!(
+            get_description("0-10/2 0 * * * *"),
+            "At second 0, 2, 4, 6, 8, and 10, minute 0 past every hour."
+        );
+        assert_eq!(
+            get_description("0 0-12/3 * * *"),
+            "At minute 0, of hour 0, 3, 6, 9, and 12."
+        );
+        assert_eq!(
+            get_description("* 0-6/2 * * *"),
+            "Every minute past hour 0, 2, 4, and 6."
+        );
+        assert_eq!(
+            get_description("0 0 * 1-6/2 *"),
+            "At 00:00, in January, March, and May."
+        );
+        assert_eq!(
+            get_description("0 0 * 6-12/2 *"),
+            "At 00:00, in June, August, October, and December."
+        );
+        // A list with a step keeps its other values.
+        assert_eq!(
+            get_description("*/15,7 * * * *"),
+            "At minute 0, 7, 15, 30, and 45 past every hour."
+        );
+        assert_eq!(
+            get_description("*/20,10-12/2 * * * *"),
+            "At minute 0, 10, 12, 20, and 40 past every hour."
+        );
+        // The same values as `*/step` are still "every".
+        assert_eq!(get_description("0-58/2 * * * *"), "At every 2 minutes.");
+        assert_eq!(
+            get_description("0 0 1 1-12/3 *"),
+            "At 00:00, on day 1, in every 3 months."
         );
     }
 
