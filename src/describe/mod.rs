@@ -67,6 +67,10 @@ pub trait Language {
     fn past_hour_phrase(&self, s: &str) -> String {
         format!("hour {s}")
     }
+    /// Joins a repeating phrase with a stepped hour field, e.g. "Every second, of every 2 hours".
+    fn every_past_every_x_hours_phrase(&self, every: &str, step: u16) -> String {
+        format!("{every}, {}", self.every_x_hours(step))
+    }
     fn every_x_months(&self, step: u16) -> String {
         format!("every {step} months")
     }
@@ -133,9 +137,11 @@ fn is_all_set(component: &CronComponent) -> bool {
 
 /// Whether the values of a component are exactly those of `*/step`, so the
 /// component can be described as "every `step`". `0-10/2` and `*/15,7` also
-/// have a step but other values, so they are described by their values.
+/// have a step but other values, so they are described by their values. A
+/// step wider than the field, like `*/100` for minutes, gives one value only.
 fn is_every_step(component: &CronComponent, vals: &[u16]) -> bool {
     component.step > 1
+        && component.step <= component.max - component.min
         && vals
             .iter()
             .copied()
@@ -192,22 +198,21 @@ fn describe_time<L: Language>(pattern: &CronPattern, lang: &L) -> String {
     // Special case: "* 0 * * *" -> "Every minute past hour 0"
     // When minutes are all set (wildcard) and hours are specific (not all set)
     if is_default_seconds && is_all_set(&pattern.minutes) && !is_all_set(&pattern.hours) {
-        let hour_desc = if is_every_step(&pattern.hours, &hour_vals) {
-            lang.every_x_hours(pattern.hours.step)
-        } else {
-            lang.past_hour_phrase(&format_number_list(&hour_vals, lang))
-        };
+        if is_every_step(&pattern.hours, &hour_vals) {
+            return lang.every_past_every_x_hours_phrase(lang.every_minute(), pattern.hours.step);
+        }
+        let hour_desc = lang.past_hour_phrase(&format_number_list(&hour_vals, lang));
         return lang.every_past_phrase(lang.every_minute(), &hour_desc);
     }
 
     // Special case: "* * 0 * * *" -> "Every second past hour 0"
     // When seconds and minutes are all set (wildcard) and hours are specific (not all set)
     if is_every_second && is_all_set(&pattern.minutes) && !is_all_set(&pattern.hours) {
-        let hour_desc = if is_every_step(&pattern.hours, &hour_vals) {
-            lang.every_x_hours(pattern.hours.step)
-        } else {
-            lang.past_hour_phrase(&format_number_list(&hour_vals, lang))
-        };
+        if is_every_step(&pattern.hours, &hour_vals) {
+            return lang
+                .every_past_every_x_hours_phrase(lang.every_second_phrase(), pattern.hours.step);
+        }
+        let hour_desc = lang.past_hour_phrase(&format_number_list(&hour_vals, lang));
         return lang.every_past_phrase(lang.every_second_phrase(), &hour_desc);
     }
 
@@ -695,6 +700,49 @@ mod tests {
         assert_eq!(
             get_description("0 0 1 1-12/3 *"),
             "At 00:00, on day 1, in every 3 months."
+        );
+    }
+
+    #[test]
+    fn test_steps_wider_than_the_field() {
+        // `*/100` minutes runs at minute 0 only.
+        assert_eq!(
+            get_description("*/100 * * * *"),
+            "At minute 0 past every hour."
+        );
+        assert_eq!(
+            get_description("*/60 0 * * * *"),
+            "At second 0, minute 0 past every hour."
+        );
+        assert_eq!(get_description("0 */24 * * *"), "At minute 0, of hour 0.");
+        assert_eq!(get_description("0 0 * */13 *"), "At 00:00, in January.");
+        // The widest step that still gives two values is "every".
+        assert_eq!(get_description("*/59 * * * *"), "At every 59 minutes.");
+        assert_eq!(
+            get_description("0 0 1 */11 *"),
+            "At 00:00, on day 1, in every 11 months."
+        );
+    }
+
+    #[test]
+    fn test_every_second_or_minute_of_stepped_hours() {
+        assert_eq!(
+            get_description("* * */2 * * *"),
+            "Every second, of every 2 hours."
+        );
+        assert_eq!(
+            get_description("* */2 * * *"),
+            "Every minute, of every 2 hours."
+        );
+        assert_eq!(
+            get_description_lang_config(
+                "* */2 * * *",
+                super::lang::swedish::Swedish,
+                Seconds::Optional,
+                Year::Optional,
+                false,
+            ),
+            "Varje minut under var 2:e timme."
         );
     }
 

@@ -10,6 +10,8 @@
 - `describe()` now calls `LW` "the last weekday of the month". It said "the last day of the month", the text for `L`. `Language` has a new method, `the_last_working_day_of_the_month`, with an English default.
 - A day-of-month list with both `L` and `LW`, such as `0 0 L,LW * *`, now matches the last day of the month too. `LW` was stored as `L` plus a weekday flag, so the pair was read as `LW` alone: in a month ending on a weekend only the last weekday matched.
 - `describe()` no longer calls a stepped field "every N" when its values are not those of `*/N`. A stepped range that starts at the field minimum (`0-10/2 * * * *` was "At every 2 minutes.") and a list with a step (`*/15,7 * * * *` dropped the 7) are now described by their values, e.g. "At minute 0, 2, 4, 6, 8, and 10 past every hour.". In the month field any step gave "every N months", so `0 0 * 6-12/2 *` is now "in June, August, October, and December". The year field is unchanged.
+- `describe()` no longer calls a step wider than its field "every N". `*/100 * * * *` was "At every 100 minutes." and `0 0 * */13 *` was "in every 13 months", but they only run at minute 0 and in January, which is now what they say. A step is "every N" only when N is at most the field's max minus min.
+- `describe()` no longer says "past of" for a stepped hour field. `* * */2 * * *` was "Every second past of every 2 hours." and `* */2 * * *` was "Every minute past of every 2 hours."; they are now "Every second, of every 2 hours." and "Every minute, of every 2 hours.". `Language` has a new method, `every_past_every_x_hours_phrase`, with a default built from `every_x_hours`. The Swedish text is unchanged.
 
 ## [5.0.1] - 2026-11-25
 

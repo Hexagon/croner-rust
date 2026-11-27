@@ -115,6 +115,9 @@ impl Language for Swedish {
     fn past_hour_phrase(&self, s: &str) -> String {
         format!("timme {s}")
     }
+    fn every_past_every_x_hours_phrase(&self, every: &str, step: u16) -> String {
+        self.every_past_phrase(every, &self.every_x_hours(step))
+    }
     fn every_x_months(&self, step: u16) -> String {
         format!("var {step}:e månad")
     }
