@@ -124,6 +124,12 @@ impl Language for Swedish {
     fn every_x_years(&self, step: u16) -> String {
         format!("var {step}:e år")
     }
+    fn every_x_years_from(&self, step: u16, from: u16, to: Option<u16>) -> String {
+        match to {
+            Some(to) => format!("{} från {from} till {to}", self.every_x_years(step)),
+            None => format!("{} från {from}", self.every_x_years(step)),
+        }
+    }
     fn the_last_working_day_of_the_month(&self) -> &'static str {
         "sista vardagen i månaden"
     }
