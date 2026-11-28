@@ -75,7 +75,15 @@ pub trait Language {
         format!("every {step} months")
     }
     fn every_x_years(&self, step: u16) -> String {
-        self.year_phrase(&format!("every {step}"))
+        format!("every {step} years")
+    }
+    /// A stepped year range, e.g. "every 2 years from 2024 to 2030". `to` is
+    /// `None` when the range runs to the last supported year: "every 2 years from 2024".
+    fn every_x_years_from(&self, step: u16, from: u16, to: Option<u16>) -> String {
+        match to {
+            Some(to) => format!("{} from {from} to {to}", self.every_x_years(step)),
+            None => format!("{} from {from}", self.every_x_years(step)),
+        }
     }
     /// `LW` in the day-of-month field: the last Monday to Friday of the month.
     fn the_last_working_day_of_the_month(&self) -> &'static str {
@@ -446,11 +454,25 @@ fn describe_year<L: Language>(pattern: &CronPattern, lang: &L) -> String {
         return "".to_string();
     }
 
-    if pattern.years.step > 1 {
+    let values = pattern.years.get_set_values(ALL_BIT);
+    if is_every_step(&pattern.years, &values) {
         return lang.in_phrase(&lang.every_x_years(pattern.years.step));
     }
 
-    let values = pattern.years.get_set_values(ALL_BIT);
+    // A stepped range such as `2024-5000/2` can match thousands of years, so
+    // describe it by its first and last year instead of listing them.
+    let step = pattern.years.step;
+    if step > 1 && values.len() >= 3 && values.windows(2).all(|w| w[1] - w[0] == step) {
+        let first = values[0];
+        let last = values[values.len() - 1];
+        let to = if last + step > pattern.years.max {
+            None
+        } else {
+            Some(last)
+        };
+        return lang.in_phrase(&lang.every_x_years_from(step, first, to));
+    }
+
     lang.in_phrase(&lang.year_phrase(&format_number_list(&values, lang)))
 }
 
@@ -538,6 +560,44 @@ mod tests {
         assert_eq!(
             get_description("0 0 0 1 1 * 2025-2030"),
             "At 00:00, on day 1, in January, in year 2025-2030."
+        );
+    }
+
+    #[test]
+    fn test_stepped_year_descriptions() {
+        // Only `*/N` is "every N years"; a stepped range keeps its years.
+        assert_eq!(
+            get_description("0 0 0 1 1 * */2"),
+            "At 00:00, on day 1, in January, in every 2 years."
+        );
+        assert_eq!(
+            get_description("0 0 0 1 1 * 2024-2030/2"),
+            "At 00:00, on day 1, in January, in every 2 years from 2024 to 2030."
+        );
+        assert_eq!(
+            get_description("0 0 0 1 1 * 2024-2026/2"),
+            "At 00:00, on day 1, in January, in year 2024 and 2026."
+        );
+        // A range that runs to the last supported year has no end year.
+        assert_eq!(
+            get_description("0 0 0 1 1 * 2024-5000/2"),
+            "At 00:00, on day 1, in January, in every 2 years from 2024."
+        );
+        assert_eq!(
+            get_description("0 0 0 1 1 * 2-5000/3"),
+            "At 00:00, on day 1, in January, in every 3 years from 2."
+        );
+        assert_eq!(
+            get_description("0 0 0 1 1 * 2024-4990/2"),
+            "At 00:00, on day 1, in January, in every 2 years from 2024 to 4990."
+        );
+        assert_eq!(
+            get_description("0 0 0 1 1 * 2024-2025/5"),
+            "At 00:00, on day 1, in January, in year 2024."
+        );
+        assert_eq!(
+            get_description("0 0 0 1 1 * 2020-2030/5,2027"),
+            "At 00:00, on day 1, in January, in year 2020, 2025, 2027, and 2030."
         );
     }
 
@@ -822,8 +882,16 @@ mod tests {
             "Klockan 00:00, på dag 1, i var 2:e månad."
         );
         assert_eq!(
-            swedish("0 0 0 1 1 * 2025-2035/2"),
+            swedish("0 0 0 1 1 * */2"),
             "Klockan 00:00, på dag 1, i januari, i var 2:e år."
+        );
+        assert_eq!(
+            swedish("0 0 0 1 1 * 2025-2031/2"),
+            "Klockan 00:00, på dag 1, i januari, i var 2:e år från 2025 till 2031."
+        );
+        assert_eq!(
+            swedish("0 0 0 1 1 * 2025-5000/2"),
+            "Klockan 00:00, på dag 1, i januari, i var 2:e år från 2025."
         );
         // English output is unchanged
         assert_eq!(
