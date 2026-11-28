@@ -8,7 +8,7 @@
     "phone": "",
     "description": "Open source developer maintaining Croner, @hexagon/base64 and other libraries.",
     "webpageUrl": {
-      "url": "https://github.com/hexagon"
+      "url": "https://github.com/Hexagon"
     }
   },
   "projects": [
@@ -17,10 +17,12 @@
       "name": "Croner (Rust)",
       "description": "Fully-featured, lightweight and efficient Rust library for parsing and evaluating cron patterns.",
       "webpageUrl": {
-        "url": "https://github.com/hexagon/croner-rust"
+        "url": "https://github.com/Hexagon/croner-rust",
+        "wellKnown": "https://github.com/Hexagon/croner-rust/blob/main/.well-known/funding-manifest-urls"
       },
       "repositoryUrl": {
-        "url": "https://github.com/hexagon/croner-rust"
+        "url": "https://github.com/Hexagon/croner-rust",
+        "wellKnown": "https://github.com/Hexagon/croner-rust/blob/main/.well-known/funding-manifest-urls"
       },
       "licenses": [
         "spdx:MIT"
